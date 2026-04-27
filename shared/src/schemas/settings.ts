@@ -283,6 +283,7 @@ export const OpenCodeConfigSchema = z.object({
   theme: z.string().optional(),
   model: z.string().optional(),
   small_model: z.string().optional(),
+  default_agent: z.string().optional(),
   provider: z.record(z.string(), ProviderConfigSchema).optional(),
   agent: z.record(z.string(), z.any()).optional(),
   command: z.record(z.string(), z.any()).optional(),

@@ -105,7 +105,7 @@ function buildGlobalTabs({ pathname, search, openSheet, open, close, navigate, i
       label: 'Assistant',
       icon: Bot,
       onClick: handleAssistantClick,
-      active: false,
+      active: isInsideRepo && pathname === `/repos/${repoId}/assistant` && !openSheet,
     },
     {
       key: 'schedules',
