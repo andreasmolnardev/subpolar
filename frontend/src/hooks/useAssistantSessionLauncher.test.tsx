@@ -74,7 +74,7 @@ describe('useAssistantSessionLauncher', () => {
       parts: [
         expect.objectContaining({
           type: 'text',
-          text: expect.stringContaining('Welcome to the OpenCode Manager Assistant workspace.'),
+          text: expect.stringContaining('Welcome to OpenCode Manager!'),
         }),
       ],
     })

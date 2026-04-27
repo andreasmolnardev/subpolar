@@ -6,7 +6,6 @@ import {
   getAssistantModeStatus,
   getAssistantModeDirectory,
   buildAssistantOpenCodeConfig,
-  buildAssistantUpdateConfigurationSkill,
 } from '../../src/services/assistant-mode'
 import { OpenCodeConfigSchema } from '@opencode-manager/shared/schemas'
 import { getReposPath } from '@opencode-manager/shared/config/env'
@@ -96,16 +95,6 @@ describe('buildAssistantOpenCodeConfig', () => {
   })
 })
 
-describe('buildAssistantUpdateConfigurationSkill', () => {
-  it('returns a valid update-configuration skill', () => {
-    const skill = buildAssistantUpdateConfigurationSkill()
-
-    expect(skill).toContain('name: update-configuration')
-    expect(skill).toContain('Validate `opencode.json` as JSON')
-    expect(skill).toContain('Reload or restart OpenCode configuration')
-  })
-})
-
 describe('ensureAssistantMode', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -121,7 +110,6 @@ describe('ensureAssistantMode', () => {
     expect(result.relativePath).toBe('repos/assistant')
     expect(result.files.agentsMd.exists).toBe(true)
     expect(result.files.opencodeJson.exists).toBe(true)
-    expect(result.files.updateConfigurationSkill.exists).toBe(true)
   })
 
   it('does not overwrite existing customized files by default', async () => {
@@ -135,24 +123,8 @@ describe('ensureAssistantMode', () => {
     expect(result.files.agentsMd.created).toBe(false)
     expect(result.files.opencodeJson.exists).toBe(true)
     expect(result.files.opencodeJson.created).toBe(false)
-    expect(result.files.updateConfigurationSkill.exists).toBe(true)
-    expect(result.files.updateConfigurationSkill.created).toBe(false)
 
     expect(writeFile).not.toHaveBeenCalled()
-  })
-
-  it('creates the update-configuration skill when missing', async () => {
-    access
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('File not found'))
-
-    const result = await ensureAssistantMode(mockRepo)
-
-    expect(result.files.updateConfigurationSkill.created).toBe(true)
-    const content = writeFile.mock.calls[0]?.[1]
-    expect(Buffer.isBuffer(content)).toBe(true)
-    expect((content as Buffer).toString('utf8')).toContain('name: update-configuration')
   })
 
   it('overwrites only files whose overwrite option is true', async () => {
@@ -206,7 +178,6 @@ describe('getAssistantModeStatus', () => {
     access
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
 
     const result = await getAssistantModeStatus(mockRepo)
 
@@ -214,6 +185,5 @@ describe('getAssistantModeStatus', () => {
     expect(result.relativePath).toBe('repos/assistant')
     expect(result.files.agentsMd.exists).toBe(true)
     expect(result.files.opencodeJson.exists).toBe(true)
-    expect(result.files.updateConfigurationSkill.exists).toBe(true)
   })
 })
