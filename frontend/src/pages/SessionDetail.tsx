@@ -40,7 +40,7 @@ import { RepoLspDialog } from "@/components/repo/RepoLspDialog";
 import { RepoSkillsDialog } from "@/components/repo/RepoSkillsDialog";
 import { createOpenCodeClient } from "@/api/opencode";
 import { useSessionStatus, useSessionStatusForSession } from "@/stores/sessionStatusStore";
-import { useQuestions } from "@/contexts/EventContext";
+import { usePermissions, useQuestions } from "@/contexts/EventContext";
 import type { QuestionRequest } from "@/api/types";
 import { QuestionPrompt } from "@/components/session/QuestionPrompt";
 import { MinimizedQuestionIndicator } from "@/components/session/MinimizedQuestionIndicator";
@@ -56,6 +56,8 @@ const compareMessageIds = (id1: string, id2: string): number => {
   if (!isNaN(num1) && !isNaN(num2)) return num1 - num2
   return id1.localeCompare(id2)
 }
+
+const PENDING_ACTION_SYNC_INTERVAL_MS = 30000
 
 export function SessionDetail() {
   const { id, sessionId } = useParams<{ id: string; sessionId: string }>();
@@ -156,6 +158,7 @@ export function SessionDetail() {
   const isEditingMessage = useUIState((state) => state.isEditingMessage);
   const { isEnabled: ttsEnabled } = useTTS();
   const setSessionStatus = useSessionStatus((state) => state.setStatus);
+  const { syncForSession: syncPermissionsForSession } = usePermissions();
   const { current: currentQuestion, reply: replyToQuestion, reject: rejectQuestion, syncForSession: syncQuestionsForSession } = useQuestions();
 
   const sessionStatus = useSessionStatusForSession(sessionId);
@@ -191,12 +194,27 @@ export function SessionDetail() {
     }
   }, [sessionId, minimizedQuestion])
 
-  useEffect(() => {
+  const syncPendingActionsForSession = useCallback(async () => {
     if (!repoDirectory || !sessionId) return
-    syncQuestionsForSession(repoDirectory, sessionId).catch(() => {
-      showToast.error('Failed to load pending questions')
-    })
-  }, [repoDirectory, sessionId, syncQuestionsForSession])
+    await Promise.all([
+      syncPermissionsForSession(repoDirectory, sessionId),
+      syncQuestionsForSession(repoDirectory, sessionId),
+    ])
+  }, [repoDirectory, sessionId, syncPermissionsForSession, syncQuestionsForSession])
+
+  useQuery({
+    queryKey: ['opencode', 'pending-actions', opcodeUrl, sessionId, repoDirectory],
+    queryFn: async () => {
+      await syncPendingActionsForSession()
+      return null
+    },
+    enabled: !!repoDirectory && !!sessionId,
+    refetchOnMount: 'always',
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
+    refetchInterval: isSessionActive || hasIncompleteMessages ? PENDING_ACTION_SYNC_INTERVAL_MS : false,
+    retry: false,
+  })
 
   const handleNewSession = useCallback(async () => {
     try {

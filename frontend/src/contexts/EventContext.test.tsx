@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { QuestionRequest } from '@/api/types'
-import { EventProvider, useQuestions } from './EventContext'
+import type { PermissionRequest, QuestionRequest } from '@/api/types'
+import { EventProvider, usePermissions, useQuestions } from './EventContext'
 
 const mocks = vi.hoisted(() => ({
   listRepos: vi.fn(),
@@ -80,16 +80,35 @@ const secondPendingQuestion: QuestionRequest = {
   ],
 }
 
+const pendingPermission: PermissionRequest = {
+  id: 'permission-1',
+  sessionID: 'session-1',
+  permission: 'bash',
+  patterns: ['echo hello'],
+  metadata: {},
+  always: [],
+  tool: {
+    messageID: 'message-1',
+    callID: 'call-1',
+  },
+}
+
 function Harness() {
   const { current, pendingCount, syncForSession, navigateToCurrent, reject, reply } = useQuestions()
+  const permissions = usePermissions()
+  const permissionForCall = permissions.getForCallID('call-1', 'session-1')
   const location = useLocation()
 
   return (
     <div>
       <div data-testid="count">{pendingCount}</div>
       <div data-testid="current">{current?.id ?? 'none'}</div>
+      <div data-testid="permission-count">{permissions.pendingCount}</div>
+      <div data-testid="permission-current">{permissions.current?.id ?? 'none'}</div>
+      <div data-testid="permission-call">{permissionForCall?.id ?? 'none'}</div>
       <div data-testid="path">{location.pathname}</div>
       <button onClick={() => syncForSession('/repo', 'session-1')}>Sync</button>
+      <button onClick={() => permissions.syncForSession('/repo', 'session-1')}>Sync Permissions</button>
       <button onClick={navigateToCurrent}>Navigate</button>
       <button onClick={() => current && reject(current.id)}>Dismiss</button>
       <button onClick={() => current && reply(current.id, [['Yes']])}>Reply</button>
@@ -136,6 +155,41 @@ describe('EventProvider questions', () => {
     await waitFor(() => {
       expect(screen.getByTestId('count')).toHaveTextContent('1')
       expect(screen.getByTestId('current')).toHaveTextContent('question-1')
+    })
+  })
+
+  it('syncs missed pending permissions for a session', async () => {
+    mocks.listPendingPermissions.mockResolvedValue([pendingPermission])
+
+    render(<Harness />, { wrapper: createWrapper() })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sync Permissions' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('permission-count')).toHaveTextContent('1')
+      expect(screen.getByTestId('permission-current')).toHaveTextContent('permission-1')
+      expect(screen.getByTestId('permission-call')).toHaveTextContent('permission-1')
+    })
+  })
+
+  it('clears stale pending permissions for a session', async () => {
+    mocks.listPendingPermissions
+      .mockResolvedValueOnce([pendingPermission])
+      .mockResolvedValueOnce([])
+
+    render(<Harness />, { wrapper: createWrapper() })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sync Permissions' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('permission-count')).toHaveTextContent('1')
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sync Permissions' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('permission-count')).toHaveTextContent('0')
+      expect(screen.getByTestId('permission-current')).toHaveTextContent('none')
     })
   })
 

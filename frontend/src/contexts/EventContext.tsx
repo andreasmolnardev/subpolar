@@ -13,6 +13,16 @@ import { addToSessionKeyedState, removeFromSessionKeyedState } from '@/lib/sessi
 type PermissionsBySession = Record<string, PermissionRequest[]>
 type QuestionsBySession = Record<string, QuestionRequest[]>
 
+function groupPermissionsBySession(permissions: PermissionRequest[]): PermissionsBySession {
+  return permissions.reduce<PermissionsBySession>((grouped, permission) => {
+    const existing = grouped[permission.sessionID] ?? []
+    return {
+      ...grouped,
+      [permission.sessionID]: [...existing, permission],
+    }
+  }, {})
+}
+
 function groupQuestionsBySession(questions: QuestionRequest[]): QuestionsBySession {
   return questions.reduce<QuestionsBySession>((grouped, question) => {
     const existing = grouped[question.sessionID] ?? []
@@ -25,6 +35,10 @@ function groupQuestionsBySession(questions: QuestionRequest[]): QuestionsBySessi
 
 function sortQuestionsById(questions: QuestionRequest[]): QuestionRequest[] {
   return [...questions].sort((a, b) => a.id.localeCompare(b.id))
+}
+
+function sortPermissionsById(permissions: PermissionRequest[]): PermissionRequest[] {
+  return [...permissions].sort((a, b) => a.id.localeCompare(b.id))
 }
 
 function optimisticallyErrorToolPart(
@@ -111,6 +125,7 @@ interface EventContextValue {
     showDialog: boolean
     setShowDialog: (show: boolean) => void
     navigateToCurrent: () => void
+    syncForSession: (directory: string, sessionID: string) => Promise<void>
   }
   questions: {
     current: QuestionRequest | null
@@ -259,6 +274,31 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     removeFromSessionKeyedState(setQuestionsBySession, requestID, sessionID)
   }, [])
 
+  const reconcilePermissionsForDirectory = useCallback((directory: string, permissions: PermissionRequest[]) => {
+    const grouped = groupPermissionsBySession(permissions)
+
+    permissions.forEach(permission => {
+      rememberSessionDirectory(permission.sessionID, directory)
+    })
+
+    setPermissionsBySession(prev => {
+      const next = { ...prev }
+
+      for (const sessionID of Object.keys(prev)) {
+        if (grouped[sessionID]) continue
+        if (sessionDirectoriesRef.current.get(sessionID) === directory) {
+          delete next[sessionID]
+        }
+      }
+
+      for (const [sessionID, sessionPermissions] of Object.entries(grouped)) {
+        next[sessionID] = sortPermissionsById(sessionPermissions)
+      }
+
+      return next
+    })
+  }, [rememberSessionDirectory])
+
   const reconcileQuestionsForDirectory = useCallback((directory: string, questions: QuestionRequest[]) => {
     const grouped = groupQuestionsBySession(questions)
 
@@ -315,7 +355,8 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     }
 
     await client.respondToPermission(sessionID, permissionID, response)
-  }, [getClient, permissionsBySession, queryClient])
+    removePermission(permissionID, sessionID)
+  }, [getClient, permissionsBySession, queryClient, removePermission])
 
   const replyToQuestion = useCallback(async (requestID: string, answers: string[][]) => {
     const connected = await ensureSSEConnected()
@@ -354,7 +395,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     const perms = permissionsBySession[sessionID] ?? []
     return perms.find(p => {
       const metadata = p.metadata as { tool?: { id?: string } } | undefined
-      return metadata?.tool?.id === callID
+      return p.tool?.callID === callID || metadata?.tool?.id === callID
     }) ?? null
   }, [permissionsBySession])
 
@@ -402,21 +443,23 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
       try {
         const client = new OpenCodeClient(OPENCODE_API_ENDPOINT, directory)
         const pendingPermissions = await client.listPendingPermissions()
-        if (pendingPermissions && pendingPermissions.length > 0) {
-          pendingPermissions.forEach(permission => {
-            rememberSessionDirectory(permission.sessionID, directory)
-            addPermission(permission)
-          })
-        }
+        reconcilePermissionsForDirectory(directory, pendingPermissions ?? [])
         const pendingQuestions = await client.listPendingQuestions()
         reconcileQuestionsForDirectory(directory, pendingQuestions ?? [])
       } catch (error) {
         if (import.meta.env.DEV) {
-          console.warn(`Failed to fetch pending questions for ${directory}:`, error)
+          console.warn(`Failed to fetch pending actions for ${directory}:`, error)
         }
       }
     }
-  }, [repos, addPermission, rememberSessionDirectory, reconcileQuestionsForDirectory])
+  }, [repos, reconcilePermissionsForDirectory, reconcileQuestionsForDirectory])
+
+  const syncPermissionsForSession = useCallback(async (directory: string, sessionID: string) => {
+    const client = new OpenCodeClient(OPENCODE_API_ENDPOINT, directory)
+    const pendingPermissions = await client.listPendingPermissions()
+    rememberSessionDirectory(sessionID, directory)
+    reconcilePermissionsForDirectory(directory, pendingPermissions ?? [])
+  }, [rememberSessionDirectory, reconcilePermissionsForDirectory])
 
   const syncQuestionsForSession = useCallback(async (directory: string, sessionID: string) => {
     const client = new OpenCodeClient(OPENCODE_API_ENDPOINT, directory)
@@ -546,6 +589,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
       showDialog: showPermissionDialog,
       setShowDialog: setShowPermissionDialog,
       navigateToCurrent: navigateToCurrentPermission,
+      syncForSession: syncPermissionsForSession,
     },
     questions: {
       current: currentQuestion,
@@ -571,6 +615,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     hasPermissionsForSession,
     showPermissionDialog,
     navigateToCurrentPermission,
+    syncPermissionsForSession,
     currentQuestion,
     allQuestions.length,
     replyToQuestion,
