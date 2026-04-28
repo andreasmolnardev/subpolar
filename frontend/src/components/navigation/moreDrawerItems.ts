@@ -96,7 +96,8 @@ export function buildNavModel(pathname: string, options: BuildNavOptions = {}): 
 
     return {
       primary: [
-        getAssistantNavItem(pathname, 'primary'),
+        { key: 'new-session', label: 'New Session', icon: SquarePlus, onSelect: 'new-session', variant: 'primary' },
+        getAssistantNavItem(pathname),
       ],
       items,
     }

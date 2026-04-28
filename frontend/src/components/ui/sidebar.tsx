@@ -1,7 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { PanelLeft, PanelLeftClose } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 export interface SidebarProps {
@@ -122,15 +121,18 @@ export interface SidebarCollapseToggleProps {
 
 export function SidebarCollapseToggle({ collapsed, onToggle }: SidebarCollapseToggleProps) {
   return (
-    <Button
-      variant="ghost"
-      size="icon"
+    <button
+      type="button"
       onClick={onToggle}
-      className="w-full rounded-none border-t border-border"
+      className={cn(
+        'rounded-md p-2.5',
+        'hover:bg-accent hover:text-accent-foreground',
+        'transition-colors duration-150'
+      )}
       title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
     >
-      {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-      <span className="sr-only">{collapsed ? 'Expand' : 'Collapse'}</span>
-    </Button>
+      {collapsed ? <PanelLeft className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+    </button>
   )
 }

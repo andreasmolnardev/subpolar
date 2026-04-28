@@ -47,10 +47,12 @@ export function RepoQuickSwitchSheet({ isOpen, onClose }: RepoQuickSwitchSheetPr
     const pendingAction = new URLSearchParams(location.search).get('mobileTabAction')
     if (pendingAction === 'assistant') {
       navigate(`/repos/${id}/assistant`)
+      onClose()
       return
     }
 
     navigate(`/repos/${id}`, { replace: true })
+    onClose()
   }
 
   return (

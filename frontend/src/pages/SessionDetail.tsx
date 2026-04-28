@@ -48,6 +48,7 @@ import { PendingActionsGroup } from "@/components/notifications/PendingActionsGr
 import { SourceControlPanel } from "@/components/source-control";
 import { SessionTodoDisplay } from "@/components/message/SessionTodoDisplay";
 import { useDialogParam } from "@/hooks/useDialogParam";
+import { useSidebarAction } from "@/hooks/useSidebarAction";
 import { SessionMoreButton } from "@/components/navigation/SessionMoreButton";
 
 const compareMessageIds = (id1: string, id2: string): number => {
@@ -226,6 +227,10 @@ export function SessionDetail() {
       showToast.error('Failed to create new session');
     }
   }, [createSession, navigate, repoId, sessionRouteSuffix]);
+
+  useSidebarAction('new-session', () => {
+    handleNewSession();
+  });
 
   const handleCompact = useCallback(async () => {
     if (!opcodeUrl || !sessionId) return;

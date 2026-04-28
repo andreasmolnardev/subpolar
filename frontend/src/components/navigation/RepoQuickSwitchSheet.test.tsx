@@ -98,7 +98,7 @@ describe('RepoQuickSwitchSheet', () => {
     })
   })
 
-  it('navigates on repo click without calling onClose', async () => {
+  it('navigates on repo click and closes sheet', async () => {
     vi.mocked(listRepos).mockResolvedValue([
       {
         id: 1,
@@ -120,7 +120,7 @@ describe('RepoQuickSwitchSheet', () => {
       expect(screen.getByText('repo1')).toBeInTheDocument()
     })
     fireEvent.click(screen.getByText('repo1'))
-    expect(handleClose).not.toHaveBeenCalled()
+    expect(handleClose).toHaveBeenCalled()
   })
 
   it('navigates directly to assistant when mobileTabAction is assistant', async () => {
@@ -162,6 +162,6 @@ describe('RepoQuickSwitchSheet', () => {
     fireEvent.click(screen.getByText('repo1'))
 
     expect(screen.getByTestId('location')).toHaveTextContent('/repos/1/assistant')
-    expect(handleClose).not.toHaveBeenCalled()
+    expect(handleClose).toHaveBeenCalled()
   })
 })

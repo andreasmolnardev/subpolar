@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DesktopSidebar } from './DesktopSidebar'
 import * as useDesktopModule from '@/hooks/useDesktop'
 import * as useSidebarCollapsedModule from '@/hooks/useSidebarCollapsed'
@@ -16,6 +17,23 @@ function LocationDisplay() {
   const location = useLocation()
 
   return <div data-testid="location">{location.pathname}{location.search}</div>
+}
+
+function createWrapper(initialEntries?: string[]) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  })
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={initialEntries}>
+        {children}
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
 }
 
 describe('DesktopSidebar', () => {
@@ -90,11 +108,7 @@ describe('DesktopSidebar', () => {
       logout: vi.fn(),
     } as any)
 
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <DesktopSidebar />
-      </MemoryRouter>
-    )
+    render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
 
     expect(screen.getByText('New Repo')).toBeInTheDocument()
     expect(screen.getByText('Assistant')).toBeInTheDocument()
@@ -110,17 +124,13 @@ describe('DesktopSidebar', () => {
       logout: vi.fn(),
     } as any)
 
-    render(
-      <MemoryRouter initialEntries={['/repos/5']}>
-        <DesktopSidebar />
-      </MemoryRouter>
-    )
+    render(<DesktopSidebar />, { wrapper: createWrapper(['/repos/5']) })
 
     expect(screen.getByText('New Session')).toBeInTheDocument()
     expect(screen.getByText('Assistant')).toBeInTheDocument()
   })
 
-  it('renders primary CTA for session detail', () => {
+  it('renders primary CTAs for session detail', () => {
     vi.spyOn(useDesktopModule, 'useDesktop').mockReturnValue(true)
     vi.spyOn(useSidebarCollapsedModule, 'useSidebarCollapsed').mockReturnValue([false, vi.fn()])
     vi.spyOn(useMemoryPluginStatusModule, 'useMemoryPluginStatus').mockReturnValue({ memoryPluginEnabled: false })
@@ -130,12 +140,9 @@ describe('DesktopSidebar', () => {
       logout: vi.fn(),
     } as any)
 
-    render(
-      <MemoryRouter initialEntries={['/repos/5/sessions/abc']}>
-        <DesktopSidebar />
-      </MemoryRouter>
-    )
+    render(<DesktopSidebar />, { wrapper: createWrapper(['/repos/5/sessions/abc']) })
 
+    expect(screen.getByText('New Session')).toBeInTheDocument()
     expect(screen.getByText('Assistant')).toBeInTheDocument()
   })
 
@@ -149,11 +156,7 @@ describe('DesktopSidebar', () => {
       logout: vi.fn(),
     } as any)
 
-    render(
-      <MemoryRouter initialEntries={['/schedules']}>
-        <DesktopSidebar />
-      </MemoryRouter>
-    )
+    render(<DesktopSidebar />, { wrapper: createWrapper(['/schedules']) })
 
     expect(screen.getByText('New Schedule')).toBeInTheDocument()
     expect(screen.getByText('Assistant')).toBeInTheDocument()
@@ -170,11 +173,7 @@ describe('DesktopSidebar', () => {
       logout: vi.fn(),
     } as any)
 
-    render(
-      <MemoryRouter initialEntries={['/repos/5']}>
-        <DesktopSidebar />
-      </MemoryRouter>
-    )
+    render(<DesktopSidebar />, { wrapper: createWrapper(['/repos/5']) })
 
     fireEvent.click(screen.getByText('New Session'))
 
@@ -197,10 +196,11 @@ describe('DesktopSidebar', () => {
     } as any)
 
     render(
-      <MemoryRouter initialEntries={['/repos/5/sessions/abc?assistant=1']}>
+      <>
         <DesktopSidebar />
         <LocationDisplay />
-      </MemoryRouter>
+      </>,
+      { wrapper: createWrapper(['/repos/5/sessions/abc?assistant=1']) }
     )
 
     fireEvent.click(screen.getByText('Files'))
@@ -219,10 +219,11 @@ describe('DesktopSidebar', () => {
     } as any)
 
     render(
-      <MemoryRouter initialEntries={['/?dialog=files']}>
+      <>
         <DesktopSidebar />
         <LocationDisplay />
-      </MemoryRouter>
+      </>,
+      { wrapper: createWrapper(['/?dialog=files']) }
     )
 
     fireEvent.click(screen.getByText('Settings'))
