@@ -1,9 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { resolveDefaultSessionAgent } from './useSessionAgent'
-import { useSessionAgent } from './useSessionAgent'
+import { useSessionAgent, resolveDefaultSessionAgent } from './useSessionAgent'
 import { useMessages, useConfig, useAgents } from './useOpenCode'
-import { useSessionAgentStore } from '@/stores/sessionAgentStore'
+import { useSessionAgentStore } from '../stores/sessionAgentStore'
 
 const sessionAgentStoreMock = vi.hoisted(() => {
   const state = {
@@ -36,6 +35,11 @@ vi.mock('./useOpenCode', () => ({
 vi.mock('@/stores/sessionAgentStore', () => ({
   useSessionAgentStore: sessionAgentStoreMock.store,
 }))
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  sessionAgentStoreMock.store.setState({ agents: {} })
+})
 
 describe('resolveDefaultSessionAgent', () => {
   it('returns config.default_agent when present and agents not loaded', () => {
@@ -107,7 +111,7 @@ describe('useSessionAgent', () => {
     vi.mocked(useMessages).mockReturnValue({
       data: [],
       isLoading: false,
-    } as ReturnType<typeof useMessages>)
+    } as unknown as ReturnType<typeof useMessages>)
     vi.mocked(useConfig).mockReturnValue({
       data: { default_agent: 'code' },
     } as ReturnType<typeof useConfig>)
@@ -159,11 +163,45 @@ describe('useSessionAgent', () => {
     })
   })
 
+  it('does not restore model from cached messages while refetching', async () => {
+    vi.mocked(useMessages).mockReturnValue({
+      data: [
+        {
+          info: {
+            role: 'user',
+            agent: 'assistant',
+            model: { providerID: 'provider', modelID: 'stale-model' },
+            variant: 'stale-variant',
+          },
+        },
+      ],
+      isLoading: false,
+      isFetching: true,
+    } as ReturnType<typeof useMessages>)
+    vi.mocked(useConfig).mockReturnValue({
+      data: { default_agent: 'code' },
+    } as ReturnType<typeof useConfig>)
+    vi.mocked(useAgents).mockReturnValue({
+      data: [{ name: 'code', mode: 'primary' }],
+      isSuccess: true,
+    } as ReturnType<typeof useAgents>)
+
+    const { result } = renderHook(() =>
+      useSessionAgent('http://localhost:5551', 'session-1', '/assistant')
+    )
+
+    await waitFor(() => {
+      expect(result.current.agent).toBe('code')
+      expect(result.current.model).toBeUndefined()
+      expect(result.current.variant).toBeUndefined()
+    })
+  })
+
   it('does not persist default agent fallback to store', async () => {
     vi.mocked(useMessages).mockReturnValue({
       data: [],
       isLoading: false,
-    } as ReturnType<typeof useMessages>)
+    } as unknown as ReturnType<typeof useMessages>)
     vi.mocked(useConfig).mockReturnValue({
       data: { default_agent: 'code' },
     } as ReturnType<typeof useConfig>)
