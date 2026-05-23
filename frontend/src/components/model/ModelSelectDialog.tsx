@@ -58,6 +58,8 @@ function SearchInput({ onSearch, initialValue = "" }: SearchInputProps) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className="pl-10 md:text-sm"
+          autoComplete="off"
+          name="model-select"
         />
       </div>
     </div>

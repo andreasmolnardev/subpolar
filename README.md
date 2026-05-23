@@ -102,6 +102,12 @@ AUTH_SECURE_COOKIES=false  # Set to true when using HTTPS
 
 For OAuth, Passkeys, Push Notifications (VAPID), and advanced configuration, see the [Configuration Guide](https://chriswritescode-dev.github.io/opencode-manager/configuration/environment/).
 
+## `ocm` CLI
+
+OpenCode Manager ships an `ocm` CLI (from `ocm-cli/`) that attaches your local OpenCode TUI to a repo hosted on the Manager. It lists ready repos, attaches via the Manager's `/api/opencode-proxy` (so prompts run on the Manager's filesystem against a single shared OpenCode server), and can tarball-sync the working tree up or down with `ocm push` / `ocm pull`. Running `ocm` inside a local clone auto-detects the matching Manager repo by `origin` URL.
+
+See the [`ocm` CLI guide](docs/opencode-manager-workspaces.md) for setup and commands.
+
 ## Documentation
 
 - [Getting Started](https://chriswritescode-dev.github.io/opencode-manager/getting-started/installation/) — Installation and first-run setup
@@ -109,6 +115,7 @@ For OAuth, Passkeys, Push Notifications (VAPID), and advanced configuration, see
 - [Configuration](https://chriswritescode-dev.github.io/opencode-manager/configuration/environment/) — Environment variables and advanced setup
 - [Troubleshooting](https://chriswritescode-dev.github.io/opencode-manager/troubleshooting/) — Common issues and solutions
 - [Development](https://chriswritescode-dev.github.io/opencode-manager/development/setup/) — Contributing and local development
+- [`ocm` CLI](docs/opencode-manager-workspaces.md) — Attach local OpenCode TUI to Manager repos
 
 ## License
 
