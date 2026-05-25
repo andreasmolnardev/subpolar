@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronLeft, ChevronRight, Clock, MoreVertical, Search, Star, Trash2, X } from 'lucide-react'
 import { useModelSelection } from '@/hooks/useModelSelection'
 import { useVariants } from '@/hooks/useVariants'
@@ -29,6 +29,7 @@ interface ModelListItem {
   key: string
   displayName: string
   providerName: string
+  searchText: string
   model?: Model
 }
 
@@ -43,6 +44,141 @@ interface ProviderListItem {
   label: string
   count: number
   isConnected: boolean
+  searchText: string
+}
+
+interface VirtualizedListProps<T> {
+  items: T[]
+  itemHeight: number
+  renderItem: (item: T) => React.ReactNode
+  getKey: (item: T) => string
+  emptyLabel: string
+  className?: string
+  resetKey?: string
+  overscan?: number
+}
+
+const MODEL_OPTION_ROW_HEIGHT = 60
+const VIRTUAL_LIST_OVERSCAN = 8
+const EMPTY_PROVIDERS: Provider[] = []
+const EMPTY_MODELS: ModelListItem[] = []
+const EMPTY_MODELS_BY_PROVIDER = new Map<string, ModelListItem[]>()
+
+function createSearchText(...values: string[]) {
+  return values.join(' ').toLowerCase()
+}
+
+function createModelListItem(provider: Provider, modelID: string, model: Model): ModelListItem {
+  const providerName = formatProviderName(provider)
+  const displayName = formatModelName(model)
+
+  return {
+    providerID: provider.id,
+    modelID,
+    key: `${provider.id}/${modelID}`,
+    displayName,
+    providerName,
+    searchText: createSearchText(displayName, modelID, providerName, provider.id),
+    model,
+  }
+}
+
+function createFallbackModelListItem(providerID: string, modelID: string): ModelListItem {
+  return {
+    providerID,
+    modelID,
+    key: `${providerID}/${modelID}`,
+    displayName: modelID,
+    providerName: providerID,
+    searchText: createSearchText(modelID, providerID),
+  }
+}
+
+function getSelectionKey(selection: { providerID: string, modelID: string }) {
+  return `${selection.providerID}/${selection.modelID}`
+}
+
+function VirtualizedList<T>({
+  items,
+  itemHeight,
+  renderItem,
+  getKey,
+  emptyLabel,
+  className,
+  resetKey,
+  overscan = VIRTUAL_LIST_OVERSCAN,
+}: VirtualizedListProps<T>) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(0)
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current
+    if (!element) return
+
+    const updateViewportHeight = () => setViewportHeight(element.clientHeight)
+    updateViewportHeight()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateViewportHeight)
+      return () => window.removeEventListener('resize', updateViewportHeight)
+    }
+
+    const resizeObserver = new ResizeObserver(updateViewportHeight)
+    resizeObserver.observe(element)
+    return () => resizeObserver.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const element = scrollRef.current
+    if (element) element.scrollTop = 0
+    setScrollTop(0)
+  }, [resetKey])
+
+  const visibleRange = useMemo(() => {
+    if (items.length === 0 || viewportHeight === 0) {
+      return { start: 0, end: 0 }
+    }
+
+    const start = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan)
+    const visibleCount = Math.ceil(viewportHeight / itemHeight) + overscan * 2
+    return {
+      start,
+      end: Math.min(items.length, start + visibleCount),
+    }
+  }, [itemHeight, items.length, overscan, scrollTop, viewportHeight])
+
+  const visibleItems = useMemo(
+    () => items.slice(visibleRange.start, visibleRange.end),
+    [items, visibleRange.end, visibleRange.start]
+  )
+
+  return (
+    <div
+      ref={scrollRef}
+      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      className={['h-full overflow-y-auto', className].filter(Boolean).join(' ')}
+    >
+      {items.length === 0 ? (
+        <div className="py-10 text-center text-sm text-white/50">{emptyLabel}</div>
+      ) : (
+        <div className="relative" style={{ height: items.length * itemHeight }}>
+          {visibleItems.map((item, index) => (
+            <div
+              key={getKey(item)}
+              className="absolute left-0 right-0"
+              style={{
+                top: (visibleRange.start + index) * itemHeight,
+                height: itemHeight,
+              }}
+            >
+              {renderItem(item)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function ModelQuickSelect({
@@ -54,82 +190,156 @@ export function ModelQuickSelect({
   const [isOpen, setIsOpen] = useState(false)
   const [showAllModels, setShowAllModels] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const deferredSearchQuery = useDeferredValue(searchQuery)
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
   const { model, modelString, recentModels, favoriteModels, setModel, toggleFavorite, removeRecentModel } = useModelSelection(opcodeUrl, directory)
   const { availableVariants, currentVariant, setVariant, clearVariant, hasVariants } = useVariants(opcodeUrl, directory)
   const client = useOpenCodeClient(opcodeUrl, directory)
 
-   const { data: providersData } = useQuery({
-     queryKey: ['opencode', 'providers', opcodeUrl, directory],
-     queryFn: () => getProviders(directory),
-     enabled: !!client,
-     staleTime: 30000,
-   })
+  const { data: providersData } = useQuery({
+    queryKey: ['opencode', 'providers', opcodeUrl, directory],
+    queryFn: () => getProviders(directory),
+    enabled: !!client,
+    staleTime: 30000,
+  })
 
-   const getDisplayName = useCallback((providerID: string, modelID: string) => {
-     const modelData = providersData?.providers
-        .find(provider => provider.id === providerID)
-        ?.models?.[modelID]
-     return modelData ? formatModelName(modelData) : modelID
-   }, [providersData])
+  const providers = providersData?.providers ?? EMPTY_PROVIDERS
 
-   const getProviderName = useCallback((providerID: string) => {
-     const provider = providersData?.providers.find(provider => provider.id === providerID)
-     return provider ? formatProviderName(provider) : providerID
-   }, [providersData])
+  const favoriteKeySet = useMemo(() => {
+    return new Set(favoriteModels.map(getSelectionKey))
+  }, [favoriteModels])
 
-    const getModelData = useCallback((providerID: string, modelID: string) => {
-      return providersData?.providers
-        .find(provider => provider.id === providerID)
-        ?.models?.[modelID]
-    }, [providersData])
+  const recentKeySet = useMemo(() => {
+    return new Set(recentModels.map(getSelectionKey))
+  }, [recentModels])
 
-    const toModelListItem = useCallback((selection: { providerID: string, modelID: string }): ModelListItem => ({
-      ...selection,
-      displayName: getDisplayName(selection.providerID, selection.modelID),
-      providerName: getProviderName(selection.providerID),
-      key: `${selection.providerID}/${selection.modelID}`,
-      model: getModelData(selection.providerID, selection.modelID),
-    }), [getDisplayName, getModelData, getProviderName])
+  const { providerById, providerItems } = useMemo(() => {
+    const nextProviderById = new Map<string, Provider>()
+    const nextProviderItems: ProviderListItem[] = []
 
-    const favoriteModelsWithNames = useMemo(() => {
-      return favoriteModels
-        .filter(favorite => `${favorite.providerID}/${favorite.modelID}` !== modelString)
-        .slice(0, 5)
-        .map(toModelListItem)
-    }, [favoriteModels, modelString, toModelListItem])
+    for (const provider of providers) {
+      const providerName = formatProviderName(provider)
+      const count = Object.keys(provider.models || {}).length
+      nextProviderById.set(provider.id, provider)
 
-    const recentModelsWithNames = useMemo(() => {
-      return recentModels
-        .filter(recent => {
-          const key = `${recent.providerID}/${recent.modelID}`
-          return key !== modelString && !favoriteModels.some(favorite => favorite.providerID === recent.providerID && favorite.modelID === recent.modelID)
+      if (count > 0) {
+        nextProviderItems.push({
+          id: provider.id,
+          label: providerName,
+          count,
+          isConnected: provider.isConnected ?? false,
+          searchText: createSearchText(providerName, provider.id),
         })
-        .slice(0, 5)
-        .map(toModelListItem)
-    }, [recentModels, favoriteModels, modelString, toModelListItem])
+      }
+    }
 
-  const allModels = useMemo((): ModelListItem[] => {
-    return providersData?.providers.flatMap((provider: Provider) => Object.entries(provider.models || {}).map(([modelID, providerModel]) => ({
-      providerID: provider.id,
-      modelID,
-      key: `${provider.id}/${modelID}`,
-      displayName: formatModelName(providerModel),
-      providerName: formatProviderName(provider),
-      model: providerModel,
-    }))) || []
-  }, [providersData])
+    nextProviderItems.sort((a, b) => {
+      if (a.isConnected !== b.isConnected) {
+        return a.isConnected ? -1 : 1
+      }
+      return a.label.localeCompare(b.label)
+    })
+
+    return {
+      providerById: nextProviderById,
+      providerItems: nextProviderItems,
+    }
+  }, [providers])
+
+  const toModelListItem = useCallback((selection: { providerID: string, modelID: string }): ModelListItem => {
+    const provider = providerById.get(selection.providerID)
+    const providerModel = provider?.models?.[selection.modelID]
+
+    if (!provider || !providerModel) {
+      return createFallbackModelListItem(selection.providerID, selection.modelID)
+    }
+
+    return createModelListItem(provider, selection.modelID, providerModel)
+  }, [providerById])
+
+  const quickFallbackModels = useMemo(() => {
+    const result: ModelListItem[] = []
+
+    for (const providerItem of providerItems) {
+      const provider = providerById.get(providerItem.id)
+      if (!provider) continue
+
+      for (const [modelID, providerModel] of Object.entries(provider.models || {})) {
+        result.push(createModelListItem(provider, modelID, providerModel))
+        if (result.length === 3) return result
+      }
+    }
+
+    return result
+  }, [providerById, providerItems])
+
+  const { allModels, modelsByProviderId } = useMemo(() => {
+    if (!showAllModels) {
+      return {
+        allModels: EMPTY_MODELS,
+        modelsByProviderId: EMPTY_MODELS_BY_PROVIDER,
+      }
+    }
+
+    const nextAllModels: ModelListItem[] = []
+    const nextModelsByProviderId = new Map<string, ModelListItem[]>()
+
+    for (const provider of providers) {
+      const providerModels: ModelListItem[] = []
+
+      for (const [modelID, providerModel] of Object.entries(provider.models || {})) {
+        const item = createModelListItem(provider, modelID, providerModel)
+        nextAllModels.push(item)
+        providerModels.push(item)
+      }
+
+      if (providerModels.length > 0) {
+        nextModelsByProviderId.set(provider.id, providerModels)
+      }
+    }
+
+    return {
+      allModels: nextAllModels,
+      modelsByProviderId: nextModelsByProviderId,
+    }
+  }, [providers, showAllModels])
+
+  const favoriteModelsWithNames = useMemo(() => {
+    return favoriteModels
+      .filter(favorite => `${favorite.providerID}/${favorite.modelID}` !== modelString)
+      .slice(0, 5)
+      .map(toModelListItem)
+  }, [favoriteModels, modelString, toModelListItem])
+
+  const recentModelsWithNames = useMemo(() => {
+    return recentModels
+      .filter(recent => {
+        const key = getSelectionKey(recent)
+        return key !== modelString && !favoriteKeySet.has(key)
+      })
+      .slice(0, 5)
+      .map(toModelListItem)
+  }, [favoriteKeySet, recentModels, modelString, toModelListItem])
 
   const quickModels = useMemo(() => {
     const items = [
       ...(model ? [toModelListItem(model)] : []),
       ...favoriteModelsWithNames,
       ...recentModelsWithNames,
-      ...allModels,
+      ...quickFallbackModels,
     ]
+    const seenKeys = new Set<string>()
+    const result: ModelListItem[] = []
 
-    return items.filter((item, index, list) => list.findIndex(candidate => candidate.key === item.key) === index).slice(0, 3)
-  }, [allModels, favoriteModelsWithNames, model, recentModelsWithNames, toModelListItem])
+    for (const item of items) {
+      if (seenKeys.has(item.key)) continue
+      seenKeys.add(item.key)
+      result.push(item)
+      if (result.length === 3) break
+    }
+
+    return result
+  }, [favoriteModelsWithNames, model, quickFallbackModels, recentModelsWithNames, toModelListItem])
 
   const quickSections = useMemo((): ModelSection[] => {
     const sections: ModelSection[] = []
@@ -164,59 +374,33 @@ export function ModelQuickSelect({
   const selectedProviderModels = useMemo(() => {
     if (!selectedProviderId) return []
 
-    return allModels.filter(item => item.providerID === selectedProviderId)
-  }, [allModels, selectedProviderId])
+    return modelsByProviderId.get(selectedProviderId) ?? []
+  }, [modelsByProviderId, selectedProviderId])
 
   const filteredSelectedProviderModels = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
+    const query = deferredSearchQuery.trim().toLowerCase()
     if (!query) return selectedProviderModels
 
-    return selectedProviderModels.filter(item =>
-      item.displayName.toLowerCase().includes(query) ||
-      item.modelID.toLowerCase().includes(query)
-    )
-  }, [searchQuery, selectedProviderModels])
-
-  const providerItems = useMemo((): ProviderListItem[] => {
-    return providersData?.providers
-      .map(provider => ({
-        id: provider.id,
-        label: formatProviderName(provider),
-        count: Object.keys(provider.models || {}).length,
-        isConnected: provider.isConnected ?? false,
-      }))
-      .filter(provider => provider.count > 0)
-      .sort((a, b) => {
-        if (a.isConnected !== b.isConnected) {
-          return a.isConnected ? -1 : 1
-        }
-        return a.label.localeCompare(b.label)
-      }) || []
-  }, [providersData])
+    return selectedProviderModels.filter(item => item.searchText.includes(query))
+  }, [deferredSearchQuery, selectedProviderModels])
 
   const filteredAllModels = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
+    const query = deferredSearchQuery.trim().toLowerCase()
     const items = selectedProviderId
-      ? allModels.filter(item => item.providerID === selectedProviderId)
+      ? selectedProviderModels
       : allModels
 
     if (!query) return items
 
-    return items.filter(item =>
-      item.displayName.toLowerCase().includes(query) ||
-      item.modelID.toLowerCase().includes(query)
-    )
-  }, [allModels, selectedProviderId, searchQuery])
+    return items.filter(item => item.searchText.includes(query))
+  }, [allModels, deferredSearchQuery, selectedProviderId, selectedProviderModels])
 
   const filteredProviderItems = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
+    const query = deferredSearchQuery.trim().toLowerCase()
     if (!query) return providerItems
 
-    return providerItems.filter(provider =>
-      provider.label.toLowerCase().includes(query) ||
-      provider.id.toLowerCase().includes(query)
-    )
-  }, [providerItems, searchQuery])
+    return providerItems.filter(provider => provider.searchText.includes(query))
+  }, [deferredSearchQuery, providerItems])
 
   const connectedProviderItems = useMemo(
     () => filteredProviderItems.filter(p => p.isConnected),
@@ -230,7 +414,9 @@ export function ModelQuickSelect({
 
   const handleModelSelect = (providerID: string, modelID: string) => {
     setModel({ providerID, modelID })
-    setIsOpen(false)
+    setShowAllModels(false)
+    setSearchQuery('')
+    setSelectedProviderId(null)
   }
 
   const handleOpenChange = (open: boolean) => {
@@ -261,8 +447,8 @@ export function ModelQuickSelect({
 
   const renderModelOption = (item: ModelListItem) => {
     const isSelected = modelString === item.key
-    const isFavorite = favoriteModels.some(favorite => favorite.providerID === item.providerID && favorite.modelID === item.modelID)
-    const isRecent = recentModels.some(recent => recent.providerID === item.providerID && recent.modelID === item.modelID)
+    const isFavorite = favoriteKeySet.has(item.key)
+    const isRecent = recentKeySet.has(item.key)
 
     return (
       <div
@@ -408,7 +594,10 @@ export function ModelQuickSelect({
                 <X className="h-5 w-5" />
               </button>
               <div className="min-w-0 flex-1 px-3 text-center">
-                <h2 className="truncate text-base font-semibold tracking-tight">{selectedModelLabel}</h2>
+                <h2 className="truncate text-base font-semibold tracking-tight">
+                  {selectedModelLabel}
+                  <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-orange-500" />
+                </h2>
                 <p className="truncate text-xs text-white/45">
                   {currentVariant ? `${selectedModelDescription} · ${currentVariant}` : selectedModelDescription}
                 </p>
@@ -486,40 +675,51 @@ export function ModelQuickSelect({
             {/* Right panel */}
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
               {/* Desktop: model grid */}
-              <div className="hidden md:block flex-1 overflow-y-auto px-4 pb-4 pt-2">
-                <div className="space-y-1">{filteredAllModels.map(renderModelOption)}</div>
-                {filteredAllModels.length === 0 && (
-                  <div className="py-10 text-center text-sm text-white/50">No models found</div>
-                )}
+              <div className="hidden md:block flex-1 overflow-hidden min-h-0">
+                <VirtualizedList
+                  items={filteredAllModels}
+                  itemHeight={MODEL_OPTION_ROW_HEIGHT}
+                  renderItem={(item) => renderModelOption(item)}
+                  getKey={(item) => item.key}
+                  emptyLabel="No models found"
+                  className="px-4 pb-4 pt-2"
+                  resetKey={`${selectedProviderId ?? 'all'}:${deferredSearchQuery}`}
+                />
               </div>
 
               {/* Mobile: current single-column navigation */}
-              <div className="md:hidden flex-1 overflow-y-auto px-4 pb-4">
-                <div className="space-y-1">
-                  {selectedProviderId
-                    ? filteredSelectedProviderModels.map(renderModelOption)
-                    : <>
-                        {connectedProviderItems.length > 0 && (
-                          <>
-                            <p className="px-1 pb-1 text-xs font-medium text-white/45">Connected</p>
-                            {connectedProviderItems.map(renderProviderOption)}
-                            {availableProviderItems.length > 0 && <div className="-mx-4 my-2 h-px bg-white/10" />}
-                          </>
-                        )}
-                        {availableProviderItems.length > 0 && (
-                          <>
-                            <p className="px-1 pb-1 text-xs font-medium text-white/45">Available</p>
-                            {availableProviderItems.map(renderProviderOption)}
-                          </>
-                        )}
-                      </>
-                  }
-                </div>
-                {selectedProviderId && filteredSelectedProviderModels.length === 0 && (
-                  <div className="py-10 text-center text-sm text-white/50">No models found</div>
-                )}
-                {!selectedProviderId && filteredProviderItems.length === 0 && (
-                  <div className="py-10 text-center text-sm text-white/50">No providers found</div>
+              <div className="md:hidden flex-1 overflow-hidden min-h-0">
+                {selectedProviderId ? (
+                  <VirtualizedList
+                    items={filteredSelectedProviderModels}
+                    itemHeight={MODEL_OPTION_ROW_HEIGHT}
+                    renderItem={(item) => renderModelOption(item)}
+                    getKey={(item) => item.key}
+                    emptyLabel="No models found"
+                    className="px-4 pb-4"
+                    resetKey={`${selectedProviderId}:${deferredSearchQuery}`}
+                  />
+                ) : (
+                  <div className="h-full overflow-y-auto px-4 pb-4">
+                    <div className="space-y-1">
+                      {connectedProviderItems.length > 0 && (
+                        <>
+                          <p className="px-1 pb-1 text-xs font-medium text-white/45">Connected</p>
+                          {connectedProviderItems.map(renderProviderOption)}
+                          {availableProviderItems.length > 0 && <div className="-mx-4 my-2 h-px bg-white/10" />}
+                        </>
+                      )}
+                      {availableProviderItems.length > 0 && (
+                        <>
+                          <p className="px-1 pb-1 text-xs font-medium text-white/45">Available</p>
+                          {availableProviderItems.map(renderProviderOption)}
+                        </>
+                      )}
+                    </div>
+                    {filteredProviderItems.length === 0 && (
+                      <div className="py-10 text-center text-sm text-white/50">No providers found</div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -534,7 +734,7 @@ export function ModelQuickSelect({
                     {section.title}
                   </h3>
                   <div className="space-y-1">
-                    {section.models.map(renderModelOption)}
+                    {section.models.map(item => renderModelOption(item))}
                   </div>
                 </section>
               ))}

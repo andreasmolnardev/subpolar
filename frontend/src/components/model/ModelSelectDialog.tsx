@@ -505,7 +505,11 @@ export function ModelSelectDialog({
             {currentModel && (
               <div className="p-3 sm:p-4 border-t border-border bg-muted/20 flex-shrink-0">
                 <p className="text-xs sm:text-sm text-muted-foreground">
-                  Current: <span className="font-medium text-foreground break-all">{currentModel}</span>
+                  Current:{' '}
+                  <span className="inline-flex items-center gap-1.5 font-medium text-foreground break-all">
+                    <span className="h-2 w-2 rounded-full bg-orange-500" />
+                    {currentModel}
+                  </span>
                 </p>
               </div>
             )}
