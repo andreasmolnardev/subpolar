@@ -307,6 +307,75 @@ describe('useAutoScroll', () => {
     expect(currentScrollTop).not.toBe(containerHarness.div.scrollHeight - containerHarness.div.clientHeight)
   })
 
+  it('disengages when mobile touch scrolls upward without pointer events', () => {
+    const messages = [createMessage('1', 'user')]
+    const { renderResult, containerHarness, onScrollStateChange } = setupHook(messages)
+
+    act(() => {
+      containerHarness.setScrollTop(100)
+      containerHarness.div.dispatchEvent(new TouchEvent('touchstart', {
+        touches: [{ clientY: 200 } as Touch],
+        bubbles: true,
+      }))
+      containerHarness.div.dispatchEvent(new TouchEvent('touchmove', {
+        touches: [{ clientY: 260 } as Touch],
+        bubbles: true,
+      }))
+    })
+
+    expect(onScrollStateChange).toHaveBeenCalledWith(true)
+
+    containerHarness.setScrollHeight(containerHarness.div.scrollHeight + 200)
+
+    act(() => {
+      renderResult.rerender({
+        containerRef: { current: containerHarness.div },
+        messages,
+        sessionId: 'session-1',
+        contentVersion: messages.length + 1,
+        onScrollStateChange,
+      })
+      vi.runOnlyPendingTimers()
+    })
+
+    expect(containerHarness.getScrollTop()).toBe(100)
+  })
+
+  it('shows scroll button when streaming growth carries disengaged user past threshold', () => {
+    const messages = [createMessage('1', 'user')]
+    const { renderResult, containerHarness, onScrollStateChange } = setupHook(messages)
+    const nearBottomPosition = containerHarness.div.scrollHeight - containerHarness.div.clientHeight - 60
+
+    act(() => {
+      containerHarness.setScrollTop(nearBottomPosition)
+      containerHarness.div.dispatchEvent(new TouchEvent('touchstart', {
+        touches: [{ clientY: 200 } as Touch],
+        bubbles: true,
+      }))
+      containerHarness.div.dispatchEvent(new TouchEvent('touchmove', {
+        touches: [{ clientY: 260 } as Touch],
+        bubbles: true,
+      }))
+    })
+
+    expect(onScrollStateChange).not.toHaveBeenCalledWith(true)
+
+    containerHarness.setScrollHeight(containerHarness.div.scrollHeight + 200)
+
+    act(() => {
+      renderResult.rerender({
+        containerRef: { current: containerHarness.div },
+        messages,
+        sessionId: 'session-1',
+        contentVersion: messages.length + 1,
+        onScrollStateChange,
+      })
+    })
+
+    expect(onScrollStateChange).toHaveBeenCalledWith(true)
+    expect(containerHarness.getScrollTop()).toBe(nearBottomPosition)
+  })
+
   it('re-engages when user scrolls back to within threshold', () => {
     const messages = [createMessage('1', 'user')]
     const { containerHarness, onScrollStateChange } = setupHook(messages)

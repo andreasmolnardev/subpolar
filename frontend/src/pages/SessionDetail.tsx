@@ -61,6 +61,22 @@ const compareMessageIds = (id1: string, id2: string): number => {
 
 const PENDING_ACTION_SYNC_INTERVAL_MS = 30000
 const PROMPT_OVERLAY_CLEARANCE_PX = 16
+
+const getMessagesContentVersion = (messages?: MessageWithParts[]): number => {
+  if (!messages) return 0
+  return messages.reduce((sum, message) => {
+    return sum + message.parts.reduce((partSum, part) => {
+      if ('text' in part && typeof part.text === 'string') {
+        return partSum + part.text.length
+      }
+      if (part.type === 'tool') {
+        return partSum + JSON.stringify(part.state).length
+      }
+      return partSum + 1
+    }, 0)
+  }, messages.length)
+}
+
 export function SessionDetail() {
   const { id, sessionId } = useParams<{ id: string; sessionId: string }>();
   const navigate = useNavigate();
@@ -152,7 +168,7 @@ export function SessionDetail() {
     containerRef: messageContainerRef,
     messages: messages?.map(m => m.info),
     sessionId,
-    contentVersion: messages?.reduce((sum, m) => sum + m.parts.length, 0) ?? 0,
+    contentVersion: getMessagesContentVersion(messages),
     onScrollStateChange: setShowScrollButton
   });
   const abortSession = useAbortSession(opcodeUrl, repoDirectory, sessionId);

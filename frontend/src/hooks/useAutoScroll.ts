@@ -31,6 +31,8 @@ export function useAutoScroll({
   const userDisengagedRef = useRef(false)
   const pointerStartYRef = useRef<number | null>(null)
   const pointerActiveRef = useRef(false)
+  const touchStartYRef = useRef<number | null>(null)
+  const touchActiveRef = useRef(false)
   const onScrollStateChangeRef = useRef(onScrollStateChange)
   const scrollRequestIdRef = useRef(0)
   const isScrollButtonVisibleRef = useRef(false)
@@ -68,6 +70,8 @@ export function useAutoScroll({
     hasInitialScrolledRef.current = false
     userScrolledAtRef.current = 0
     userDisengagedRef.current = false
+    touchStartYRef.current = null
+    touchActiveRef.current = false
   }, [sessionId])
 
   useEffect(() => {
@@ -87,6 +91,16 @@ export function useAutoScroll({
       userDisengagedRef.current = true
     }
 
+    const updateScrollButtonVisibility = () => {
+      const container = containerRef?.current
+      if (!container || !userDisengagedRef.current || isScrollButtonVisibleRef.current) return
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+      if (distanceFromBottom > SHOW_SCROLL_BUTTON_THRESHOLD_PX) {
+        isScrollButtonVisibleRef.current = true
+        onScrollStateChangeRef.current?.(true)
+      }
+    }
+
     const handlePointerDown = (e: PointerEvent) => {
       pointerStartYRef.current = e.clientY
       pointerActiveRef.current = true
@@ -103,6 +117,27 @@ export function useAutoScroll({
     const handlePointerUp = () => {
       pointerStartYRef.current = null
       pointerActiveRef.current = false
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      const touch = e.touches[0]
+      if (!touch) return
+      touchStartYRef.current = touch.clientY
+      touchActiveRef.current = true
+      scrollRequestIdRef.current += 1
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0]
+      if (!touch || touchStartYRef.current === null) return
+      if (touch.clientY > touchStartYRef.current + 4) {
+        markDisengaged()
+      }
+    }
+
+    const handleTouchEnd = () => {
+      touchStartYRef.current = null
+      touchActiveRef.current = false
     }
 
     const handleWheel = (e: WheelEvent) => {
@@ -129,16 +164,12 @@ export function useAutoScroll({
           isScrollButtonVisibleRef.current = false
           onScrollStateChangeRef.current?.(false)
         }
-      } else if (userDisengagedRef.current && !isScrollButtonVisibleRef.current && scrollHeight - scrollTop - clientHeight > SHOW_SCROLL_BUTTON_THRESHOLD_PX) {
-        isScrollButtonVisibleRef.current = true
-        onScrollStateChangeRef.current?.(true)
-      } else if (pointerActiveRef.current && !userDisengagedRef.current) {
+      } else if (userDisengagedRef.current && !isScrollButtonVisibleRef.current) {
+        updateScrollButtonVisibility()
+      } else if ((pointerActiveRef.current || touchActiveRef.current) && !userDisengagedRef.current) {
         userScrolledAtRef.current = Date.now()
         userDisengagedRef.current = true
-        if (scrollHeight - scrollTop - clientHeight > SHOW_SCROLL_BUTTON_THRESHOLD_PX) {
-          isScrollButtonVisibleRef.current = true
-          onScrollStateChangeRef.current?.(true)
-        }
+        updateScrollButtonVisibility()
       }
     }
     
@@ -146,6 +177,10 @@ export function useAutoScroll({
     container.addEventListener('pointermove', handlePointerMove, { passive: true })
     container.addEventListener('pointerup', handlePointerUp, { passive: true })
     container.addEventListener('pointercancel', handlePointerUp, { passive: true })
+    container.addEventListener('touchstart', handleTouchStart, { passive: true })
+    container.addEventListener('touchmove', handleTouchMove, { passive: true })
+    container.addEventListener('touchend', handleTouchEnd, { passive: true })
+    container.addEventListener('touchcancel', handleTouchEnd, { passive: true })
     container.addEventListener('wheel', handleWheel, { passive: true })
     container.addEventListener('keydown', handleKeyDown)
     container.addEventListener('scroll', handleScroll, { passive: true })
@@ -155,6 +190,10 @@ export function useAutoScroll({
       container.removeEventListener('pointermove', handlePointerMove)
       container.removeEventListener('pointerup', handlePointerUp)
       container.removeEventListener('pointercancel', handlePointerUp)
+      container.removeEventListener('touchstart', handleTouchStart)
+      container.removeEventListener('touchmove', handleTouchMove)
+      container.removeEventListener('touchend', handleTouchEnd)
+      container.removeEventListener('touchcancel', handleTouchEnd)
       container.removeEventListener('wheel', handleWheel)
       container.removeEventListener('keydown', handleKeyDown)
       container.removeEventListener('scroll', handleScroll)
@@ -185,7 +224,16 @@ export function useAutoScroll({
     const timeSinceUserScroll = Date.now() - userScrolledAtRef.current
     const recentlyScrolled = timeSinceUserScroll < SCROLL_LOCK_MS
     
-    if (recentlyScrolled || userDisengagedRef.current || pointerActiveRef.current) {
+    if (userDisengagedRef.current) {
+      const distanceFromBottom = containerRef.current.scrollHeight - containerRef.current.scrollTop - containerRef.current.clientHeight
+      if (!isScrollButtonVisibleRef.current && distanceFromBottom > SHOW_SCROLL_BUTTON_THRESHOLD_PX) {
+        isScrollButtonVisibleRef.current = true
+        onScrollStateChangeRef.current?.(true)
+      }
+      return
+    }
+
+    if (recentlyScrolled || pointerActiveRef.current || touchActiveRef.current) {
       return
     }
 

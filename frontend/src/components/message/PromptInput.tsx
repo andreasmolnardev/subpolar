@@ -230,6 +230,7 @@ export const PromptInput = memo(forwardRef<PromptInputHandle, PromptInputProps>(
     setIsVoiceAutoSendPending(false)
 
     if (isStreamingResponse) {
+      onScrollToBottom()
       const parts = parsePromptToParts(prompt, attachedFiles, imageAttachments)
       const agentUsed = selectedAgent || currentMode
       sendPrompt.mutate({
@@ -293,6 +294,8 @@ export const PromptInput = memo(forwardRef<PromptInputHandle, PromptInputProps>(
       agent: agentUsed,
       variant: currentVariant
     })
+
+    onScrollToBottom()
 
     setStoredAgent(sessionID, agentUsed)
     if (model) {
@@ -1210,32 +1213,39 @@ return (
       <div className="flex gap-1.5 md:gap-2 items-center justify-between">
         <div className="flex gap-1.5 md:gap-2 items-center min-w-0">
           {showMobileScrollButton ? (
-            <button
-              type="button"
-              onClick={onScrollToBottom}
-              className="flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-medium border bg-zinc-950/80 hover:bg-zinc-900/90 text-blue-300 hover:text-blue-200 border-blue-400/20 shadow-md backdrop-blur-md transition-all duration-200 active:scale-95 ring-1 ring-blue-400/15"
-              title="Scroll to bottom"
-              aria-label="Scroll to bottom"
-            >
-              <ArrowDown className="w-4 h-4" />
-              <span>Latest</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={onScrollToBottom}
+                className="flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-medium border bg-zinc-950/80 hover:bg-zinc-900/90 text-blue-300 hover:text-blue-200 border-blue-400/20 shadow-md backdrop-blur-md transition-all duration-200 active:scale-95 ring-1 ring-blue-400/15"
+                title="Scroll to bottom"
+                aria-label="Scroll to bottom"
+              >
+                <ArrowDown className="w-4 h-4" />
+                <span>Latest</span>
+              </button>
+              {isSessionActive && (
+                <div className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground max-w-[120px]">
+                  <SessionStatusIndicator sessionID={sessionID} showLabel />
+                </div>
+              )}
+            </>
           ) : (
-            <AgentQuickSelect
-              opcodeUrl={opcodeUrl}
-              directory={directory}
-              currentAgent={currentMode}
-              onAgentChange={handleAgentChange}
-              isBashMode={isBashMode}
-              disabled={disabled}
-            />
-          )}
-          {isSessionActive ? (
+            <>
+              <AgentQuickSelect
+                opcodeUrl={opcodeUrl}
+                directory={directory}
+                currentAgent={currentMode}
+                onAgentChange={handleAgentChange}
+                isBashMode={isBashMode}
+                disabled={disabled}
+              />
+              {isSessionActive ? (
               <div className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm font-medium text-muted-foreground max-w-[120px] md:max-w-[180px]">
                 <SessionStatusIndicator sessionID={sessionID} showLabel />
               </div>
             ) : (
-               !hideSecondaryButtons && !showMobileScrollButton && (
+               !hideSecondaryButtons && (
                   <ModelQuickSelect
                     opcodeUrl={opcodeUrl}
                     directory={directory}
@@ -1250,8 +1260,9 @@ return (
                    </button>
                  </ModelQuickSelect>
                 )
-             )}
-          
+              )}
+            </>
+          )}
         </div>
 <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
             {!isMobile && (
