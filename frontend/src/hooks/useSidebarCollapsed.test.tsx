@@ -19,6 +19,10 @@ describe('useSidebarCollapsed', () => {
   })
 
   afterEach(() => {
+    Object.defineProperty(global, 'localStorage', {
+      value: window.localStorage,
+      writable: true,
+    })
     vi.restoreAllMocks()
   })
 

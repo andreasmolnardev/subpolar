@@ -3,7 +3,7 @@ import { useModelStore, modelExists, modelStorePartialize, modelStoreMigrate } f
 import type { Provider } from '@/api/providers'
 
 beforeEach(() => {
-  localStorage.clear()
+  useModelStore.persist.clearStorage()
   useModelStore.setState({
     model: null,
     agentModels: {},
