@@ -16,6 +16,10 @@ import { OpenCodeConfigSchema } from '@opencode-manager/shared/schemas'
 import { getReposPath, ENV } from '@opencode-manager/shared/config/env'
 import type { Database } from 'bun:sqlite'
 import { getOrCreateInternalToken } from './internal-token'
+import type { OpenCodeClient } from './opencode/client'
+import { logger } from '../utils/logger'
+
+const ASSISTANT_WARMUP_OPENCODE_TIMEOUT_MS = 90000
 
 const ASSISTANT_MODE_DIR = 'assistant'
 const ASSISTANT_MODE_RELATIVE_PATH = 'repos/assistant'
@@ -44,6 +48,19 @@ export function getAssistantModeDirectory(): string {
   }
 
   return resolvedAssistantDir
+}
+
+export function buildAssistantRepo(): Repo {
+  return {
+    id: 0,
+    localPath: ASSISTANT_MODE_DIR,
+    fullPath: getAssistantModeDirectory(),
+    defaultBranch: 'main',
+    cloneStatus: 'ready',
+    clonedAt: Date.now(),
+    isWorktree: false,
+    isLocal: false,
+  }
 }
 
 function getInternalTokenPath(assistantDir: string): string {
@@ -1055,5 +1072,25 @@ export async function getAssistantModeStatus(repo: Repo): Promise<AssistantModeS
       exists: assistantAgentExists,
       created: false,
     },
+  }
+}
+
+export async function warmAssistantWorkspace(deps: {
+  db: Database
+  apiBaseUrl: string
+  openCodeClient: OpenCodeClient
+}): Promise<void> {
+  try {
+    const status = await ensureAssistantMode(buildAssistantRepo(), {
+      db: deps.db,
+      apiBaseUrl: deps.apiBaseUrl,
+    })
+    await deps.openCodeClient.getJson('/session', {
+      directory: status.directory,
+      signal: AbortSignal.timeout(ASSISTANT_WARMUP_OPENCODE_TIMEOUT_MS),
+    })
+    logger.info('Assistant workspace warmed')
+  } catch (error) {
+    logger.warn('Assistant workspace warmup failed (non-fatal):', error)
   }
 }
