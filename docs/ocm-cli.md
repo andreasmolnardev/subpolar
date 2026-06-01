@@ -2,6 +2,15 @@
 
 `ocm` is a small CLI that attaches your local OpenCode TUI to a repo hosted on an OpenCode Manager. Prompts execute on the Manager's filesystem against a single shared OpenCode server, while your laptop terminal hosts the TUI.
 
+## Quickstart
+
+1. **Get your Manager URL** — the web UI address where your OpenCode Manager is running (e.g., `https://manager.example.com`)
+2. **Generate an internal token** — go to **Settings → Manager Token** in the web UI and click **Generate**
+3. **Install the CLI** — `pnpm add -g @opencode-manager/ocm-cli`
+4. **Log in** — `ocm login https://your-manager-url` (paste the token when prompted)
+5. **List repos** — `ocm list` to see repos configured on the Manager
+6. **Attach** — `ocm use <repo-id>` to start an OpenCode session attached to that repo
+
 ## Architecture Overview
 
 | Component | Where it runs | Role |
@@ -64,14 +73,16 @@ pnpm --filter @opencode-manager/ocm-cli build
 
 ## 2. Log in
 
+Use the URL where your Manager web UI is accessible:
+
 ```bash
-ocm login https://manager.example.com
+ocm login https://your-manager-url
 # paste your Manager internal token when prompted
 ```
 
 The token is stored in the macOS Keychain under the manager URL. The manager URL is persisted to `~/.config/opencode-manager/state.json`.
 
-You can generate / rotate the Manager internal token from **Settings → Manager Token** in the Manager web UI.
+Generate or rotate your internal token from **Settings → Manager Token** in the Manager web UI (Settings cog in the sidebar, then **Manager Token**).
 
 ---
 
