@@ -9,6 +9,7 @@ import {
   type ScheduleRunStatus,
   type ScheduleRunTriggerSource,
 } from '@opencode-manager/shared/schemas'
+import { ASSISTANT_REPO_ID, ASSISTANT_REPO_NAME, ASSISTANT_REPO_PATH } from '@opencode-manager/shared/utils'
 import type { ScheduleJobPersistenceInput } from '../services/schedule-config'
 
 interface ScheduleJobRow {
@@ -376,8 +377,8 @@ export interface ScheduleJobWithRepo extends ScheduleJob {
 }
 
 interface ScheduleJobWithRepoRow extends ScheduleJobRow {
-  repo_url: string
-  repo_path: string
+  repo_url: string | null
+  repo_path: string | null
 }
 
 function repoNameFromPath(repoPath: string): string {
@@ -385,13 +386,18 @@ function repoNameFromPath(repoPath: string): string {
   return repoPath.split(/[\\/]/).pop() ?? repoPath
 }
 
+function resolveRepoDisplay(repoId: number, repoPath: string | null): { repoName: string; repoPath: string } {
+  if (repoId === ASSISTANT_REPO_ID) {
+    return { repoName: ASSISTANT_REPO_NAME, repoPath: ASSISTANT_REPO_PATH }
+  }
+  return { repoName: repoNameFromPath(repoPath ?? ''), repoPath: repoPath ?? '' }
+}
+
 function rowToScheduleJobWithRepo(row: ScheduleJobWithRepoRow): ScheduleJobWithRepo {
-  const job = rowToScheduleJob(row)
   return {
-    ...job,
-    repoName: repoNameFromPath(row.repo_path),
-    repoPath: row.repo_path,
-    repoUrl: row.repo_url,
+    ...rowToScheduleJob(row),
+    ...resolveRepoDisplay(row.repo_id, row.repo_path),
+    repoUrl: row.repo_url ?? '',
   }
 }
 
@@ -399,8 +405,8 @@ export function listAllScheduleJobsWithRepos(db: Database): ScheduleJobWithRepo[
   const stmt = db.prepare(`
     SELECT sj.*, r.repo_url, r.local_path as repo_path
     FROM schedule_jobs sj
-    JOIN repos r ON sj.repo_id = r.id
-    ORDER BY r.local_path, sj.name
+    LEFT JOIN repos r ON sj.repo_id = r.id
+    ORDER BY COALESCE(r.local_path, ''), sj.name
   `)
   const rows = stmt.all() as ScheduleJobWithRepoRow[]
   return rows.map(rowToScheduleJobWithRepo)
@@ -414,16 +420,14 @@ export interface ScheduleRunWithContext extends ScheduleRun {
 
 interface ScheduleRunWithContextRow extends ScheduleRunRow {
   job_name: string
-  repo_path: string
+  repo_path: string | null
 }
 
 function rowToScheduleRunWithContext(row: ScheduleRunWithContextRow): ScheduleRunWithContext {
-  const run = rowToScheduleRun(row)
   return {
-    ...run,
+    ...rowToScheduleRun(row),
     jobName: row.job_name,
-    repoName: repoNameFromPath(row.repo_path),
-    repoPath: row.repo_path,
+    ...resolveRepoDisplay(row.repo_id, row.repo_path),
   }
 }
 
@@ -469,7 +473,7 @@ export function listAllScheduleRuns(db: Database, options: ListAllRunsOptions = 
       sj.name AS job_name, r.local_path AS repo_path
     FROM schedule_runs sr
     JOIN schedule_jobs sj ON sr.job_id = sj.id
-    JOIN repos r ON sr.repo_id = r.id
+    LEFT JOIN repos r ON sr.repo_id = r.id
     ${whereClause}
     ORDER BY sr.started_at DESC
     LIMIT ? OFFSET ?
