@@ -18,25 +18,9 @@ function getLastAssistantSessionKey(repoId: number, directory: string): string {
   return `${LAST_ASSISTANT_SESSION_KEY_PREFIX}:${repoId}:${directory}`
 }
 
-function getCachedAssistantSessionId(repoId: number, directory: string): string | undefined {
-  try {
-    return localStorage.getItem(getLastAssistantSessionKey(repoId, directory)) || undefined
-  } catch {
-    return undefined
-  }
-}
-
 function setCachedAssistantSessionId(repoId: number, directory: string, sessionId: string): void {
   try {
     localStorage.setItem(getLastAssistantSessionKey(repoId, directory), sessionId)
-  } catch {
-    return
-  }
-}
-
-function removeCachedAssistantSessionId(repoId: number, directory: string): void {
-  try {
-    localStorage.removeItem(getLastAssistantSessionKey(repoId, directory))
   } catch {
     return
   }
@@ -50,25 +34,6 @@ function findNewestRootAssistantSession(sessions: OpenCodeSession[], assistantDi
   return sessions
     .filter((session) => isAssistantRootSession(session, assistantDirectory))
     .sort((a, b) => b.time.updated - a.time.updated)[0]
-}
-
-async function getCachedAssistantSession(
-  client: OpenCodeClient,
-  repoId: number,
-  assistantDirectory: string,
-): Promise<OpenCodeSession | undefined> {
-  const cachedSessionId = getCachedAssistantSessionId(repoId, assistantDirectory)
-  if (!cachedSessionId) return undefined
-
-  try {
-    const session = await client.getSession(cachedSessionId)
-    if (isAssistantRootSession(session, assistantDirectory)) return session
-    removeCachedAssistantSessionId(repoId, assistantDirectory)
-  } catch {
-    removeCachedAssistantSessionId(repoId, assistantDirectory)
-  }
-
-  return undefined
 }
 
 async function getLatestAssistantSession(
@@ -153,8 +118,7 @@ export function useAssistantSessionLauncher({
     const client = new OpenCodeClient(opcodeUrl, assistant.directory)
     const assistantDirectory = assistant.directory
 
-    const newest = await getCachedAssistantSession(client, repoId, assistantDirectory)
-      ?? await getLatestAssistantSession(client, assistantDirectory)
+    const newest = await getLatestAssistantSession(client, assistantDirectory)
 
     if (newest) {
       setCachedAssistantSessionId(repoId, assistantDirectory, newest.id)
