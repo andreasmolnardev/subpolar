@@ -2,18 +2,12 @@ import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useAssistantSessionLauncher } from './useAssistantSessionLauncher'
 import { OpenCodeClient } from '@/api/opencode'
-import { initializeAssistantMode } from '@/api/repos'
 
 const mocks = vi.hoisted(() => ({
   listSessions: vi.fn(),
   listSessionsPage: vi.fn(),
   createSession: vi.fn(),
   sendPromptAsync: vi.fn(),
-  initializeAssistantMode: vi.fn(),
-}))
-
-vi.mock('@/api/repos', () => ({
-  initializeAssistantMode: mocks.initializeAssistantMode,
 }))
 
 vi.mock('@/api/opencode', () => ({
@@ -33,7 +27,6 @@ describe('useAssistantSessionLauncher', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
-    mocks.initializeAssistantMode.mockResolvedValue({ directory: '/assistant' })
   })
 
   it('opens the latest root session in the assistant directory', async () => {
@@ -49,6 +42,7 @@ describe('useAssistantSessionLauncher', () => {
     const { result } = renderHook(() => useAssistantSessionLauncher({
       repoId: 123,
       opcodeUrl: 'http://localhost:5551',
+      directory: '/assistant',
       onNavigate,
     }))
 
@@ -56,7 +50,6 @@ describe('useAssistantSessionLauncher', () => {
       await result.current.openAssistant()
     })
 
-    expect(initializeAssistantMode).toHaveBeenCalledWith(123)
     expect(OpenCodeClient).toHaveBeenCalledWith('http://localhost:5551', '/assistant')
     expect(mocks.listSessionsPage).toHaveBeenCalledWith({ limit: 25, order: 'desc' })
     expect(mocks.listSessions).not.toHaveBeenCalled()
@@ -83,6 +76,7 @@ describe('useAssistantSessionLauncher', () => {
     const { result } = renderHook(() => useAssistantSessionLauncher({
       repoId: 123,
       opcodeUrl: 'http://localhost:5551',
+      directory: '/assistant',
       onNavigate,
     }))
 
@@ -96,26 +90,13 @@ describe('useAssistantSessionLauncher', () => {
     expect(onNavigate).toHaveBeenCalledWith('newest')
   })
 
-  it('notifies an existing assistant session when some generated updates were preserved', async () => {
-    mocks.initializeAssistantMode.mockResolvedValue({
-      directory: '/assistant',
-      warnings: [
-        {
-          code: 'assistant-agents-md-preserved',
-          path: '/assistant/AGENTS.md',
-          message: 'Some Assistant Mode instruction updates were not applied because AGENTS.md appears to contain customized legacy assistant instructions. To regenerate the default workspace explanation, manually delete AGENTS.md and initialize Assistant Mode again.',
-        },
-      ],
-    })
-    mocks.listSessionsPage.mockResolvedValue({
-      items: [
-        { id: 'existing', directory: '/assistant', time: { updated: 10 } },
-      ],
-    })
+  it('navigates directly to the cached assistant session without querying OpenCode', async () => {
+    localStorage.setItem('ocm:assistant:last-session:123:/assistant', 'cached')
     const onNavigate = vi.fn()
     const { result } = renderHook(() => useAssistantSessionLauncher({
       repoId: 123,
       opcodeUrl: 'http://localhost:5551',
+      directory: '/assistant',
       onNavigate,
     }))
 
@@ -123,18 +104,11 @@ describe('useAssistantSessionLauncher', () => {
       await result.current.openAssistant()
     })
 
-    expect(onNavigate).toHaveBeenCalledWith('existing')
-    expect(mocks.listSessionsPage).toHaveBeenCalledWith({ limit: 25, order: 'desc' })
-    expect(mocks.sendPromptAsync).toHaveBeenCalledWith('existing', {
-      parts: [
-        expect.objectContaining({
-          type: 'text',
-          text: expect.stringContaining('some generated instruction changes were not applied'),
-        }),
-      ],
-    })
-    const promptText = mocks.sendPromptAsync.mock.calls[0][1].parts[0].text as string
-    expect(promptText).toContain('manually delete AGENTS.md')
+    expect(onNavigate).toHaveBeenCalledWith('cached')
+    expect(OpenCodeClient).not.toHaveBeenCalled()
+    expect(mocks.listSessionsPage).not.toHaveBeenCalled()
+    expect(mocks.createSession).not.toHaveBeenCalled()
+    expect(mocks.sendPromptAsync).not.toHaveBeenCalled()
   })
 
   it('creates a session when the assistant directory has no root sessions', async () => {
@@ -148,6 +122,7 @@ describe('useAssistantSessionLauncher', () => {
     const { result } = renderHook(() => useAssistantSessionLauncher({
       repoId: 123,
       opcodeUrl: 'http://localhost:5551',
+      directory: '/assistant',
       onNavigate,
     }))
 
@@ -191,6 +166,7 @@ describe('useAssistantSessionLauncher', () => {
     const { result } = renderHook(() => useAssistantSessionLauncher({
       repoId: 123,
       opcodeUrl: 'http://localhost:5551',
+      directory: '/assistant',
       onNavigate,
     }))
 
@@ -218,6 +194,7 @@ describe('useAssistantSessionLauncher', () => {
     const { result } = renderHook(() => useAssistantSessionLauncher({
       repoId: 123,
       opcodeUrl: 'http://localhost:5551',
+      directory: '/assistant',
       onNavigate,
     }))
 
@@ -227,5 +204,23 @@ describe('useAssistantSessionLauncher', () => {
 
     expect(onNavigate).toHaveBeenCalledWith('created')
     expect(mocks.sendPromptAsync).toHaveBeenCalled()
+  })
+
+  it('rejects when the assistant directory is unavailable', async () => {
+    const onNavigate = vi.fn()
+    const { result } = renderHook(() => useAssistantSessionLauncher({
+      repoId: 123,
+      opcodeUrl: 'http://localhost:5551',
+      onNavigate,
+    }))
+
+    await act(async () => {
+      await expect(result.current.openAssistant()).rejects.toThrow('Assistant workspace directory is unavailable')
+    })
+
+    expect(OpenCodeClient).not.toHaveBeenCalled()
+    expect(mocks.listSessionsPage).not.toHaveBeenCalled()
+    expect(mocks.createSession).not.toHaveBeenCalled()
+    expect(onNavigate).not.toHaveBeenCalled()
   })
 })
