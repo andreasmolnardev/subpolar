@@ -1,6 +1,7 @@
 import type { Database } from 'bun:sqlite'
 import type { Repo, CreateRepoInput } from '../types/repo'
 import { getReposPath } from '@opencode-manager/shared/config/env'
+import { ASSISTANT_REPO_ID, ASSISTANT_REPO_PATH } from '@opencode-manager/shared/utils'
 import { getErrorMessage } from '../utils/error-utils'
 import path from 'path'
 
@@ -41,11 +42,82 @@ function rowToRepo(row: RepoRow): Repo {
   }
 }
 
+const TABLES_WITH_REPO_ID = ['schedule_jobs', 'schedule_runs', 'repo_settings'] as const
+type RepoIdTable = typeof TABLES_WITH_REPO_ID[number]
+
+function updateRepoIdReference(db: Database, tableName: RepoIdTable, fromRepoId: number, toRepoId: number): void {
+  db.prepare(`UPDATE ${tableName} SET repo_id = ? WHERE repo_id = ?`).run(toRepoId, fromRepoId)
+}
+
 export function getRepoById(db: Database, id: number): Repo | null {
   const stmt = db.prepare('SELECT * FROM repos WHERE id = ?')
   const row = stmt.get(id) as RepoRow | undefined
   
   return row ? rowToRepo(row) : null
+}
+
+export function ensureAssistantRepo(db: Database): Repo {
+  const now = Date.now()
+
+  const syncAssistantRepo = db.transaction(() => {
+    const existingAssistantPathRow = db.prepare('SELECT id FROM repos WHERE local_path = ? AND id != ?')
+      .get(ASSISTANT_REPO_PATH, ASSISTANT_REPO_ID) as { id: number } | undefined
+
+    if (existingAssistantPathRow) {
+      for (const table of TABLES_WITH_REPO_ID) {
+        updateRepoIdReference(db, table, existingAssistantPathRow.id, ASSISTANT_REPO_ID)
+      }
+      db.prepare('DELETE FROM repos WHERE id = ?').run(existingAssistantPathRow.id)
+    }
+
+    db.prepare(`
+      INSERT INTO repos (
+        id,
+        repo_url,
+        local_path,
+        source_path,
+        branch,
+        default_branch,
+        clone_status,
+        cloned_at,
+        last_accessed_at,
+        is_worktree,
+        is_local
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        repo_url = excluded.repo_url,
+        local_path = excluded.local_path,
+        source_path = excluded.source_path,
+        branch = excluded.branch,
+        default_branch = excluded.default_branch,
+        clone_status = excluded.clone_status,
+        last_accessed_at = excluded.last_accessed_at,
+        is_worktree = excluded.is_worktree,
+        is_local = excluded.is_local
+    `).run(
+      ASSISTANT_REPO_ID,
+      null,
+      ASSISTANT_REPO_PATH,
+      null,
+      null,
+      'main',
+      'ready',
+      now,
+      now,
+      0,
+      0,
+    )
+  })
+
+  syncAssistantRepo()
+
+  const repo = getRepoById(db, ASSISTANT_REPO_ID)
+  if (!repo) {
+    throw new Error('Failed to sync Assistant repository')
+  }
+
+  return repo
 }
 
 export function createRepo(db: Database, repo: CreateRepoInput): Repo {
@@ -209,8 +281,9 @@ export function updateRepoBranch(db: Database, id: number, branch: string): void
 }
 
 export function deleteRepo(db: Database, id: number): void {
-  db.prepare('DELETE FROM schedule_runs WHERE repo_id = ?').run(id)
-  db.prepare('DELETE FROM schedule_jobs WHERE repo_id = ?').run(id)
+  for (const table of TABLES_WITH_REPO_ID) {
+    db.prepare(`DELETE FROM ${table} WHERE repo_id = ?`).run(id)
+  }
   const stmt = db.prepare('DELETE FROM repos WHERE id = ?')
   stmt.run(id)
 }

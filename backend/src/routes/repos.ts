@@ -14,6 +14,7 @@ import type { OpenCodeClient } from '../services/opencode/client'
 import { logger } from '../utils/logger'
 import { getErrorMessage, getStatusCode } from '../utils/error-utils'
 import { getOpenCodeConfigFilePath } from '@opencode-manager/shared/config/env'
+import { ASSISTANT_REPO_ID } from '@opencode-manager/shared/utils'
 import { createRepoGitRoutes } from './repo-git'
 import { createScheduleRoutes } from './schedules'
 import type { GitAuthService } from '../services/git-auth'
@@ -29,6 +30,10 @@ async function restartOpenCode(openCodeSupervisor?: OpenCodeSupervisor): Promise
 
   opencodeServerManager.clearStartupError()
   await opencodeServerManager.restart()
+}
+
+function resolveRepo(database: Database, id: number): Repo | null {
+  return getRepoById(database, id) ?? (id === ASSISTANT_REPO_ID ? buildAssistantRepo() : null)
 }
 
 export function createRepoRoutes(
@@ -122,7 +127,7 @@ app.get('/', async (c) => {
       const reposWithCurrentBranch = await Promise.all(
         repos.map(async (repo) => {
           const env = gitAuthService.getGitEnvironment()
-          const currentBranch = await repoService.getCurrentBranch(repo, env)
+          const currentBranch = repo.id === ASSISTANT_REPO_ID ? undefined : await repoService.getCurrentBranch(repo, env)
           return { ...repo, currentBranch }
         })
       )
@@ -157,14 +162,13 @@ app.get('/', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
 
-      const isAssistant = id === 0
-      const repo: Repo | null = isAssistant ? buildAssistantRepo() : getRepoById(database, id)
+      const repo: Repo | null = resolveRepo(database, id)
 
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)
       }
       
-      const currentBranch = isAssistant ? undefined : await repoService.getCurrentBranch(repo, gitAuthService.getGitEnvironment())
+      const currentBranch = id === ASSISTANT_REPO_ID ? undefined : await repoService.getCurrentBranch(repo, gitAuthService.getGitEnvironment())
       
       return c.json({ ...repo, currentBranch })
     } catch (error: unknown) {
@@ -267,6 +271,11 @@ app.get('/', async (c) => {
   app.delete('/:id', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
+
+      if (id === ASSISTANT_REPO_ID) {
+        return c.json({ error: 'Cannot delete the assistant repository' }, 403)
+      }
+
       const repo = getRepoById(database, id)
       
       if (!repo) {
@@ -480,7 +489,7 @@ app.get('/', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
 
-      const repo: Repo | null = id === 0 ? buildAssistantRepo() : getRepoById(database, id)
+      const repo: Repo | null = resolveRepo(database, id)
 
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)
@@ -498,7 +507,7 @@ app.get('/', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
 
-      const repo: Repo | null = id === 0 ? buildAssistantRepo() : getRepoById(database, id)
+      const repo: Repo | null = resolveRepo(database, id)
 
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)
