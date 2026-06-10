@@ -13,6 +13,7 @@ import { useUserBash } from '@/stores/userBashStore'
 import { useModelStore } from '@/stores/modelStore'
 import { useSessionAgentStore } from '@/stores/sessionAgentStore'
 import { useUIState } from '@/stores/uiStateStore'
+import { useSendErrorStore } from '@/stores/sendErrorStore'
 import { useMobile } from '@/hooks/useMobile'
 
 import { usePermissions } from '@/contexts/EventContext'
@@ -105,7 +106,6 @@ export const PromptInput = memo(forwardRef<PromptInputHandle, PromptInputProps>(
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0)
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
   const [localMode, setLocalMode] = useState<string | null>(null)
-  const [isFocused, setIsFocused] = useState(false)
   const [isTogglingRecording, setIsTogglingRecording] = useState(false)
   const [isVoiceSwipeArmed, setIsVoiceSwipeArmed] = useState(false)
   const [isVoiceAutoSendPending, setIsVoiceAutoSendPending] = useState(false)
@@ -117,6 +117,9 @@ export const PromptInput = memo(forwardRef<PromptInputHandle, PromptInputProps>(
   const ignoreVoiceClickUntilRef = useRef(0)
   const voiceStartRequestRef = useRef(0)
   const handleSubmitRef = useRef<() => void>(() => {})
+  const promptRef = useRef(prompt)
+  const attachedFilesRef = useRef(attachedFiles)
+  const imageAttachmentsRef = useRef(imageAttachments)
   const pendingPromptCommand = useUIState((state) => state.pendingPromptCommand)
   const pendingPromptFile = useUIState((state) => state.pendingPromptFile)
   const clearPendingPromptCommand = useUIState((state) => state.clearPendingPromptCommand)
@@ -148,7 +151,44 @@ export const PromptInput = memo(forwardRef<PromptInputHandle, PromptInputProps>(
     setIsVoiceAutoSendPending(false)
     setIsVoiceAutoSendWaitingForTranscript(false)
   }, [])
-  
+
+  useEffect(() => {
+    promptRef.current = prompt
+    attachedFilesRef.current = attachedFiles
+    imageAttachmentsRef.current = imageAttachments
+  }, [attachedFiles, imageAttachments, prompt])
+
+  const clearSubmittedPrompt = useCallback((submittedPrompt: string, submittedAttachedFiles: Map<string, FileAttachmentInfo>, submittedImageAttachments: ImageAttachment[]) => {
+    if (
+      promptRef.current !== submittedPrompt ||
+      attachedFilesRef.current !== submittedAttachedFiles ||
+      imageAttachmentsRef.current !== submittedImageAttachments
+    ) {
+      return
+    }
+
+    setPrompt('')
+    setAttachedFiles(new Map())
+    revokeBlobUrls(submittedImageAttachments)
+    setImageAttachments([])
+    setSelectedAgent(null)
+    clearSTT()
+  }, [clearSTT])
+
+  const pendingConfirmClearRef = useRef<{
+    prompt: string
+    files: Map<string, FileAttachmentInfo>
+    images: ImageAttachment[]
+  } | null>(null)
+
+  useEffect(() => {
+    if (!isStreamingResponse) return
+    const pending = pendingConfirmClearRef.current
+    if (!pending) return
+    pendingConfirmClearRef.current = null
+    clearSubmittedPrompt(pending.prompt, pending.files, pending.images)
+  }, [isStreamingResponse, clearSubmittedPrompt])
+
   useImperativeHandle(ref, () => ({
     setPromptValue: (value: string) => {
       setPrompt(value)
@@ -174,6 +214,7 @@ export const PromptInput = memo(forwardRef<PromptInputHandle, PromptInputProps>(
   }), [imageAttachments, clearSTT, isRecording, abortRecording, resetVoiceGestureState])
   const sendPrompt = useSendPrompt(opcodeUrl, directory)
   const sendShell = useSendShell(opcodeUrl, directory)
+  const isPromptSubmitPending = sendPrompt.isPending || sendShell.isPending
   const abortSession = useAbortSession(opcodeUrl, directory, sessionID)
   const { filterCommands } = useCommands(opcodeUrl)
   const { executeCommand } = useCommandHandler({
@@ -196,6 +237,16 @@ export const PromptInput = memo(forwardRef<PromptInputHandle, PromptInputProps>(
   )
   
   const { data: agents = [] } = useAgents(opcodeUrl, directory)
+  const failedPrompt = useSendErrorStore((state) => state.errors[sessionID]?.failedPrompt)
+  const restoredFailedPromptRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!failedPrompt || restoredFailedPromptRef.current === failedPrompt) return
+    restoredFailedPromptRef.current = failedPrompt
+    if (promptRef.current) return
+    setPrompt(failedPrompt)
+    textareaRef.current?.focus()
+  }, [failedPrompt])
   
   const mentionItems = useMemo((): MentionItem[] => {
     const filteredAgents = filterAgentsByQuery(
@@ -234,39 +285,52 @@ export const PromptInput = memo(forwardRef<PromptInputHandle, PromptInputProps>(
       onScrollToBottom()
       const parts = parsePromptToParts(prompt, attachedFiles, imageAttachments)
       const agentUsed = selectedAgent || currentMode
-      sendPrompt.mutate({
-        sessionID,
-        parts,
-        model: currentModel,
-        agent: agentUsed,
-        variant: currentVariant,
-        queued: true
-      })
+      const submittedPrompt = prompt
+      const submittedAttachedFiles = attachedFiles
+      const submittedImageAttachments = imageAttachments
+      sendPrompt.mutate(
+        {
+          sessionID,
+          prompt: submittedPrompt,
+          parts,
+          model: currentModel,
+          agent: agentUsed,
+          variant: currentVariant,
+          queued: true
+        },
+        {
+          onSuccess: () => clearSubmittedPrompt(submittedPrompt, submittedAttachedFiles, submittedImageAttachments)
+        }
+      )
       setStoredAgent(sessionID, agentUsed)
       if (model) {
         setStoredModel({ providerID: model.providerID, modelID: model.modelID })
       }
-      setPrompt('')
-      setAttachedFiles(new Map())
-      revokeBlobUrls(imageAttachments)
-      setImageAttachments([])
-      setSelectedAgent(null)
-      clearSTT()
       return
     }
+
+    if (isPromptSubmitPending) return
 
     if (isBashMode) {
       const command = prompt.startsWith('!') ? prompt.slice(1) : prompt
       addUserBashCommand(command)
-      sendShell.mutate({
-        sessionID,
-        command,
-        agent: currentMode
-      })
+      const submittedPrompt = prompt
+      sendShell.mutate(
+        {
+          sessionID,
+          command,
+          agent: currentMode
+        },
+        {
+          onSuccess: () => {
+            if (promptRef.current !== submittedPrompt) return
+            setPrompt('')
+            setIsBashMode(false)
+            clearSTT()
+          }
+        }
+      )
       setStoredAgent(sessionID, currentMode)
-      setPrompt('')
-      setIsBashMode(false)
-      clearSTT()
       return
     }
 
@@ -287,14 +351,35 @@ export const PromptInput = memo(forwardRef<PromptInputHandle, PromptInputProps>(
 
     const parts = parsePromptToParts(prompt, attachedFiles, imageAttachments)
     const agentUsed = selectedAgent || currentMode
+    const submittedPrompt = prompt
+    const submittedAttachedFiles = attachedFiles
+    const submittedImageAttachments = imageAttachments
 
-    sendPrompt.mutate({
-      sessionID,
-      parts,
-      model: currentModel,
-      agent: agentUsed,
-      variant: currentVariant
-    })
+    pendingConfirmClearRef.current = {
+      prompt: submittedPrompt,
+      files: submittedAttachedFiles,
+      images: submittedImageAttachments
+    }
+
+    sendPrompt.mutate(
+      {
+        sessionID,
+        prompt: submittedPrompt,
+        parts,
+        model: currentModel,
+        agent: agentUsed,
+        variant: currentVariant
+      },
+      {
+        onSuccess: () => {
+          pendingConfirmClearRef.current = null
+          clearSubmittedPrompt(submittedPrompt, submittedAttachedFiles, submittedImageAttachments)
+        },
+        onError: () => {
+          pendingConfirmClearRef.current = null
+        }
+      }
+    )
 
     onScrollToBottom()
 
@@ -302,12 +387,6 @@ export const PromptInput = memo(forwardRef<PromptInputHandle, PromptInputProps>(
     if (model) {
       setStoredModel({ providerID: model.providerID, modelID: model.modelID })
     }
-    setPrompt('')
-    setAttachedFiles(new Map())
-    revokeBlobUrls(imageAttachments)
-    setImageAttachments([])
-    setSelectedAgent(null)
-    clearSTT()
   }
 
   handleSubmitRef.current = handleSubmit
@@ -1163,7 +1242,7 @@ if (isIOS && isSecureContext && navigator.clipboard && navigator.clipboard.read)
 
 return (
     <div className={`relative backdrop-blur-md bg-background opacity-95 border border-border dark:border-white/30 rounded-xl p-2 md:p-3 mb-4 md:mb-1 w-full transition-all ${hasPendingPermissionForSession ? 'border-orange-500/50 ring-1 ring-orange-500/30' : ''}`}>
-      {showStopButton && !(isFocused && prompt.trim().length > 0) && (
+      {showStopButton && (
         <button
           onClick={handleStop}
           disabled={disabled}
@@ -1189,8 +1268,6 @@ return (
             : "Send a message..."
         }
         disabled={disabled}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
         className={`w-full bg-muted/50 pl-2 md:pl-3 pr-3 py-2 text-[16px] text-foreground placeholder-muted-foreground focus:outline-none focus:bg-muted/70 resize-none min-h-[40px] max-h-[120px] disabled:opacity-50 disabled:cursor-not-allowed md:text-sm rounded-lg [field-sizing:content] ${
           isBashMode
             ? 'border-purple-500/50 bg-purple-500/5 focus:bg-purple-500/10'
@@ -1317,7 +1394,7 @@ return (
             <button
               data-submit-prompt
               onClick={hasPendingPermissionForSession ? () => setShowDialog(true) : handleSubmit}
-              disabled={hasPendingPermissionForSession ? false : ((!prompt.trim() && imageAttachments.length === 0) || disabled)}
+              disabled={hasPendingPermissionForSession ? false : ((!prompt.trim() && imageAttachments.length === 0) || disabled || (isPromptSubmitPending && !isStreamingResponse))}
               className={`px-4 md:px-5 py-1.5 md:py-2 rounded-lg text-sm font-medium transition-colors dark:border flex-shrink-0 min-w-[52px] ${
                 hasPendingPermissionForSession
                   ? 'bg-orange-500 hover:bg-orange-600 border-orange-400 text-primary-foreground ring-orange-500/20'

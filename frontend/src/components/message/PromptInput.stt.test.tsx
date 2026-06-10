@@ -23,8 +23,11 @@ const mocks = vi.hoisted(() => ({
   useVariants: vi.fn(),
   useSessionAgent: vi.fn(),
   useAgents: vi.fn(),
+  useSendPromptMutate: vi.fn(),
+  sendPromptPending: vi.fn(() => false),
   useUserBash: vi.fn(),
   useSessionAgentStore: vi.fn(),
+  useSendErrorStore: vi.fn(),
   useSettings: vi.fn(),
   EventContext: vi.fn(),
 }))
@@ -38,9 +41,9 @@ vi.mock('@/hooks/useMobile', () => ({
 }))
 
 vi.mock('@/hooks/useOpenCode', () => ({
-  useSendPrompt: () => ({ mutate: vi.fn() }),
+  useSendPrompt: () => ({ mutate: mocks.useSendPromptMutate, isPending: mocks.sendPromptPending() }),
   useAbortSession: () => ({ mutate: vi.fn() }),
-  useSendShell: () => ({ mutate: vi.fn() }),
+  useSendShell: () => ({ mutate: vi.fn(), isPending: false }),
   useOpenCodeClient: () => ({}),
   useAgents: () => ({ data: [] }),
 }))
@@ -75,6 +78,10 @@ vi.mock('@/stores/userBashStore', () => ({
 
 vi.mock('@/stores/sessionAgentStore', () => ({
   useSessionAgentStore: mocks.useSessionAgentStore,
+}))
+
+vi.mock('@/stores/sendErrorStore', () => ({
+  useSendErrorStore: mocks.useSendErrorStore,
 }))
 
 vi.mock('@/contexts/EventContext', () => ({
@@ -153,6 +160,10 @@ describe('PromptInput STT Gesture Tests', () => {
     mockReset.mockReturnValue(undefined)
     mockClear.mockReturnValue(undefined)
     mockSetAgent.mockClear()
+    mocks.useSendPromptMutate.mockImplementation((_variables, options) => {
+      options?.onSuccess?.()
+    })
+    mocks.sendPromptPending.mockReturnValue(false)
 
     mocks.useMobile.mockReturnValue(true)
     mocks.useSTT.mockReturnValue({
@@ -189,8 +200,9 @@ describe('PromptInput STT Gesture Tests', () => {
     })
     mocks.useSessionAgent.mockReturnValue({ agent: 'default' })
     mocks.useAgents.mockReturnValue({ data: [] })
-    mocks.useUserBash.mockReturnValue({ addUserBashCommand: vi.fn() })
-    mocks.useSessionAgentStore.mockReturnValue({ setAgent: mockSetAgent })
+    mocks.useUserBash.mockImplementation((selector) => selector({ addUserBashCommand: vi.fn() }))
+    mocks.useSessionAgentStore.mockImplementation((selector) => selector({ setAgent: mockSetAgent }))
+    mocks.useSendErrorStore.mockImplementation((selector) => selector({ errors: {} }))
     useUIState.getState().clearPendingPromptCommand()
     useUIState.getState().clearPendingPromptFile()
   })
@@ -241,6 +253,133 @@ describe('PromptInput STT Gesture Tests', () => {
   }
 
   describe('quick tap behavior', () => {
+    it('keeps submitted text until send succeeds', async () => {
+      mocks.useSendPromptMutate.mockImplementation(() => undefined)
+      renderComponent()
+
+      const input = screen.getByPlaceholderText('Send a message...')
+      fireEvent.change(input, { target: { value: 'retry me' } })
+      fireEvent.click(screen.getByTitle('Send'))
+
+      expect(input).toHaveValue('retry me')
+    })
+
+    it('clears submitted text after send success', async () => {
+      renderComponent()
+
+      const input = screen.getByPlaceholderText('Send a message...')
+      fireEvent.change(input, { target: { value: 'sent message' } })
+      fireEvent.click(screen.getByTitle('Send'))
+
+      await waitFor(() => {
+        expect(input).toHaveValue('')
+      })
+    })
+
+    it('clears submitted text once the server confirms it is processing', async () => {
+      mocks.useSendPromptMutate.mockImplementation(() => undefined)
+      const queryClient = createTestQueryClient()
+      const { rerender } = render(
+        <QueryClientProvider client={queryClient}>
+          <PromptInput {...defaultProps} />
+        </QueryClientProvider>,
+      )
+
+      const input = screen.getByPlaceholderText('Send a message...')
+      fireEvent.change(input, { target: { value: 'do the thing' } })
+      fireEvent.click(screen.getByTitle('Send'))
+
+      expect(input).toHaveValue('do the thing')
+
+      rerender(
+        <QueryClientProvider client={queryClient}>
+          <PromptInput {...defaultProps} isStreamingResponse />
+        </QueryClientProvider>,
+      )
+
+      await waitFor(() => {
+        expect(input).toHaveValue('')
+      })
+    })
+
+    it('allows queuing a follow-up while a non-queued send is pending', async () => {
+      mocks.sendPromptPending.mockReturnValue(true)
+      render(
+        <QueryClientProvider client={createTestQueryClient()}>
+          <PromptInput {...defaultProps} isStreamingResponse />
+        </QueryClientProvider>,
+      )
+
+      const input = screen.getByPlaceholderText('Send a message...')
+      fireEvent.change(input, { target: { value: 'follow-up' } })
+
+      const queueButton = screen.getByTitle('Queue message')
+      expect(queueButton).not.toBeDisabled()
+
+      fireEvent.click(queueButton)
+
+      expect(mocks.useSendPromptMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: 'follow-up', queued: true }),
+        expect.any(Object),
+      )
+    })
+
+    it('restores a failed queued prompt when the input is empty', async () => {
+      const queryClient = createTestQueryClient()
+      const { rerender } = render(
+        <QueryClientProvider client={queryClient}>
+          <PromptInput {...defaultProps} isStreamingResponse />
+        </QueryClientProvider>,
+      )
+
+      const input = screen.getByPlaceholderText('Send a message...')
+      fireEvent.change(input, { target: { value: 'queued message' } })
+      fireEvent.click(screen.getByTitle('Queue message'))
+
+      expect(mocks.useSendPromptMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: 'queued message', queued: true }),
+        expect.any(Object),
+      )
+
+      await waitFor(() => {
+        expect(input).toHaveValue('')
+      })
+
+      mocks.useSendErrorStore.mockImplementation((selector) => selector({
+        errors: {
+          'test-session': {
+            sessionID: 'test-session',
+            title: 'Error',
+            message: 'Queued send failed',
+            failedPrompt: 'queued message',
+          },
+        },
+      }))
+
+      rerender(
+        <QueryClientProvider client={queryClient}>
+          <PromptInput {...defaultProps} />
+        </QueryClientProvider>,
+      )
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Send a message...')).toHaveValue('queued message')
+      })
+    })
+
+    it('keeps stop available while active with prompt content', async () => {
+      render(
+        <QueryClientProvider client={createTestQueryClient()}>
+          <PromptInput {...defaultProps} isSessionActive />
+        </QueryClientProvider>
+      )
+
+      const input = screen.getByPlaceholderText('Send a message...')
+      fireEvent.change(input, { target: { value: 'draft while active' } })
+
+      expect(screen.getAllByTitle('Stop').length).toBeGreaterThan(0)
+    })
+
     it('inserts a command selected from the mobile drawer', async () => {
       renderComponent()
 

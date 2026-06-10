@@ -7,10 +7,13 @@ import { showToast } from '@/lib/toast'
 import { settingsApi } from '@/api/settings'
 import { useSessionStatus } from '@/stores/sessionStatusStore'
 import { useSessionTodos } from '@/stores/sessionTodosStore'
+import { useSendErrorStore } from '@/stores/sendErrorStore'
 import { openCodeEventStream } from '@/lib/opencode-event-stream'
 import type { EventStreamSubscription } from '@/lib/opencode-event-stream'
 import { parseOpenCodeError } from '@/lib/opencode-errors'
 import { createPartsBatcher } from '@/lib/partsBatcher'
+
+const STATUS_POLL_INTERVAL_MS = 5000
 
 const getEventDirectory = (event: SSEEvent): string | undefined => {
   const directory = (event as { directory?: unknown }).directory
@@ -153,7 +156,10 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
         
         const { info } = event.properties
         const sessionID = info.sessionID
-        
+        if (info.role === 'user') {
+          useSendErrorStore.getState().clearQueuedPrompt(sessionID)
+        }
+
         const queryKey = messagesQueryKey(opcodeUrl, sessionID, cacheDirectory)
         const currentData = queryClient.getQueryData<MessageWithParts[]>(queryKey)
         if (!currentData) {
@@ -309,12 +315,20 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
 
       case 'session.error': {
         if (!('error' in event.properties)) break
-        if ('sessionID' in event.properties && event.properties.sessionID === currentSessionId) break
+        const sessionID = 'sessionID' in event.properties ? event.properties.sessionID : undefined
+        const parsed = parseOpenCodeError(event.properties.error)
+        if (sessionID && parsed) {
+          useSendErrorStore.getState().failQueuedPrompt({
+            sessionID,
+            title: parsed.title,
+            message: parsed.message,
+          })
+        }
+        if (sessionID === currentSessionId) break
         
         const error = event.properties.error
         if (error?.name === 'MessageAbortedError') break
         
-        const parsed = parseOpenCodeError(error)
         if (parsed) {
           showToast.error(parsed.title, {
             description: parsed.message,
@@ -355,6 +369,16 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
     }
   }, [client, primaryDirectory, replaceSessionStatuses])
 
+  useEffect(() => {
+    if (!client || !primaryDirectory) return
+
+    const interval = setInterval(() => {
+      void fetchInitialData().catch(() => undefined)
+    }, STATUS_POLL_INTERVAL_MS)
+
+    return () => clearInterval(interval)
+  }, [client, primaryDirectory, fetchInitialData])
+
   const syncCurrentSession = useCallback(() => {
     const sessionId = sessionIdRef.current
     if (!sessionId || !opcodeUrl || !primaryDirectory) return
@@ -393,7 +417,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
       
       if (connected) {
         setError(null)
-        fetchInitialData()
+        void fetchInitialData().catch(() => undefined)
         syncCurrentSession()
         eventStreamSubscriptionRef.current?.reportVisibility(document.visibilityState === 'visible', sessionIdRef.current)
       } else {

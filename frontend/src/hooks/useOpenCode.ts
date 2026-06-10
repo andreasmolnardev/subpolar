@@ -12,6 +12,7 @@ import type { paths, components } from "../api/opencode-types";
 import { parseNetworkError } from "../lib/opencode-errors";
 import { showToast } from "../lib/toast";
 import { useSendErrorStore } from "../stores/sendErrorStore";
+import { useSessionStatus } from "../stores/sessionStatusStore";
 import { invalidateSessionListCaches, messagesQueryKey } from "../lib/queryInvalidation";
 
 type AssistantMessage = components["schemas"]["AssistantMessage"];
@@ -366,6 +367,16 @@ const createOptimisticUserMessageInfo = (
   return { ...message, agent, variant } as Message;
 };
 
+const getPromptText = (prompt: string | undefined, parts: ContentPart[] | undefined): string => {
+  if (prompt !== undefined) return prompt;
+  if (!parts) return "";
+  return parts
+    .filter((part): part is ContentPart & { type: "text" } => part.type === "text")
+    .map((part) => part.content)
+    .join("")
+    .trim();
+};
+
 export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: string) => {
   const client = useOpenCodeClient(opcodeUrl, directory);
   const queryClient = useQueryClient();
@@ -411,6 +422,7 @@ export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: 
         queryKey,
         (old) => [...(old || []), optimisticMessageWithParts],
       );
+      useSessionStatus.getState().setOptimisticActive(sessionID);
 
       const requestData: SendPromptRequest = {
         parts: parts?.map((part) =>
@@ -469,7 +481,15 @@ export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: 
       }
 
       if (queued) {
-        await client.sendPromptAsync(sessionID, requestData);
+        useSendErrorStore.getState().setQueuedPrompt(sessionID, getPromptText(prompt, parts));
+
+        try {
+          await client.sendPromptAsync(sessionID, requestData);
+        } catch (error) {
+          useSendErrorStore.getState().clearQueuedPrompt(sessionID);
+          throw error;
+        }
+
         return { optimisticUserID, queued: true };
       }
 
@@ -478,8 +498,12 @@ export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: 
       return { optimisticUserID, response, queued: false };
     },
     onError: (error, variables) => {
-      const { sessionID } = variables;
+      const { sessionID, queued } = variables;
       const queryKey = messagesQueryKey(opcodeUrl, sessionID, directory);
+
+      if (queued) {
+        useSendErrorStore.getState().clearQueuedPrompt(sessionID);
+      }
 
       queryClient.setQueryData<MessageWithParts[]>(
         queryKey,
@@ -492,6 +516,8 @@ export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: 
       if (isNetworkError) {
         return;
       }
+
+      useSessionStatus.getState().clearStatus(sessionID);
 
       const parsed = parseNetworkError(error);
       useSendErrorStore.getState().setError({
