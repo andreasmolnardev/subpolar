@@ -1,0 +1,4 @@
+- Create agents cli: closing the loop between frontend and backend tool calls.
+- Productivity-integrations: Integrate with CalDAV and IMAP/SMTP directly using the agents cli
+- Use Pocketbase as backend
+- Rename assistant mode to General Chat. General chat should have access to global agents.
