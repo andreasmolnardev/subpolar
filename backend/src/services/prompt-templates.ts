@@ -1,5 +1,5 @@
 import type { Database } from 'bun:sqlite'
-import type { CreatePromptTemplateRequest, UpdatePromptTemplateRequest } from '@opencode-manager/shared/schemas'
+import type { CreatePromptTemplateRequest, UpdatePromptTemplateRequest } from '@subpolar/shared/schemas'
 import {
   listPromptTemplates,
   getPromptTemplateById,

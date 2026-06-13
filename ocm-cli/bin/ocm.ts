@@ -12,7 +12,7 @@ import packageJson from '../package.json' with { type: 'json' }
 
 const VERSION = packageJson.version
 
-const USAGE = `ocm - OpenCode Manager workspace launcher
+const USAGE = `ocm - subpolar workspace launcher
 
 Usage:
   ocm                       Attach to the Manager repo matching $PWD's git origin,

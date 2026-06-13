@@ -48,7 +48,7 @@ import { migrateGlobalSkills } from './services/skills'
 import { installAssistantWorkspace } from './services/assistant-mode'
 import { getOpenCodeImportStatus, syncOpenCodeImport } from './services/opencode-import'
 import { OpenCodeSupervisor } from './services/opencode-supervisor'
-import { OpenCodeConfigSchema } from '@opencode-manager/shared/schemas'
+import { OpenCodeConfigSchema } from '@subpolar/shared/schemas'
 import { parse as parseJsonc } from 'jsonc-parser'
 import { getModelStatePath, ModelStateSchema } from './routes/providers'
 import { readJsonSafe } from './utils/atomic-json'
@@ -65,7 +65,7 @@ import {
   getAgentsMdPath,
   getDatabasePath,
   ENV
-} from '@opencode-manager/shared/config/env'
+} from '@subpolar/shared/config/env'
 
 
 const { PORT, HOST } = ENV.SERVER

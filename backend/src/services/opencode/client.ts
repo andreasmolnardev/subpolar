@@ -1,5 +1,5 @@
 import { logger } from '../../utils/logger'
-import { ENV } from '@opencode-manager/shared/config/env'
+import { ENV } from '@subpolar/shared/config/env'
 import { getOpenCodeBasicAuthHeader, type OpenCodePasswordResolver } from './auth'
 
 export interface ForwardRequest {

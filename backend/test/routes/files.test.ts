@@ -4,7 +4,7 @@ import { Hono } from 'hono'
 import type { ReadStream } from 'fs'
 import * as fileService from '../../src/services/files'
 import * as archiveService from '../../src/services/archive'
-import type { FileInfo, ChunkedFileInfo } from '@opencode-manager/shared'
+import type { FileInfo, ChunkedFileInfo } from '@subpolar/shared'
 
 interface FileUploadResult {
   name: string
@@ -20,7 +20,7 @@ vi.mock('../../src/utils/logger', () => ({
   },
 }))
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getReposPath: vi.fn(() => '/test/repos'),
   FILE_LIMITS: {
     MAX_SIZE_BYTES: 1024 * 1024,

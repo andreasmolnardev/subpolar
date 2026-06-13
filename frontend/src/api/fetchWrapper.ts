@@ -1,5 +1,5 @@
-import { FetchError } from '@opencode-manager/shared'
-import type { ApiErrorResponse } from '@opencode-manager/shared'
+import { FetchError } from '@subpolar/shared'
+import type { ApiErrorResponse } from '@subpolar/shared'
 
 export { FetchError }
 

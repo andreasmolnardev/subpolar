@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getWorkspacePath: vi.fn(() => '/test/workspace'),
   getOpenCodeConfigFilePath: vi.fn(() => '/test/workspace/.config/opencode.json'),
   getReposPath: vi.fn(() => '/test/workspace/repos'),
@@ -33,7 +33,7 @@ vi.mock('../../../src/utils/logger', () => ({
 }))
 
 import { createOpenCodeClient, FetchOpenCodeClient, UpstreamError } from '../../../src/services/opencode/client'
-import { ENV } from '@opencode-manager/shared/config/env'
+import { ENV } from '@subpolar/shared/config/env'
 
 describe('OpenCodeClient', () => {
   const baseUrl = 'http://127.0.0.1:5551'

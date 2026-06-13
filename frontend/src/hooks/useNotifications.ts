@@ -7,7 +7,7 @@ import {
   urlBase64ToUint8Array,
 } from "@/lib/serviceWorker";
 import type { NotificationPreferences } from "@/api/types/settings";
-import { DEFAULT_NOTIFICATION_PREFERENCES } from "@opencode-manager/shared/schemas";
+import { DEFAULT_NOTIFICATION_PREFERENCES } from "@subpolar/shared/schemas";
 
 type PermissionState = NotificationPermission | "unsupported";
 

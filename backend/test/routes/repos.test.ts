@@ -41,7 +41,7 @@ import { createRepoRoutes } from '../../src/routes/repos'
 import { opencodeServerManager } from '../../src/services/opencode-single-server'
 import type { GitAuthService } from '../../src/services/git-auth'
 import type { ScheduleService } from '../../src/services/schedules'
-import type { AssistantModeStatus } from '@opencode-manager/shared/types'
+import type { AssistantModeStatus } from '@subpolar/shared/types'
 import { getAssistantModeStatus, ensureAssistantMode } from '../../src/services/assistant-mode'
 
 const mockGitAuthService = {

@@ -5,7 +5,7 @@ import { SSHHostKeyHandler } from '../ipc/sshHostKeyHandler'
 import { writeTemporarySSHKey, buildSSHCommand, buildSSHCommandWithKnownHosts, cleanupSSHKey, parseSSHHost } from '../utils/ssh-key-manager'
 import { decryptSecret } from '../utils/crypto'
 import { isSSHUrl, normalizeSSHUrl, extractHostFromSSHUrl, getSSHCredentialsForHost } from '../utils/git-auth'
-import type { GitCredential } from '@opencode-manager/shared'
+import type { GitCredential } from '@subpolar/shared'
 import { logger } from '../utils/logger'
 import { SettingsService } from './settings'
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import type { MessageWithParts } from '../../api/types'
-import type { TTSConfig } from '@opencode-manager/shared'
+import type { TTSConfig } from '@subpolar/shared'
 
 const mocks = vi.hoisted(() => ({
   useTTS: vi.fn(),

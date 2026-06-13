@@ -1,29 +1,111 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useDesktop } from '@/hooks/useDesktop'
 import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed'
 import { useAuth } from '@/hooks/useAuth'
 import { useUrlParams } from '@/hooks/useUrlParams'
-import { buildNavModel, type MoreDrawerItem, type NavPrimaryCta } from '@/components/navigation/moreDrawerItems'
-import { getPathWithReturnTo } from '@/lib/navigation'
-import { RepoQuickSwitchSheet } from '@/components/navigation/RepoQuickSwitchSheet'
-import {
-  Sidebar,
-  SidebarSection,
-  SidebarItem,
-  SidebarCollapseToggle,
-} from '@/components/ui/sidebar'
-import { FolderGit2 } from 'lucide-react'
+import { listRepos } from '@/api/repos'
+import { settingsApi } from '@/api/settings'
+import { getAssistantPath } from '@/lib/navigation'
+import { FolderGit2, Home, Bot, AppWindow, Settings, LogOut, ChevronDown, ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Sidebar, SidebarCollapseToggle } from '@/components/ui/sidebar'
+
+function SidebarSection({
+  label,
+  icon: Icon,
+  collapsed,
+  expanded,
+  onToggle,
+  children,
+}: {
+  label: string
+  icon?: React.ElementType
+  collapsed: boolean
+  expanded: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  if (collapsed) return null
+
+  return (
+    <div className="flex flex-col">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+      >
+        {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {Icon && <Icon className="h-3.5 w-3.5" />}
+        {label}
+      </button>
+      {expanded && (
+        <div className="flex flex-col gap-0.5 px-2 pb-1">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SidebarNavItem({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+  indent,
+}: {
+  icon?: React.ElementType
+  label: string
+  active?: boolean
+  onClick?: () => void
+  indent?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors w-full text-left',
+        active
+          ? 'bg-accent text-accent-foreground font-medium'
+          : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+        indent && 'pl-8',
+      )}
+    >
+      {Icon && <Icon className="h-4 w-4 flex-shrink-0" />}
+      <span className="truncate">{label}</span>
+    </button>
+  )
+}
 
 export function DesktopSidebar() {
   const location = useLocation()
   const navigate = useNavigate()
   const { updateParams } = useUrlParams()
   const [collapsed, toggle] = useSidebarCollapsed()
-  const [repoSwitcherOpen, setRepoSwitcherOpen] = useState(false)
   const { isAuthenticated, isLoading, logout } = useAuth()
-
   const isDesktop = useDesktop()
+
+  const [agentsExpanded, setAgentsExpanded] = useState(true)
+  const [projectsExpanded, setProjectsExpanded] = useState(true)
+
+  const { data: repos } = useQuery({
+    queryKey: ['repos'],
+    queryFn: listRepos,
+  })
+
+  const { data: configs } = useQuery({
+    queryKey: ['opencode-configs'],
+    queryFn: () => settingsApi.getOpenCodeConfigs(),
+  })
+
+  const defaultConfig = configs?.defaultConfig
+  const rawContent = defaultConfig?.rawContent
+  const parsedConfig = rawContent ? tryParseJson(rawContent) : null
+  const agents = parsedConfig?.agents as Record<string, { description?: string; disable?: boolean }> | undefined
+  const agentNames = agents ? Object.keys(agents).filter((name) => !agents[name]?.disable) : []
 
   if (isLoading || !isAuthenticated) {
     return null
@@ -33,96 +115,109 @@ export function DesktopSidebar() {
     return null
   }
 
-  const { primary, items } = buildNavModel(location.pathname)
-
-  const handlePrimaryClick = (item: NavPrimaryCta) => {
-    if (item.to) {
-      navigate(item.to)
-    } else if (item.onSelect) {
-      window.dispatchEvent(
-        new CustomEvent('oc:sidebar:action', {
-          detail: { action: item.onSelect },
-        })
-      )
-    }
+  const isActive = (path: string) => {
+    if (path === '/') return location.pathname === '/'
+    return location.pathname.startsWith(path)
   }
-
-  const handleItemClick = (item: MoreDrawerItem) => {
-    if (item.to) {
-      const to = item.key === 'schedules'
-        ? getPathWithReturnTo(item.to, `${location.pathname}${location.search}`)
-        : item.to
-      navigate(to)
-    } else if (item.dialog) {
-      updateParams((p) => {
-        p.set('dialog', item.dialog!)
-        p.delete('mobileTab')
-      }, 'push')
-    } else if (item.key === 'logout') {
-      logout()
-    } else if (item.key === 'settings') {
-      updateParams((p) => {
-        p.set('settings', 'open')
-        p.set('settingsTab', 'account')
-        p.delete('mobileTab')
-      }, 'push')
-    } else if (item.key === 'repos') {
-      setRepoSwitcherOpen(true)
-    }
-  }
-
-  const navItems: MoreDrawerItem[] = [
-    { key: 'repos', label: 'Repos', icon: FolderGit2 },
-    ...items,
-  ]
 
   return (
-    <>
-      <Sidebar collapsed={collapsed} onToggle={toggle} className='mt-2'>
-
-        {primary.length > 0 && (
-          <SidebarSection collapsed={collapsed}>
-            {primary.map((item: NavPrimaryCta) => (
-              <SidebarItem
-                key={item.key}
-                icon={item.icon}
-                label={item.label}
-                collapsed={collapsed}
-                onClick={() => handlePrimaryClick(item)}
-                asPrimary
-                variant={item.variant}
-              />
-            ))}
-          </SidebarSection>
+    <Sidebar collapsed={collapsed} className="pt-0">
+      {/* Brand */}
+      <div className="flex items-center justify-between px-3 py-3 border-b border-border">
+        {!collapsed && (
+          <span className="text-sm font-semibold text-foreground tracking-tight">subpolar</span>
         )}
+        <SidebarCollapseToggle collapsed={collapsed} onToggle={toggle} />
+      </div>
 
-        <div className="flex items-center justify-between px-2 py-1.5">
-          {!collapsed && (
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Navigation
-            </div>
-          )}
-          <SidebarCollapseToggle collapsed={collapsed} onToggle={toggle} />
-        </div>
+      {/* Navigation */}
+      <div className="flex flex-col gap-1 p-2 pt-3 flex-1 overflow-y-auto">
+        {/* Home */}
+        <SidebarNavItem
+          icon={Home}
+          label="Home"
+          active={isActive('/')}
+          onClick={() => navigate('/')}
+        />
 
-        <div className="flex flex-col gap-1 p-2 pt-0">
-          {navItems.map((item: MoreDrawerItem) => (
-            <SidebarItem
-              key={item.key}
-              icon={item.icon}
-              label={item.label}
-              collapsed={collapsed}
-              onClick={() => handleItemClick(item)}
-              danger={item.danger}
+        {/* Agents & Skills */}
+        <SidebarSection
+          label="Agents & Skills"
+          icon={Bot}
+          collapsed={collapsed}
+          expanded={agentsExpanded}
+          onToggle={() => setAgentsExpanded(!agentsExpanded)}
+        >
+          <SidebarNavItem
+            label="Assistant"
+            active={isActive('/assistant')}
+            onClick={() => navigate(getAssistantPath())}
+            indent
+          />
+          {agentNames.map((name) => (
+            <SidebarNavItem
+              key={name}
+              label={name}
+              onClick={() => navigate(`/assistant?agent=${encodeURIComponent(name)}`)}
+              indent
             />
           ))}
-        </div>
-      </Sidebar>
+        </SidebarSection>
 
-      <RepoQuickSwitchSheet
-        isOpen={repoSwitcherOpen}
-        onClose={() => setRepoSwitcherOpen(false)}
-      />
-    </>
+        {/* Apps */}
+        <SidebarNavItem
+          icon={AppWindow}
+          label="Apps"
+          onClick={() => {}}
+        />
+
+        {/* Projects */}
+        <SidebarSection
+          label="Projects"
+          icon={FolderGit2}
+          collapsed={collapsed}
+          expanded={projectsExpanded}
+          onToggle={() => setProjectsExpanded(!projectsExpanded)}
+        >
+          {repos?.map((repo) => (
+            <SidebarNavItem
+              key={repo.id}
+              label={repo.localPath.split('/').pop() || repo.localPath}
+              active={location.pathname === `/repos/${repo.id}`}
+              onClick={() => navigate(`/repos/${repo.id}`)}
+              indent
+            />
+          ))}
+        </SidebarSection>
+      </div>
+
+      {/* Bottom actions */}
+      <div className="border-t border-border p-2 mt-auto">
+        <SidebarNavItem
+          icon={Settings}
+          label="Settings"
+          onClick={() => {
+            updateParams((p) => {
+              p.set('settings', 'open')
+              p.set('settingsTab', 'account')
+              p.delete('mobileTab')
+            }, 'push')
+          }}
+        />
+        <SidebarNavItem
+          icon={LogOut}
+          label="Logout"
+          onClick={() => logout()}
+        />
+      </div>
+    </Sidebar>
   )
+}
+
+function tryParseJson(raw: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
 }

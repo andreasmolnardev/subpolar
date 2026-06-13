@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
-import { AssistantSettingsPatchSchema } from '@opencode-manager/shared/schemas'
+import { AssistantSettingsPatchSchema } from '@subpolar/shared/schemas'
 import type { SettingsService } from '../../services/settings'
-import type { UserPreferences } from '@opencode-manager/shared/types'
+import type { UserPreferences } from '@subpolar/shared/types'
 
 export function createInternalSettingsRoutes(settingsService: SettingsService) {
   const app = new Hono()

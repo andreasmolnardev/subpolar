@@ -8,8 +8,8 @@ import {
   type ScheduleRun,
   type ScheduleRunStatus,
   type ScheduleRunTriggerSource,
-} from '@opencode-manager/shared/schemas'
-import { ASSISTANT_REPO_ID, ASSISTANT_REPO_NAME, ASSISTANT_REPO_PATH } from '@opencode-manager/shared/utils'
+} from '@subpolar/shared/schemas'
+import { ASSISTANT_REPO_ID, ASSISTANT_REPO_NAME, ASSISTANT_REPO_PATH } from '@subpolar/shared/utils'
 import type { ScheduleJobPersistenceInput } from '../services/schedule-config'
 
 interface ScheduleJobRow {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { History, Loader2, XCircle, CheckCircle2, Ban, ChevronDown } from 'lucide-react'
-import type { ScheduleRun } from '@opencode-manager/shared/types'
+import type { ScheduleRun } from '@subpolar/shared/types'
 import { getRunTone } from '@/components/schedules/schedule-utils'
 import { RunDetailPanel } from '@/components/schedules/RunDetailPanel'
 import { useRepoScheduleRun } from '@/hooks/useSchedules'

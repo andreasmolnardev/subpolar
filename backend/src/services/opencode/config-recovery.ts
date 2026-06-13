@@ -1,6 +1,6 @@
 import type { OpenCodeClient } from './client'
 import { logger } from '../../utils/logger'
-import { parseJsonc } from '@opencode-manager/shared/utils'
+import { parseJsonc } from '@subpolar/shared/utils'
 
 export type PatchConfigValidationIssue = {
   path: string

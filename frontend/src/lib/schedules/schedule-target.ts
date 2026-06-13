@@ -1,6 +1,6 @@
 import type { Repo } from '@/api/types'
-import type { AssistantModeStatus } from '@opencode-manager/shared/types'
-import { ASSISTANT_REPO_ID, ASSISTANT_REPO_NAME } from '@opencode-manager/shared/utils'
+import type { AssistantModeStatus } from '@subpolar/shared/types'
+import { ASSISTANT_REPO_ID, ASSISTANT_REPO_NAME } from '@subpolar/shared/utils'
 import { getRepoDisplayName } from '@/lib/utils'
 import { getAssistantPath } from '@/lib/navigation'
 

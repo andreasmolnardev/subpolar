@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getWorkspacePath: vi.fn(() => '/test/workspace'),
   getOpenCodeConfigFilePath: vi.fn(() => '/test/workspace/.config/opencode.json'),
   getReposPath: vi.fn(() => '/test/workspace/repos'),

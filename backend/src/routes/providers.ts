@@ -8,7 +8,7 @@ import type { OpenCodeClient } from '../services/opencode/client'
 import { opencodeServerManager } from '../services/opencode-single-server'
 import type { OpenCodeSupervisor } from '../services/opencode-supervisor'
 import type { Database } from 'bun:sqlite'
-import { getWorkspacePath } from '@opencode-manager/shared/config/env'
+import { getWorkspacePath } from '@subpolar/shared/config/env'
 import {
   addRecentOpenCodeModel,
   getOpenCodeModelState as readModelStateFromDb,

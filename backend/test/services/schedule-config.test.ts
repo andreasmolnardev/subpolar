@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ScheduleJob } from '@opencode-manager/shared/types'
+import type { ScheduleJob } from '@subpolar/shared/types'
 import {
   buildCreateSchedulePersistenceInput,
   buildUpdatedSchedulePersistenceInput,

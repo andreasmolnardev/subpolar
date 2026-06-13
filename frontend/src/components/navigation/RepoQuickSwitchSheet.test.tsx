@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RepoQuickSwitchSheet } from './RepoQuickSwitchSheet'
 import { listRepos } from '@/api/repos'
 import { useMobileTabBar } from '@/hooks/useMobileTabBar'
-import { ASSISTANT_REPO_ID } from '@opencode-manager/shared/utils'
+import { ASSISTANT_REPO_ID } from '@subpolar/shared/utils'
 
 vi.mock('@/api/repos')
 

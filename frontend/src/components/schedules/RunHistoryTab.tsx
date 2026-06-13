@@ -1,4 +1,4 @@
-import type { ScheduleJob, ScheduleRun } from '@opencode-manager/shared/types'
+import type { ScheduleJob, ScheduleRun } from '@subpolar/shared/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { History, Loader2 } from 'lucide-react'
 import { RunHistoryCards, RunDetailPanel } from '@/components/schedules'

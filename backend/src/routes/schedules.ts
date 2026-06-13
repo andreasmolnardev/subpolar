@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import {
   CreateScheduleJobRequestSchema,
   UpdateScheduleJobRequestSchema,
-} from '@opencode-manager/shared/schemas'
+} from '@subpolar/shared/schemas'
 import { ScheduleService, ScheduleServiceError } from '../services/schedules'
 import { parseId, handleServiceError } from '../utils/route-helpers'
 

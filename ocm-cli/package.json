@@ -1,7 +1,7 @@
 {
-  "name": "@opencode-manager/ocm-cli",
+  "name": "@subpolar/ocm-cli",
   "version": "0.1.4",
-  "description": "OpenCode Manager CLI: attach a local OpenCode TUI to a Manager-hosted repo.",
+  "description": "subpolar CLI: attach a local OpenCode TUI to a Manager-hosted repo.",
   "license": "MIT",
   "repository": {
     "type": "git",

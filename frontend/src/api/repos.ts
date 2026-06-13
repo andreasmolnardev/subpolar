@@ -1,7 +1,7 @@
 import type { Repo } from './types'
 import { FetchError, fetchWrapper, fetchWrapperVoid, fetchWrapperBlob } from './fetchWrapper'
 import { API_BASE_URL } from '@/config'
-import type { DiscoverReposResponse, AssistantModeStatus, AssistantModeInitRequest } from '@opencode-manager/shared/types'
+import type { DiscoverReposResponse, AssistantModeStatus, AssistantModeInitRequest } from '@subpolar/shared/types'
 
 export interface CreateRepoOptions {
   repoUrl?: string

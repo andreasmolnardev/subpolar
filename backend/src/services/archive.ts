@@ -4,7 +4,7 @@ import { readdir, stat, unlink } from 'fs/promises'
 import path from 'path'
 import os from 'os'
 import { logger } from '../utils/logger'
-import { getReposPath } from '@opencode-manager/shared/config/env'
+import { getReposPath } from '@subpolar/shared/config/env'
 
 function resolvePath(userPath: string): string {
   return path.isAbsolute(userPath) ? userPath : path.join(getReposPath(), userPath)

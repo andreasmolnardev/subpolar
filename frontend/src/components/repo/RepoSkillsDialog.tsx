@@ -4,7 +4,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useQuery } from '@tanstack/react-query'
 import { settingsApi } from '@/api/settings'
 import { useLoadSkill } from '@/hooks/useOpenCode'
-import type { SkillFileInfo } from '@opencode-manager/shared'
+import type { SkillFileInfo } from '@subpolar/shared'
 import { useMemo, useState, useEffect } from 'react'
 
 type RepoSkillsDialogBaseProps = {

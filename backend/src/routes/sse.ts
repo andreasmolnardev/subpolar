@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import { stream } from 'hono/streaming'
 import { sseAggregator } from '../services/sse-aggregator'
-import { SSESubscribeSchema, SSEVisibilitySchema } from '@opencode-manager/shared/schemas'
+import { SSESubscribeSchema, SSEVisibilitySchema } from '@subpolar/shared/schemas'
 import { logger } from '../utils/logger'
-import { DEFAULTS } from '@opencode-manager/shared/config'
+import { DEFAULTS } from '@subpolar/shared/config'
 import { createQueuedSSEWriter } from './sse-writer'
 
 const { HEARTBEAT_INTERVAL_MS } = DEFAULTS.SSE

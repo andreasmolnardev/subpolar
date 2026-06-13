@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CreatePromptTemplateRequest, UpdatePromptTemplateRequest } from '@opencode-manager/shared/types'
+import type { CreatePromptTemplateRequest, UpdatePromptTemplateRequest } from '@subpolar/shared/types'
 import {
   listPromptTemplates,
   createPromptTemplate,

@@ -4,7 +4,7 @@ import { TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Check, Pencil, Plus, Trash2 } from 'lucide-react'
-import type { PromptTemplate } from '@opencode-manager/shared/types'
+import type { PromptTemplate } from '@subpolar/shared/types'
 
 type PromptTabProps = {
   prompt: string

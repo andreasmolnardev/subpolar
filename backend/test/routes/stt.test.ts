@@ -31,7 +31,7 @@ vi.mock('../../src/utils/logger', () => ({
   },
 }))
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getWorkspacePath: () => '/test/workspace',
   ENV: {
     WORKSPACE: {

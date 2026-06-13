@@ -1,5 +1,5 @@
-import { DEFAULTS } from '@opencode-manager/shared/config'
-import type { SSEEventEnvelope } from '@opencode-manager/shared'
+import { DEFAULTS } from '@subpolar/shared/config'
+import type { SSEEventEnvelope } from '@subpolar/shared'
 import { createBrowserEventStreamTransport } from './browserTransport'
 import type {
   EventStreamHealthState,

@@ -28,7 +28,7 @@ vi.mock('../../src/services/sse-aggregator', () => ({
 
 let tmpRoot: string
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getReposPath: () => tmpRoot,
   getWorkspacePath: vi.fn(() => '/tmp/fake-workspace'),
 }))

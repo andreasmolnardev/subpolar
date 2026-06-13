@@ -11,7 +11,7 @@ export function VersionNotifier() {
 
     if (data.updateAvailable && data.latestVersion && data.releaseUrl) {
       hasNotifiedRef.current = true
-      showToast.info(`OpenCode Manager v${data.latestVersion} is available`, {
+      showToast.info(`subpolar v${data.latestVersion} is available`, {
         description: 'A new version is ready to install.',
         action: {
           label: 'View Release',

@@ -1,4 +1,4 @@
-import type { GitCredential } from '@opencode-manager/shared'
+import type { GitCredential } from '@subpolar/shared'
 
 export function isGitHubHttpsUrl(repoUrl: string): boolean {
   const url = normalizeGitCredentialUrl(repoUrl)

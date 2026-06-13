@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
-import type { CreateScheduleJobRequest, ScheduleJob } from '@opencode-manager/shared/types'
+import type { CreateScheduleJobRequest, ScheduleJob } from '@subpolar/shared/types'
 import {
   useCancelRepoScheduleRun,
   useCreateRepoSchedule,

@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth'
 import { passkey } from '@better-auth/passkey'
 import { Database } from 'bun:sqlite'
-import { ENV } from '@opencode-manager/shared/config/env'
+import { ENV } from '@subpolar/shared/config/env'
 
 export type AuthInstance = ReturnType<typeof createAuth>
 

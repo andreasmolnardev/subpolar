@@ -5,7 +5,7 @@ import type {
   ScheduleJob,
   ScheduleRun,
   UpdateScheduleJobRequest,
-} from '@opencode-manager/shared/types'
+} from '@subpolar/shared/types'
 
 export interface ScheduleJobWithRepo extends ScheduleJob {
   repoName: string

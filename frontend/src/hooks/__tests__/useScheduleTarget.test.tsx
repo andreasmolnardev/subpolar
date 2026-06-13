@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useScheduleTarget } from '../useScheduleTarget'
-import type { AssistantModeStatus, Repo } from '@opencode-manager/shared/types'
+import type { AssistantModeStatus, Repo } from '@subpolar/shared/types'
 
 const mocks = vi.hoisted(() => ({
   getRepo: vi.fn(),

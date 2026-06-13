@@ -4,7 +4,7 @@ import type {
   PromptTemplate,
   CreatePromptTemplateRequest,
   UpdatePromptTemplateRequest,
-} from '@opencode-manager/shared/types'
+} from '@subpolar/shared/types'
 
 export async function listPromptTemplates(): Promise<{ templates: PromptTemplate[] }> {
   return fetchWrapper(`${API_BASE_URL}/api/prompt-templates`)

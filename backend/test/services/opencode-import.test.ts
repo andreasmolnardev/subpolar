@@ -27,7 +27,7 @@ vi.mock('../../src/services/settings', () => ({
   SettingsService: vi.fn(),
 }))
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getOpenCodeConfigFilePath: vi.fn(() => '/tmp/workspace/.config/opencode/opencode.json'),
   getWorkspacePath: vi.fn(() => '/tmp/workspace'),
 }))

@@ -6,7 +6,7 @@ import {
   type ScheduleRun,
   type ScheduleRunTriggerSource,
   type UpdateScheduleJobRequest,
-} from '@opencode-manager/shared/types'
+} from '@subpolar/shared/types'
 import { getRepoById } from '../db/queries'
 import type { ScheduleJobWithRepo } from '../db/schedules'
 import {
@@ -41,7 +41,7 @@ import { sseAggregator, type SSEEvent } from './sse-aggregator'
 import { getErrorMessage } from '../utils/error-utils'
 import { logger } from '../utils/logger'
 import { buildAssistantRepo } from './assistant-mode'
-import { ASSISTANT_REPO_ID } from '@opencode-manager/shared/utils'
+import { ASSISTANT_REPO_ID } from '@subpolar/shared/utils'
 
 class ScheduleServiceError extends Error {
   status: number
@@ -956,7 +956,7 @@ export class ScheduleService {
       this.finalizeRecoveredRun(job, run, {
         status: 'failed',
         responseText: assistantState?.responseText ?? null,
-        errorText: 'This run was interrupted before completion, likely because OpenCode Manager restarted while it was in progress. Open the linked session to inspect the partial output and rerun if needed.',
+        errorText: 'This run was interrupted before completion, likely because subpolar restarted while it was in progress. Open the linked session to inspect the partial output and rerun if needed.',
       })
     } catch (error) {
       const errorText = getErrorMessage(error)

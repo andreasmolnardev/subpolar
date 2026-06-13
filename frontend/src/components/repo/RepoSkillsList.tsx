@@ -1,5 +1,5 @@
 import { AlertCircle, Loader2 } from 'lucide-react'
-import type { SkillFileInfo } from '@opencode-manager/shared'
+import type { SkillFileInfo } from '@subpolar/shared'
 
 interface RepoSkillsListProps {
   isLoading: boolean

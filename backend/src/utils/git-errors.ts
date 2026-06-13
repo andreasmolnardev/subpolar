@@ -1,4 +1,4 @@
-import type { GitErrorCode } from '@opencode-manager/shared'
+import type { GitErrorCode } from '@subpolar/shared'
 import { getErrorMessage } from './error-utils'
 
 export type { GitErrorCode }

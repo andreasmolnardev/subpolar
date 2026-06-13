@@ -4,7 +4,7 @@ import {
   scheduleTargetFromRepo,
   scheduleTargetFromAssistant,
 } from './schedule-target'
-import type { AssistantModeStatus } from '@opencode-manager/shared/types'
+import type { AssistantModeStatus } from '@subpolar/shared/types'
 
 describe('isAssistantRepoId', () => {
   it('returns true for repoId 0', () => {

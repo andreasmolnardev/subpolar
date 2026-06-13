@@ -13,9 +13,9 @@ import {
   getFileStats, 
   listDirectory 
 } from './file-operations'
-import { getReposPath, getWorkspacePath, FILE_LIMITS } from '@opencode-manager/shared/config/env'
-import { ALLOWED_MIME_TYPES, type AllowedMimeType } from '@opencode-manager/shared'
-import type { ChunkedFileInfo, PatchOperation } from '@opencode-manager/shared'
+import { getReposPath, getWorkspacePath, FILE_LIMITS } from '@subpolar/shared/config/env'
+import { ALLOWED_MIME_TYPES, type AllowedMimeType } from '@subpolar/shared'
+import type { ChunkedFileInfo, PatchOperation } from '@subpolar/shared'
 
 const SHARED_WORKSPACE_BASE = getReposPath()
 const WORKSPACE_BASE = getWorkspacePath()

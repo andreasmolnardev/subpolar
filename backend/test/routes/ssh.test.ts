@@ -6,7 +6,7 @@ vi.mock('bun:sqlite', () => ({
   Database: vi.fn(),
 }))
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   ENV: {
     AUTH: {
       SECRET: 'test-secret-for-encryption'
@@ -22,7 +22,7 @@ vi.mock('@opencode-manager/shared/config/env', () => ({
   getWorkspacePath: vi.fn(() => '/tmp/test-workspace')
 }))
 
-vi.mock('@opencode-manager/shared/config', () => ({
+vi.mock('@subpolar/shared/config', () => ({
   DEFAULTS: {
     SSE: {
       RECONNECT_DELAY_MS: 1000,

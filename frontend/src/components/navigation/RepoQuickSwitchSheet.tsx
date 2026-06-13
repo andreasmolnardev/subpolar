@@ -9,7 +9,7 @@ import { listRepos } from '@/api/repos'
 import { AddRepoDialog } from '@/components/repo/AddRepoDialog'
 import { FolderGit2, Check, Plus, House } from 'lucide-react'
 import { useUrlParams } from '@/hooks/useUrlParams'
-import { ASSISTANT_REPO_ID } from '@opencode-manager/shared/utils'
+import { ASSISTANT_REPO_ID } from '@subpolar/shared/utils'
 import { getAssistantPath, isAssistantPath } from '@/lib/navigation'
 
 interface RepoQuickSwitchSheetProps {

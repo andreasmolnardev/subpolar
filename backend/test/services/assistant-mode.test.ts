@@ -10,7 +10,7 @@ import { NotificationService } from '../../src/services/notification'
 import { SettingsService } from '../../src/services/settings'
 import { createOpenCodeClient } from '../../src/services/opencode/client'
 import { getRepoById } from '../../src/db/queries'
-import { ENV } from '@opencode-manager/shared/config/env'
+import { ENV } from '@subpolar/shared/config/env'
 
 describe('buildSchedulesSkill', () => {
   it('uses ENV.SERVER.PORT in the internal base URL', () => {
@@ -91,7 +91,7 @@ describe('buildSettingsSkill', () => {
 describe('buildAssistantDefaultAgentMd', () => {
   it('contains description and mode in frontmatter', () => {
     const content = buildAssistantDefaultAgentMd()
-    expect(content).toContain('description: Default OpenCode Manager assistant workspace agent')
+    expect(content).toContain('description: Default subpolar assistant workspace agent')
     expect(content).toContain('mode: primary')
   })
 
@@ -165,7 +165,7 @@ describe('ensureAssistantMode', () => {
     expect(repoSkill).toContain('.opencode/internal-token')
     expect(repoSkill).toContain(localApiBaseUrl)
     expect(assistantAgent).toContain('mode: primary')
-    expect(assistantAgent).toContain('Default OpenCode Manager assistant workspace agent')
+    expect(assistantAgent).toContain('Default subpolar assistant workspace agent')
     expect(assistantAgent).not.toContain('v file')
   })
 
@@ -342,7 +342,7 @@ describe('ensureAssistantMode', () => {
 
     const legacyAgentsMd = `# Assistant Mode Instructions
 
-This folder is the shared Assistant mode workspace for OpenCode Manager.
+This folder is the shared Assistant mode workspace for subpolar.
 
 ## Purpose
 
@@ -373,7 +373,7 @@ The agent MAY self-edit the following files within this workspace:
 
 ## Repo Management
 
-This workspace includes a skill at \`.opencode/skills/repo-management/SKILL.md\` for listing repos available to OpenCode Manager via the internal HTTP API. Load it before the schedule-management skill when you don't know the repo ID.
+This workspace includes a skill at \`.opencode/skills/repo-management/SKILL.md\` for listing repos available to subpolar via the internal HTTP API. Load it before the schedule-management skill when you don't know the repo ID.
 
 ## Schedule Management
 
@@ -389,7 +389,7 @@ This workspace includes a skill at \`.opencode/skills/manager-settings/SKILL.md\
 `
 
     const legacyAssistantAgent = `---
-description: Default OpenCode Manager assistant workspace agent
+description: Default subpolar assistant workspace agent
 mode: primary
 permission:
   read: allow
@@ -401,7 +401,7 @@ permission:
   external_directory: ask
 ---
 
-You are the default Assistant Mode agent for OpenCode Manager.
+You are the default Assistant Mode agent for subpolar.
 
 This workspace is the shared assistant workspace. Help the user manage repos, schedules, notifications, settings, and assistant behavior safely.
 
@@ -438,7 +438,7 @@ Ask before destructive operations or changes outside this assistant workspace.
       },
       agent: {
         assistant: {
-          description: 'Default OpenCode Manager assistant workspace agent',
+          description: 'Default subpolar assistant workspace agent',
           mode: 'primary',
           prompt: legacyAssistantPrompt,
           permission: {
@@ -503,7 +503,7 @@ Ask before destructive operations or changes outside this assistant workspace.
 
     await writeFile(agentsMdPath, `# Assistant Mode Instructions
 
-This folder is the shared Assistant mode workspace for OpenCode Manager.
+This folder is the shared Assistant mode workspace for subpolar.
 
 ## Self-Editing Rules
 
@@ -511,7 +511,7 @@ The agent MAY self-edit the following files within this workspace:
 - \`AGENTS.md\` - Assistant instructions, persona, and durable preferences
 `)
     await writeFile(assistantAgentPath, `---
-description: Default OpenCode Manager assistant workspace agent
+description: Default subpolar assistant workspace agent
 mode: primary
 permission:
   read: allow
@@ -523,7 +523,7 @@ permission:
   external_directory: ask
 ---
 
-You are the default Assistant Mode agent for OpenCode Manager.
+You are the default Assistant Mode agent for subpolar.
 
 This workspace is the shared assistant workspace. Help the user manage repos, schedules, notifications, settings, and assistant behavior safely.
 

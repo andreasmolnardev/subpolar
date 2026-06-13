@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
-import { getWorkspacePath } from '@opencode-manager/shared/config/env'
+import { getWorkspacePath } from '@subpolar/shared/config/env'
 
 const SSH_KEYS_DIR = join(getWorkspacePath(), '.ssh-keys')
 

@@ -5,7 +5,7 @@ import { createReadStream } from 'fs'
 import { dirname, join } from 'path'
 import { pipeline } from 'stream/promises'
 import { randomUUID } from 'crypto'
-import { getReposPath } from '@opencode-manager/shared/config/env'
+import { getReposPath } from '@subpolar/shared/config/env'
 
 export const MIRROR_CHUNK_SIZE = 8 * 1024 * 1024
 const STALE_UPLOAD_MS = 24 * 60 * 60 * 1000

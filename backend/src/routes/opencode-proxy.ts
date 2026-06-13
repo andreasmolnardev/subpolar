@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Database } from 'bun:sqlite'
-import { ENV } from '@opencode-manager/shared/config/env'
+import { ENV } from '@subpolar/shared/config/env'
 import { createInternalTokenMiddleware } from '../auth/internal-token-middleware'
 import type { SettingsService } from '../services/settings'
 

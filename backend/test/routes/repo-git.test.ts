@@ -25,7 +25,7 @@ vi.mock('../../src/utils/process', () => ({
   executeCommand: vi.fn(),
 }))
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getReposPath: vi.fn(() => '/repos'),
   getWorkspacePath: vi.fn(() => '/tmp/test-workspace'),
   ENV: {
@@ -35,7 +35,7 @@ vi.mock('@opencode-manager/shared/config/env', () => ({
   },
 }))
 
-vi.mock('@opencode-manager/shared/config', () => ({
+vi.mock('@subpolar/shared/config', () => ({
   DEFAULTS: {
     SSE: {
       RECONNECT_DELAY_MS: 1000,

@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import type { PermissionRequest, PermissionResponse } from '@/api/types'
-import { getPermissionLabel, getPermissionDetail } from '@opencode-manager/shared/notifications'
+import { getPermissionLabel, getPermissionDetail } from '@subpolar/shared/notifications'
 import { cn } from '@/lib/utils'
 import { showToast } from '@/lib/toast'
 

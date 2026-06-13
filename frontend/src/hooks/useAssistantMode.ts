@@ -3,8 +3,8 @@ import {
   getAssistantModeStatus,
   initializeAssistantMode,
 } from '@/api/repos'
-import { ASSISTANT_REPO_ID } from '@opencode-manager/shared/utils'
-import type { AssistantModeStatus, AssistantModeInitRequest } from '@opencode-manager/shared/types'
+import { ASSISTANT_REPO_ID } from '@subpolar/shared/utils'
+import type { AssistantModeStatus, AssistantModeInitRequest } from '@subpolar/shared/types'
 
 export function useAssistantMode(repoId?: number) {
   const queryClient = useQueryClient()

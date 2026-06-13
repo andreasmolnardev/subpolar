@@ -10,6 +10,22 @@ try {
   // dotenv not available (e.g., in production Docker), env vars already set
 }
 
+try {
+  const { readFileSync } = await import('node:fs')
+  const configJsonPath = path.resolve(process.cwd(), 'config.json')
+  const raw = readFileSync(configJsonPath, 'utf-8')
+  const json = JSON.parse(raw)
+  for (const [key, value] of Object.entries(json)) {
+    if (typeof value === 'string') {
+      process.env[key] ??= value
+    } else if (typeof value === 'number' || typeof value === 'boolean') {
+      process.env[key] ??= String(value)
+    }
+  }
+} catch {
+  // config.json is optional and may be absent or malformed
+}
+
 const getEnvString = (key: string, defaultValue: string): string => {
   return process.env[key] ?? defaultValue
 }
@@ -111,7 +127,7 @@ export const ENV = {
     DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID,
     DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET,
     PASSKEY_RP_ID: getEnvString('PASSKEY_RP_ID', 'localhost'),
-    PASSKEY_RP_NAME: getEnvString('PASSKEY_RP_NAME', 'OpenCode Manager'),
+    PASSKEY_RP_NAME: getEnvString('PASSKEY_RP_NAME', 'subpolar'),
     PASSKEY_ORIGIN: getEnvString('PASSKEY_ORIGIN', 'http://localhost:5003'),
   },
 

@@ -2,7 +2,7 @@ import { createHash } from 'crypto'
 import { mkdir, readFile, writeFile, stat, unlink } from 'fs/promises'
 import { join } from 'path'
 import { logger } from './logger'
-import { getWorkspacePath } from '@opencode-manager/shared/config/env'
+import { getWorkspacePath } from '@subpolar/shared/config/env'
 
 const DISCOVERY_CACHE_DIR = join(getWorkspacePath(), 'cache', 'discovery')
 const DISCOVERY_CACHE_TTL_MS = 60 * 60 * 1000

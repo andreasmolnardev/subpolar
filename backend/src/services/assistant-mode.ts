@@ -1,20 +1,20 @@
 import path from 'path'
 import { createHash } from 'node:crypto'
-import type { Repo } from '@opencode-manager/shared/types'
+import type { Repo } from '@subpolar/shared/types'
 import type {
   AssistantModeStatus,
   AssistantModeInitRequest,
   OpenCodeConfigInput,
-} from '@opencode-manager/shared/types'
+} from '@subpolar/shared/types'
 import {
   readFileContent,
   writeFileContent,
   fileExists,
   ensureDirectoryExists,
 } from './file-operations'
-import { OpenCodeConfigSchema } from '@opencode-manager/shared/schemas'
-import { ASSISTANT_REPO_ID, ASSISTANT_REPO_PATH } from '@opencode-manager/shared/utils'
-import { getReposPath, ENV } from '@opencode-manager/shared/config/env'
+import { OpenCodeConfigSchema } from '@subpolar/shared/schemas'
+import { ASSISTANT_REPO_ID, ASSISTANT_REPO_PATH } from '@subpolar/shared/utils'
+import { getReposPath, ENV } from '@subpolar/shared/config/env'
 import type { Database } from 'bun:sqlite'
 import { getOrCreateInternalToken } from './internal-token'
 import { ensureAssistantRepo } from '../db/queries'
@@ -102,7 +102,7 @@ function hasSameContentHash(existingContent: string | undefined, generatedConten
 function buildLegacyAssistantAgentsMd(): string {
   return `# Assistant Mode Instructions
 
-This folder is the shared Assistant mode workspace for OpenCode Manager.
+This folder is the shared Assistant mode workspace for subpolar.
 
 ## Purpose
 
@@ -133,7 +133,7 @@ The agent MAY self-edit the following files within this workspace:
 
 ## Repo Management
 
-This workspace includes a skill at \`.opencode/skills/repo-management/SKILL.md\` for listing repos available to OpenCode Manager via the internal HTTP API. Load it before the schedule-management skill when you don't know the repo ID.
+This workspace includes a skill at \`.opencode/skills/repo-management/SKILL.md\` for listing repos available to subpolar via the internal HTTP API. Load it before the schedule-management skill when you don't know the repo ID.
 
 ## Schedule Management
 
@@ -151,7 +151,7 @@ This workspace includes a skill at \`.opencode/skills/manager-settings/SKILL.md\
 
 function buildLegacyAssistantAgentPrompt(): string {
   return [
-    'You are the default Assistant Mode agent for OpenCode Manager.',
+    'You are the default Assistant Mode agent for subpolar.',
     '',
     'This workspace is the shared assistant workspace. Help the user manage repos, schedules, notifications, settings, and assistant behavior safely.',
     '',
@@ -170,7 +170,7 @@ function buildAssistantDefaultAgentMdFromPrompt(prompt: string): string {
   const permission = buildAssistantAgentPermission()
 
   return `---
-description: Default OpenCode Manager assistant workspace agent
+description: Default subpolar assistant workspace agent
 mode: primary
 permission:
   read: ${permission.read}
@@ -223,14 +223,14 @@ function containsLegacyAssistantAgentsGuidance(content: string): boolean {
 export function buildAssistantAgentsMd(): string {
   return `# Assistant Mode Workspace
 
-This directory is the shared Assistant Mode workspace for OpenCode Manager.
+This directory is the shared Assistant Mode workspace for subpolar.
 
 ## Directory Contents
 
 - \`opencode.json\` configures this workspace and selects the default assistant agent.
 - \`.opencode/agents/assistant.md\` contains the default assistant agent instructions, behavior, durable preferences, and self-editing rules.
 - \`.opencode/skills/\` contains managed workspace skills for repos, schedules, notifications, and settings.
-- \`.opencode/internal-token\` is managed by OpenCode Manager for internal API authentication.
+- \`.opencode/internal-token\` is managed by subpolar for internal API authentication.
 
 Assistant-specific instructions belong in \`.opencode/agents/assistant.md\`.
 `
@@ -238,9 +238,9 @@ Assistant-specific instructions belong in \`.opencode/agents/assistant.md\`.
 
 function buildPreviousAssistantAgentPrompt(): string {
   return [
-    'You are the default Assistant Mode agent for OpenCode Manager.',
+    'You are the default Assistant Mode agent for subpolar.',
     '',
-    'This workspace is the shared assistant workspace for OpenCode Manager. Help the user manage repos, schedules, notifications, settings, and assistant behavior safely.',
+    'This workspace is the shared assistant workspace for subpolar. Help the user manage repos, schedules, notifications, settings, and assistant behavior safely.',
     '',
     '## Self-Editing Rules',
     '',
@@ -262,9 +262,9 @@ function buildPreviousAssistantAgentPrompt(): string {
 
 function buildAssistantAgentPrompt(): string {
   return [
-    'You are the default Assistant Mode agent for OpenCode Manager.',
+    'You are the default Assistant Mode agent for subpolar.',
     '',
-    'This workspace is the shared assistant workspace for OpenCode Manager. Help the user manage repos, schedules, notifications, settings, and assistant behavior safely.',
+    'This workspace is the shared assistant workspace for subpolar. Help the user manage repos, schedules, notifications, settings, and assistant behavior safely.',
     '',
     '## Self-Editing Rules',
     '',
@@ -647,7 +647,7 @@ export function buildReposSkill(baseUrl: string): string {
 
   return `---
 name: repo-management
-description: List repos available to OpenCode Manager via the internal HTTP API
+description: List repos available to subpolar via the internal HTTP API
 ---
 
 ## When to Load
@@ -670,7 +670,7 @@ Authorization: Bearer <token>
 
 ### GET /repos
 
-List all repos available to OpenCode Manager. The repos are returned in the order configured by the user (respecting \`repoOrder\` preference).
+List all repos available to subpolar. The repos are returned in the order configured by the user (respecting \`repoOrder\` preference).
 
 **Example:**
 \`\`\`bash

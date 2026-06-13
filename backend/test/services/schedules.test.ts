@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ScheduleJob, ScheduleRun } from '@opencode-manager/shared/types'
+import type { ScheduleJob, ScheduleRun } from '@subpolar/shared/types'
 
 const mocks = vi.hoisted(() => ({
   getRepoById: vi.fn(),

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { AuthInstance } from '../auth'
 import { Database } from 'bun:sqlite'
-import { ENV } from '@opencode-manager/shared/config/env'
+import { ENV } from '@subpolar/shared/config/env'
 import { logger } from '../utils/logger'
 import { hashPassword } from 'better-auth/crypto'
 

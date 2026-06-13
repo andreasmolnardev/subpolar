@@ -3,7 +3,7 @@ import type { Database } from 'bun:sqlite'
 import {
   CreatePromptTemplateRequestSchema,
   UpdatePromptTemplateRequestSchema,
-} from '@opencode-manager/shared/schemas'
+} from '@subpolar/shared/schemas'
 import { PromptTemplateService, PromptTemplateServiceError } from '../services/prompt-templates'
 import { parseId, handleServiceError } from '../utils/route-helpers'
 

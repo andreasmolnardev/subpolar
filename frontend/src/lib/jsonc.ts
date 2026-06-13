@@ -1,4 +1,4 @@
-export { parseJsonc } from '@opencode-manager/shared/utils'
+export { parseJsonc } from '@subpolar/shared/utils'
 
 export function hasJsoncComments(content: string): boolean {
   return content.split('\n').some(line => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getPermissionLabel, getPermissionDetail, getQuestionText } from '@opencode-manager/shared/notifications'
+import { getPermissionLabel, getPermissionDetail, getQuestionText } from '@subpolar/shared/notifications'
 import { buildEventNotificationPayload } from '../../src/services/notification'
 
 const ctx = { repoName: 'oc-manager', repoId: 1, sessionId: 'ses_1', directory: '/abs/repo', url: '/repos/1/sessions/ses_1' }

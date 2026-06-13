@@ -5,7 +5,7 @@ import type {
   ScheduleMode,
   ScheduleSkillMetadata,
   UpdateScheduleJobRequest,
-} from '@opencode-manager/shared/types'
+} from '@subpolar/shared/types'
 
 const DEFAULT_CRON_TIMEZONE = 'UTC'
 

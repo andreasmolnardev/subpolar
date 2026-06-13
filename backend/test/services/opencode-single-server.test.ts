@@ -23,7 +23,7 @@ vi.mock('bun:sqlite', () => ({
   Database: vi.fn(),
 }))
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getWorkspacePath: vi.fn(() => '/test/workspace'),
   getOpenCodeConfigFilePath: vi.fn(() => '/test/workspace/.config/opencode.json'),
   getReposPath: vi.fn(() => '/test/workspace/repos'),
@@ -79,7 +79,7 @@ import { promises as fs } from 'fs'
 import { execSync, spawnSync } from 'child_process'
 import { ConfigReloadError } from '../../src/services/opencode-single-server'
 import { encryptSecret } from '../../src/utils/crypto'
-import { ENV } from '@opencode-manager/shared/config/env'
+import { ENV } from '@subpolar/shared/config/env'
 
 vi.mock('../../src/utils/logger', () => ({
   logger: {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CreateScheduleJobRequest, UpdateScheduleJobRequest } from '@opencode-manager/shared/types'
+import type { CreateScheduleJobRequest, UpdateScheduleJobRequest } from '@subpolar/shared/types'
 import {
   cancelRepoScheduleRun,
   createRepoSchedule,

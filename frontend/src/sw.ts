@@ -45,7 +45,7 @@ self.addEventListener("push", (event) => {
     payload = event.data.json() as PushNotificationData;
   } catch {
     payload = {
-      title: "OpenCode Manager",
+      title: "subpolar",
       body: event.data.text(),
       data: { eventType: "unknown" },
     };

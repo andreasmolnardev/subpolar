@@ -4,7 +4,7 @@ import {
   type PromptTemplate,
   type CreatePromptTemplateRequest,
   type UpdatePromptTemplateRequest,
-} from '@opencode-manager/shared/schemas'
+} from '@subpolar/shared/schemas'
 
 interface PromptTemplateRow {
   id: number

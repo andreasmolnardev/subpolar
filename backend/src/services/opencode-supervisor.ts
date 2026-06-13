@@ -2,7 +2,7 @@ import path from 'path'
 import type { SettingsService } from './settings'
 import { logger } from '../utils/logger'
 import { ensureDirectoryExists, writeFileContent } from './file-operations'
-import { getOpenCodeConfigFilePath, getWorkspacePath, ENV } from '@opencode-manager/shared/config/env'
+import { getOpenCodeConfigFilePath, getWorkspacePath, ENV } from '@subpolar/shared/config/env'
 import type { OpenCodeServerManager } from './opencode-single-server'
 
 export const OPENCODE_LIFECYCLE_STATES = [

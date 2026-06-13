@@ -24,7 +24,7 @@ import {
   type RepoSortMode,
 } from "./repo-list-state"
 import { RepoListControls } from "./RepoListControls"
-import { ASSISTANT_REPO_ID } from "@opencode-manager/shared/utils"
+import { ASSISTANT_REPO_ID } from "@subpolar/shared/utils"
 
 function formatActivityLabel(timestamp: number): string {
   const now = Date.now()

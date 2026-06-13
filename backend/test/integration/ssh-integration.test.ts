@@ -4,7 +4,7 @@ import * as crypto from 'crypto'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getWorkspacePath: vi.fn(() => '/tmp/test-workspace'),
   getReposPath: vi.fn(() => '/tmp/test-repos'),
   getOpenCodeConfigFilePath: vi.fn(() => '/tmp/test-workspace/.config/opencode.json'),

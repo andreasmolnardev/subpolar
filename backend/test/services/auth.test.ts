@@ -14,7 +14,7 @@ const readFile = fs.readFile as any
 const writeFile = fs.writeFile as any
 const mkdirSpy = fs.mkdir as any
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getAuthPath: () => '/test/auth.json',
   ENV: {
     WORKSPACE: {

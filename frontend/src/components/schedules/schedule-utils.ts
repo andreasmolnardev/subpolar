@@ -1,6 +1,6 @@
 import cronstrue from 'cronstrue'
 import { formatDistanceToNow } from 'date-fns'
-import type { CreateScheduleJobRequest, ScheduleJob, ScheduleRun, UpdateScheduleJobRequest } from '@opencode-manager/shared/types'
+import type { CreateScheduleJobRequest, ScheduleJob, ScheduleRun, UpdateScheduleJobRequest } from '@subpolar/shared/types'
 
 export const intervalOptions = [
   { label: '15m', value: 15 },

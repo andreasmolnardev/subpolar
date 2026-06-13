@@ -7,8 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2 } from 'lucide-react'
 import { showToast } from '@/lib/toast'
-import { getRepoBaseDirectoryName, getRepoDirectoryNameError, getRepoNameFromUrl, normalizeRepoUrlForCompare, sanitizeRepoDirectoryName } from '@opencode-manager/shared/utils'
-import type { DiscoverReposResponse } from '@opencode-manager/shared/types'
+import { getRepoBaseDirectoryName, getRepoDirectoryNameError, getRepoNameFromUrl, normalizeRepoUrlForCompare, sanitizeRepoDirectoryName } from '@subpolar/shared/utils'
+import type { DiscoverReposResponse } from '@subpolar/shared/types'
 import type { Repo } from '@/api/types'
 
 interface AddRepoDialogProps {

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScheduleRunMarkdown } from '@/components/schedules/ScheduleRunMarkdown'
 import { Loader2 } from 'lucide-react'
-import type { ScheduleRun } from '@opencode-manager/shared/types'
+import type { ScheduleRun } from '@subpolar/shared/types'
 
 interface RunDetailPanelProps {
   repoId: number

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import type { CreatePromptTemplateRequest } from '@opencode-manager/shared/types'
+import type { CreatePromptTemplateRequest } from '@subpolar/shared/types'
 import type { PromptDialog } from '@/hooks/useScheduleUrlState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'

@@ -9,7 +9,7 @@ import { createOpenCodeClient } from '../../src/services/opencode/client'
 import { allMigrations } from '../../src/db/migrations'
 import { getOrCreateInternalToken } from '../../src/services/internal-token'
 import { migrate } from '../../src/db/migration-runner'
-import type { UserPreferences } from '@opencode-manager/shared/types'
+import type { UserPreferences } from '@subpolar/shared/types'
 
 describe('internal/settings routes', () => {
   let db: Database

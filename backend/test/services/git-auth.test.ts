@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { GitCredential } from '@opencode-manager/shared'
+import type { GitCredential } from '@subpolar/shared'
 import type { IPCServer } from '../../src/ipc/ipcServer'
 import type { Database } from 'bun:sqlite'
 
@@ -7,7 +7,7 @@ vi.mock('bun:sqlite', () => ({
   Database: vi.fn(),
 }))
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getWorkspacePath: vi.fn(() => '/tmp/test-workspace'),
   getReposPath: vi.fn(() => '/tmp/test-repos'),
   getOpenCodeConfigFilePath: vi.fn(() => '/tmp/test-workspace/.config/opencode.json'),
@@ -31,7 +31,7 @@ vi.mock('@opencode-manager/shared/config/env', () => ({
   },
 }))
 
-vi.mock('@opencode-manager/shared/config', () => ({
+vi.mock('@subpolar/shared/config', () => ({
   DEFAULTS: {
     SSE: {
       RECONNECT_DELAY_MS: 1000,

@@ -130,7 +130,7 @@ vi.mock('../../src/services/repo', () => ({
   relinkReposFromSessionDirectories: vi.fn(),
 }))
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getWorkspacePath: vi.fn(() => '/tmp/test-workspace'),
   getReposPath: vi.fn(() => '/tmp/test-repos'),
   getOpenCodeConfigFilePath: vi.fn(() => '/tmp/test-workspace/.config/opencode.json'),

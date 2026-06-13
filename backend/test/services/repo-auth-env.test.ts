@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getReposPath } from '@opencode-manager/shared/config/env'
+import { getReposPath } from '@subpolar/shared/config/env'
 import type { GitAuthService } from '../../src/services/git-auth'
 
 const executeCommand = vi.fn()

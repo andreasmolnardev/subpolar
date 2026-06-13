@@ -57,20 +57,31 @@ if [ "$OPENCODE_VERSION" != "unknown" ]; then
   fi
 fi
 
-echo "🚀 Starting OpenCode Manager Backend..."
+echo "🚀 Starting subpolar Backend..."
+
+if [ -z "$AUTH_SECRET" ]; then
+  if [ -f /app/config.json ]; then
+    AUTH_SECRET=$(jq -r '.AUTH_SECRET // empty' /app/config.json 2>/dev/null)
+    if [ -n "$AUTH_SECRET" ]; then
+      echo "✅ AUTH_SECRET loaded from config.json"
+      export AUTH_SECRET
+    fi
+  fi
+fi
 
 if [ -z "$AUTH_SECRET" ]; then
   echo "❌ AUTH_SECRET is required but not set"
   echo ""
-  echo "Please set AUTH_SECRET environment variable with a secure random string."
-  echo "Generate one with: openssl rand -base64 32"
+  echo "Set it in config.json or as an environment variable:"
   echo ""
-  echo "Example in docker-compose.yml:"
-  echo "  environment:"
-  echo "    - AUTH_SECRET=your-secure-random-secret-here"
+  echo "  Option 1: Add to config.json:"
+  echo '    "AUTH_SECRET": "your-secure-random-secret-here"'
   echo ""
-  echo "Example with Docker run:"
-  echo "  docker run -e AUTH_SECRET=\$(openssl rand -base64 32) ..."
+  echo "  Option 2: Set in docker-compose.yml environment:"
+  echo "    - AUTH_SECRET=\$(openssl rand -base64 32)"
+  echo ""
+  echo "  Option 3: Generate one and pass at runtime:"
+  echo "    docker run -e AUTH_SECRET=\$(openssl rand -base64 32) ..."
   echo ""
   exit 1
 fi

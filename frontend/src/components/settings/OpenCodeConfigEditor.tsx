@@ -8,7 +8,7 @@ import { useFindInText } from '@/lib/useFindInText'
 import type { OpenCodeConfig } from '@/api/types/settings'
 import { parseJsonc } from '@/lib/jsonc'
 import { FetchError } from '@/api/fetchWrapper'
-import { OpenCodeConfigSchema } from '@opencode-manager/shared'
+import { OpenCodeConfigSchema } from '@subpolar/shared'
 
 type ValidationIssue = {
   path: string

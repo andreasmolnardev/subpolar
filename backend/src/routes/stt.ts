@@ -10,7 +10,7 @@ import {
   generateDiscoveryCacheKey,
   fetchAvailableModels,
 } from '../utils/discovery-cache'
-import { type STTConfig } from '@opencode-manager/shared'
+import { type STTConfig } from '@subpolar/shared'
 
 export function createSTTRoutes(db: Database) {
   const app = new Hono()

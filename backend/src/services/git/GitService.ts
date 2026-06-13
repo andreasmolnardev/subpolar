@@ -8,7 +8,7 @@ import { isNoUpstreamError, parseBranchNameFromError } from '../../utils/git-err
 import { SettingsService } from '../settings'
 import type { Database } from 'bun:sqlite'
 import type { GitBranch, GitCommit, FileDiffResponse, GitDiffOptions, GitStatusResponse, GitFileStatus, GitFileStatusType, CommitDetails, CommitFile } from '../../types/git'
-import type { GitCredential } from '@opencode-manager/shared'
+import type { GitCredential } from '@subpolar/shared'
 import path from 'path'
 
 export class GitService {

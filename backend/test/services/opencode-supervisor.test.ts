@@ -15,7 +15,7 @@ vi.mock('../../src/services/file-operations', () => ({
   ensureDirectoryExists: vi.fn(),
 }))
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getWorkspacePath: vi.fn(() => '/tmp/opencode-workspace'),
   getOpenCodeConfigFilePath: vi.fn(() => '/tmp/opencode-workspace/.config/opencode.json'),
   ENV: {

@@ -3,7 +3,7 @@ import { Volume2, VolumeX } from 'lucide-react'
 import { useTTS } from '@/hooks/useTTS'
 import { useSettings } from '@/hooks/useSettings'
 import { showToast } from '@/lib/toast'
-import { DEFAULT_TTS_CONFIG } from '@opencode-manager/shared'
+import { DEFAULT_TTS_CONFIG } from '@subpolar/shared'
 
 interface FloatingTTSButtonProps {
   messageId: string

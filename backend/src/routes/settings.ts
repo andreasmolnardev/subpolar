@@ -8,17 +8,17 @@ import { SettingsService } from '../services/settings'
 import { writeFileContent, readFileContent, fileExists } from '../services/file-operations'
 import { patchConfigWithRecovery } from '../services/opencode/config-recovery'
 import type { OpenCodeClient } from '../services/opencode/client'
-import { getOpenCodeConfigFilePath, getAgentsMdPath } from '@opencode-manager/shared/config/env'
+import { getOpenCodeConfigFilePath, getAgentsMdPath } from '@subpolar/shared/config/env'
 import {
   UserPreferencesSchema,
   OpenCodeConfigSchema,
 } from '../types/settings'
-import type { GitCredential } from '@opencode-manager/shared'
+import type { GitCredential } from '@subpolar/shared'
 import {
   CreateSkillRequestSchema,
   UpdateSkillRequestSchema,
   SkillScopeSchema,
-} from '@opencode-manager/shared'
+} from '@subpolar/shared'
 import { logger } from '../utils/logger'
 import { opencodeServerManager, ConfigReloadError } from '../services/opencode-single-server'
 import { getOrCreateInternalToken, rotateInternalToken } from '../services/internal-token'
@@ -31,7 +31,7 @@ import { encryptSecret } from '../utils/crypto'
 import { compareVersions, isValidVersion } from '../utils/version-utils'
 import { getImportedSessionDirectories, getOpenCodeImportStatus, OpenCodeImportProtectionError, syncOpenCodeImport } from '../services/opencode-import'
 import { relinkReposFromSessionDirectories } from '../services/repo'
-import { ENV } from '@opencode-manager/shared/config/env'
+import { ENV } from '@subpolar/shared/config/env'
 import {
   listManagedSkills,
   getSkill,

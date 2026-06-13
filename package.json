@@ -1,5 +1,5 @@
 {
-  "name": "opencode-manager",
+  "name": "subpolar",
   "version": "0.13.1",
   "private": false,
   "type": "module",
@@ -26,8 +26,8 @@
     "lint:backend": "pnpm --filter backend lint",
     "lint:fix": "pnpm run lint:frontend -- --fix && pnpm run lint:backend -- --fix",
     "generate:openapi": "bun scripts/generate-openapi.ts",
-    "test:cli": "pnpm --filter @opencode-manager/ocm-cli test",
-    "typecheck:cli": "pnpm --filter @opencode-manager/ocm-cli typecheck",
+    "test:cli": "pnpm --filter @subpolar/ocm-cli test",
+    "typecheck:cli": "pnpm --filter @subpolar/ocm-cli typecheck",
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down -v",

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fetchGitHubUserInfo, findGitHubCredential, resolveGitIdentity, createGitIdentityEnv, getSSHCredentialsForHost, createGitEnv, getDefaultUsername, normalizeHost } from '../../src/utils/git-auth'
-import type { GitCredential } from '@opencode-manager/shared'
+import type { GitCredential } from '@subpolar/shared'
 
 describe('fetchGitHubUserInfo', () => {
   beforeEach(() => {

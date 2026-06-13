@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { SkillDialog } from './SkillDialog'
 import { DeleteDialog } from '@/components/ui/delete-dialog'
 import { settingsApi } from '@/api/settings'
-import type { OpenCodeConfigInput, SkillFileInfo, CreateSkillRequest, UpdateSkillRequest, SkillScope } from '@opencode-manager/shared'
+import type { OpenCodeConfigInput, SkillFileInfo, CreateSkillRequest, UpdateSkillRequest, SkillScope } from '@subpolar/shared'
 import { toast } from 'sonner'
 
 interface SkillsEditorProps {

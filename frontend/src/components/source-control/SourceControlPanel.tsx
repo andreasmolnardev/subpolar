@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FetchError } from '@opencode-manager/shared'
+import { FetchError } from '@subpolar/shared'
 import { useGitStatus, getApiErrorMessage } from '@/api/git'
 
 import { useGit } from '@/hooks/useGit'

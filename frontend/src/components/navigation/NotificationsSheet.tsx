@@ -1,6 +1,6 @@
 import { BottomSheet, BottomSheetHeader, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { usePermissions, useQuestions } from '@/contexts/EventContext'
-import { getQuestionText } from '@opencode-manager/shared/notifications'
+import { getQuestionText } from '@subpolar/shared/notifications'
 import { Bell, HelpCircle } from 'lucide-react'
 
 interface NotificationsSheetProps {

@@ -23,7 +23,7 @@ export function GeneralSettings() {
 
       <div className="space-y-6">
         <div className="flex items-center justify-center gap-3 py-3">
-          <span className="text-sm text-muted-foreground">OpenCode Manager</span>
+          <span className="text-sm text-muted-foreground">subpolar</span>
           {isVersionLoading ? (
             <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
           ) : versionInfo?.currentVersion ? (

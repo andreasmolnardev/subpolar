@@ -3,7 +3,7 @@ import path from 'path'
 import { promises as fs } from 'fs'
 import { logger } from '../utils/logger'
 import { createGitEnv, createGitIdentityEnv, resolveGitIdentity } from '../utils/git-auth'
-import type { GitCredential } from '@opencode-manager/shared'
+import type { GitCredential } from '@subpolar/shared'
 import {
   buildSSHCommandWithKnownHosts,
   buildSSHCommandWithConfig,
@@ -15,10 +15,10 @@ import {
   parseSSHHost
 } from '../utils/ssh-key-manager'
 import { decryptSecret } from '../utils/crypto'
-import { BLOCKED_SERVER_ENV_KEYS, DEFAULT_SERVER_ENV_VARS } from '@opencode-manager/shared'
+import { BLOCKED_SERVER_ENV_KEYS, DEFAULT_SERVER_ENV_VARS } from '@subpolar/shared'
 import { SettingsService } from './settings'
-import { getWorkspacePath, getOpenCodeConfigFilePath, ENV } from '@opencode-manager/shared/config/env'
-import { parseJsonc } from '@opencode-manager/shared/utils'
+import { getWorkspacePath, getOpenCodeConfigFilePath, ENV } from '@subpolar/shared/config/env'
+import { parseJsonc } from '@subpolar/shared/utils'
 import type { Database } from 'bun:sqlite'
 import { compareVersions } from '../utils/version-utils'
 import { patchConfigWithRecovery } from './opencode/config-recovery'

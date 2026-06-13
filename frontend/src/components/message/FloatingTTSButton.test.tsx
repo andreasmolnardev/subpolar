@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { FloatingTTSButton } from './FloatingTTSButton'
-import type { TTSConfig } from '@opencode-manager/shared'
+import type { TTSConfig } from '@subpolar/shared'
 
 const mocks = vi.hoisted(() => ({
   useTTS: vi.fn(),

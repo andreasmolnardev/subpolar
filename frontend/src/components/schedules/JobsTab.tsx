@@ -1,4 +1,4 @@
-import type { ScheduleJob } from '@opencode-manager/shared/types'
+import type { ScheduleJob } from '@subpolar/shared/types'
 import { Badge } from '@/components/ui/badge'
 import { formatScheduleShortLabel, getJobStatusTone } from '@/components/schedules/schedule-utils'
 import { Bot, Clock3 } from 'lucide-react'

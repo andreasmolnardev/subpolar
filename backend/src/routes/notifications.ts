@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { PushSubscriptionRequestSchema } from "@opencode-manager/shared/schemas";
+import { PushSubscriptionRequestSchema } from "@subpolar/shared/schemas";
 import type { NotificationService } from "../services/notification";
 
 export function createNotificationRoutes(

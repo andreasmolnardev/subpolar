@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { DEFAULTS } from '@opencode-manager/shared/config'
+import { DEFAULTS } from '@subpolar/shared/config'
 
 const { HEARTBEAT_INTERVAL_MS } = DEFAULTS.SSE
 

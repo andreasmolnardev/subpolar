@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { CreateScheduleJobRequest, PromptTemplate, ScheduleJob } from '@opencode-manager/shared/types'
+import type { CreateScheduleJobRequest, PromptTemplate, ScheduleJob } from '@subpolar/shared/types'
 import { getProvidersWithModels } from '@/api/providers'
 import { createOpenCodeClient } from '@/api/opencode'
 import { settingsApi } from '@/api/settings'
@@ -18,7 +18,7 @@ import {
   type SchedulePreset,
 } from '@/components/schedules/schedule-utils'
 import { getRepoDisplayName } from '@/lib/utils'
-import { ASSISTANT_REPO_ID, ASSISTANT_REPO_NAME } from '@opencode-manager/shared/utils'
+import { ASSISTANT_REPO_ID, ASSISTANT_REPO_NAME } from '@subpolar/shared/utils'
 import { Loader2 } from 'lucide-react'
 import { usePromptTemplates, useDeletePromptTemplate } from '@/hooks/usePromptTemplates'
 import { PromptTemplateDialog } from './PromptTemplateDialog'

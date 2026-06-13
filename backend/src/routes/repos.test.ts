@@ -8,7 +8,7 @@ import { createRepo } from '../db/queries'
 import { createStubOpenCodeClient } from '../../test/helpers/stub-opencode-client'
 import type { GitAuthService } from '../services/git-auth'
 import type { OpenCodeClient } from '../services/opencode/client'
-import { getReposPath } from '@opencode-manager/shared/config/env'
+import { getReposPath } from '@subpolar/shared/config/env'
 import path from 'path'
 
 beforeEach(() => {

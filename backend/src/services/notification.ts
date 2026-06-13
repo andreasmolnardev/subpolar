@@ -2,20 +2,20 @@ import { Database } from "bun:sqlite";
 import webpush from "web-push";
 import { logger } from "../utils/logger";
 import type { PushSubscriptionRecord } from "../types/settings";
-import type { PushNotificationPayload } from "@opencode-manager/shared/types";
+import type { PushNotificationPayload } from "@subpolar/shared/types";
 import {
   NotificationEventType,
   DEFAULT_NOTIFICATION_PREFERENCES,
-} from "@opencode-manager/shared/schemas";
+} from "@subpolar/shared/schemas";
 import {
   getPermissionLabel,
   getPermissionDetail,
   getQuestionText,
-} from "@opencode-manager/shared/notifications";
+} from "@subpolar/shared/notifications";
 import { SettingsService } from "./settings";
 import { sseAggregator, type SSEEvent } from "./sse-aggregator";
 import { getRepoByLocalPath, getRepoBySourcePath } from "../db/queries";
-import { getReposPath } from "@opencode-manager/shared/config/env";
+import { getReposPath } from "@subpolar/shared/config/env";
 import path from "path";
 
 interface VapidConfig {

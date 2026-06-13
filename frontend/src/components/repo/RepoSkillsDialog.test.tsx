@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { RepoSkillsDialog } from './RepoSkillsDialog'
-import type { SkillFileInfo } from '@opencode-manager/shared'
+import type { SkillFileInfo } from '@subpolar/shared'
 
 const mocks = vi.hoisted(() => ({
   listManagedSkills: vi.fn(),

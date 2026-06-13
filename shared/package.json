@@ -1,5 +1,5 @@
 {
-  "name": "@opencode-manager/shared",
+  "name": "@subpolar/shared",
   "version": "1.0.0",
   "type": "module",
   "private": true,

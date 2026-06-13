@@ -1,8 +1,8 @@
 import { EventSource } from 'eventsource'
 import { logger } from '../utils/logger'
-import { ENV } from '@opencode-manager/shared/config/env'
-import { DEFAULTS } from '@opencode-manager/shared/config'
-import type { SSEEventEnvelope, SSEEventPayload } from '@opencode-manager/shared'
+import { ENV } from '@subpolar/shared/config/env'
+import { DEFAULTS } from '@subpolar/shared/config'
+import type { SSEEventEnvelope, SSEEventPayload } from '@subpolar/shared'
 import { getOpenCodeBasicAuthHeader, type OpenCodePasswordResolver } from './opencode/auth'
 import { encodeSSEFrame } from '../utils/sse-frame'
 

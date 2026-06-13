@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import * as fs from 'fs/promises'
 
-vi.mock('@opencode-manager/shared/config/env', () => ({
+vi.mock('@subpolar/shared/config/env', () => ({
   getWorkspacePath: vi.fn(() => '/tmp/ssh-key-test-workspace'),
   getReposPath: vi.fn(() => '/tmp/ssh-key-test-workspace/repos'),
   getOpenCodeConfigFilePath: vi.fn(() => '/tmp/ssh-key-test-workspace/.config/opencode.json'),

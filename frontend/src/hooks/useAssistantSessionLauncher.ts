@@ -37,7 +37,7 @@ async function getLatestAssistantSession(
   return latestRootSession
 }
 
-const ASSISTANT_WELCOME_PROMPT = `Welcome to OpenCode Manager! I'm your assistant and I'm here to help you work with your code.
+const ASSISTANT_WELCOME_PROMPT = `Welcome to subpolar! I'm your assistant and I'm here to help you work with your code.
 
 To get started, let's set up your assistant:
 
@@ -45,7 +45,7 @@ To get started, let's set up your assistant:
 What would you like to call me? This name will help personalize our interactions.
 
 **2. Review AGENTS.md**
-AGENTS.md explains the assistant workspace directory and points to the files OpenCode Manager manages.
+AGENTS.md explains the assistant workspace directory and points to the files subpolar manages.
 
 **3. Review the assistant agent**
 .opencode/agents/assistant.md contains the default Assistant Mode agent instructions, durable preferences, self-editing rules, and skill guidance.

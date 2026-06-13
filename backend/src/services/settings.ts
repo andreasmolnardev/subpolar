@@ -1,11 +1,11 @@
 import { Database } from 'bun:sqlite'
 import { unlinkSync, existsSync } from 'fs'
-import { getOpenCodeConfigFilePath } from '@opencode-manager/shared/config/env'
+import { getOpenCodeConfigFilePath } from '@subpolar/shared/config/env'
 import { logger } from '../utils/logger'
-import { parseJsonc } from '@opencode-manager/shared/utils'
+import { parseJsonc } from '@subpolar/shared/utils'
 import { z } from 'zod'
 import { encryptSecret, decryptSecret } from '../utils/crypto'
-import { ENV } from '@opencode-manager/shared/config/env'
+import { ENV } from '@subpolar/shared/config/env'
 import type { 
   UserPreferences, 
   SettingsResponse, 

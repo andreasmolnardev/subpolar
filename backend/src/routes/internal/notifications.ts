@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { AssistantNotificationRequestSchema } from '@opencode-manager/shared/schemas'
+import { AssistantNotificationRequestSchema } from '@subpolar/shared/schemas'
 import type { NotificationService } from '../../services/notification'
 import { TokenBucketRateLimiter } from '../../utils/rate-limit'
 

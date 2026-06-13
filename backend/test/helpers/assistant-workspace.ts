@@ -4,7 +4,7 @@ import path from 'path'
 import { Database } from 'bun:sqlite'
 import { migrate } from '../../src/db/migration-runner'
 import { allMigrations } from '../../src/db/migrations'
-import type { Repo } from '@opencode-manager/shared/types'
+import type { Repo } from '@subpolar/shared/types'
 
 export async function createTempAssistantWorkspace() {
   const workspacePath = await mkdtemp(path.join(tmpdir(), 'oc-assistant-'))

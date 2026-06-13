@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { logger } from '../utils/logger'
 import { GitAuthService } from '../services/git-auth'
-import { SSHHostKeyResponseSchema } from '@opencode-manager/shared'
+import { SSHHostKeyResponseSchema } from '@subpolar/shared'
 
 interface SSHHostKeyResponse {
   success: boolean
