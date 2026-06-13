@@ -20,7 +20,6 @@ const mocks = vi.hoisted(() => ({
   useCommandHandler: vi.fn(),
   useFileSearch: vi.fn(),
   useModelSelection: vi.fn(),
-  useVariants: vi.fn(),
   useSessionAgent: vi.fn(),
   useAgents: vi.fn(),
   useSendPromptMutate: vi.fn(),
@@ -64,10 +63,6 @@ vi.mock('@/hooks/useModelSelection', () => ({
   useModelSelection: mocks.useModelSelection,
 }))
 
-vi.mock('@/hooks/useVariants', () => ({
-  useVariants: mocks.useVariants,
-}))
-
 vi.mock('@/hooks/useSessionAgent', () => ({
   useSessionAgent: mocks.useSessionAgent,
 }))
@@ -94,10 +89,6 @@ vi.mock('@/contexts/EventContext', () => ({
 
 vi.mock('@/components/agent/AgentQuickSelect', () => ({
   AgentQuickSelect: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}))
-
-vi.mock('@/components/model/ModelQuickSelect', () => ({
-  ModelQuickSelect: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
 vi.mock('@/components/ui/session-status-indicator', () => ({
@@ -192,11 +183,6 @@ describe('PromptInput STT Gesture Tests', () => {
       favoriteModels: [],
       toggleFavorite: vi.fn(),
       isModelStateLoading: false,
-    })
-    mocks.useVariants.mockReturnValue({
-      hasVariants: false,
-      currentVariant: null,
-      cycleVariant: vi.fn(),
     })
     mocks.useSessionAgent.mockReturnValue({ agent: 'default' })
     mocks.useAgents.mockReturnValue({ data: [] })

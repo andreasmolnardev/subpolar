@@ -1,8 +1,8 @@
 # ocm-cli
 
-OpenCode Manager CLI and plugin package.
+Subpolar CLI and plugin package.
 
-`ocm` lets a local OpenCode TUI attach to repos hosted by OpenCode Manager. It
+`ocm` lets a local OpenCode TUI attach to repos hosted by Subpolar. It
 can also mirror a local git repo up to Manager or pull a Manager repo back down
 to the local working tree.
 
@@ -71,4 +71,4 @@ export default [ocm]
 - `opencode` available on `PATH`
 - `git` and `tar` (with gzip support, i.e. the `-z` flag) available on `PATH`
 - macOS `security` CLI for Keychain-backed token storage
-- An OpenCode Manager URL and bearer token
+- An Subpolar URL and bearer token

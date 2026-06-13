@@ -160,7 +160,7 @@ describe('OpenCodeSupervisor', () => {
     expect(manager.restart).toHaveBeenCalledTimes(2)
   })
 
-  it('skips checks while OpenCode manager is busy', async () => {
+  it('skips checks while Subpolar is busy', async () => {
     const manager = createManager()
     const settings = createSettings()
     const supervisor = new OpenCodeSupervisor(manager as unknown as never, settings as unknown as never)

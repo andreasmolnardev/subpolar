@@ -4,7 +4,7 @@ Listen to AI responses with built-in or external TTS.
 
 ## Overview
 
-OpenCode Manager supports two TTS providers:
+Subpolar supports two TTS providers:
 
 1. **Built-in Browser** - Uses your browser's Web Speech API
 2. **External API** - OpenAI-compatible TTS endpoints

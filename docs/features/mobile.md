@@ -1,6 +1,6 @@
 # Mobile & PWA
 
-OpenCode Manager is designed mobile-first and works as a Progressive Web App.
+Subpolar is designed mobile-first and works as a Progressive Web App.
 
 ## Mobile-First Design
 
@@ -15,7 +15,7 @@ The UI is optimized for mobile devices:
 
 ### iOS
 
-1. Open OpenCode Manager in **Safari**
+1. Open Subpolar in **Safari**
 2. Tap the **Share** button (square with arrow)
 3. Scroll down and tap **Add to Home Screen**
 4. Name the app and tap **Add**
@@ -25,7 +25,7 @@ The UI is optimized for mobile devices:
 
 ### Android
 
-1. Open OpenCode Manager in **Chrome**
+1. Open Subpolar in **Chrome**
 2. Tap the **menu** (three dots)
 3. Tap **Install app** or **Add to Home Screen**
 4. Confirm installation

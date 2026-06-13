@@ -70,7 +70,7 @@ services:
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
       - AUTH_SECURE_COOKIES=${AUTH_SECURE_COOKIES:-false}
       - PASSKEY_RP_ID=${PASSKEY_RP_ID:-localhost}
-      - PASSKEY_RP_NAME=${PASSKEY_RP_NAME:-OpenCode Manager}
+      - PASSKEY_RP_NAME=${PASSKEY_RP_NAME:-Subpolar}
       - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-http://localhost:5003}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
@@ -215,7 +215,7 @@ Uses a named volume for data persistence.
 
 ### Import Existing OpenCode Chats From Your Host
 
-If you already use standalone OpenCode on your machine and want Dockerized OpenCode Manager to show those chats on first setup, bind your host OpenCode config/state into the container and bind your repo root to the same absolute path that standalone OpenCode used.
+If you already use standalone OpenCode on your machine and want Dockerized Subpolar to show those chats on first setup, bind your host OpenCode config/state into the container and bind your repo root to the same absolute path that standalone OpenCode used.
 
 Add to `.env`:
 
@@ -243,7 +243,7 @@ Why the repo mount uses the host path as the container path:
 
 - standalone OpenCode stores chats against absolute directory paths
 - mounting `${OCM_REPOS_HOST_PATH}` to the same path inside the container preserves those paths exactly
-- OpenCode Manager can then discover that folder and create its normal workspace links under `/workspace/repos`
+- Subpolar can then discover that folder and create its normal workspace links under `/workspace/repos`
 
 With a fresh Docker volume, first startup imports the host OpenCode config and state, and after you add `${OCM_REPOS_HOST_PATH}` in the Manager UI, previously existing chats appear under the discovered repositories.
 
@@ -427,4 +427,4 @@ The password can be configured in two ways:
 
 ### Startup Guard
 
-If you set `OPENCODE_HOST=0.0.0.0` (or any non-localhost host) without configuring a password (either via env var or UI), the managed OpenCode server will refuse to start with an error message explaining how to fix it. The OpenCode Manager UI/API may remain available so you can configure a password and restart the managed server.
+If you set `OPENCODE_HOST=0.0.0.0` (or any non-localhost host) without configuring a password (either via env var or UI), the managed OpenCode server will refuse to start with an error message explaining how to fix it. The Subpolar UI/API may remain available so you can configure a password and restart the managed server.

@@ -1,6 +1,6 @@
 # Push Notifications
 
-Send background notifications when the OpenCode Manager PWA is closed, keeping you informed of agent activity without keeping the app open.
+Send background notifications when the Subpolar PWA is closed, keeping you informed of agent activity without keeping the app open.
 
 ## Overview
 
@@ -79,7 +79,7 @@ VAPID_SUBJECT=mailto:you@yourdomain.com
 
 ### 3. Subscribe Devices
 
-1. Open OpenCode Manager in your browser
+1. Open Subpolar in your browser
 2. Go to **Settings** → **Notifications**
 3. Click **Enable Push Notifications**
 4. Allow browser permission when prompted

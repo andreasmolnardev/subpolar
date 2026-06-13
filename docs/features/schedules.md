@@ -4,7 +4,7 @@ Create recurring repo jobs that run reusable prompts against a repository, store
 
 ## What Schedules Are Good For
 
-Schedules make OpenCode Manager proactive instead of purely session-driven. Good examples include:
+Schedules make Subpolar proactive instead of purely session-driven. Good examples include:
 
 - **Repo health reports** for a quick morning review
 - **Dependency watchlists** to catch upgrade pressure early
@@ -65,7 +65,7 @@ Schedules can run with:
 - a custom agent slug
 - a specific model override when needed
 
-If a requested model is no longer available, OpenCode Manager falls back to a valid configured model for that provider so the run can still start when possible.
+If a requested model is no longer available, Subpolar falls back to a valid configured model for that provider so the run can still start when possible.
 
 ## Run History
 
@@ -92,7 +92,7 @@ Use **Open session** when you want to:
 - answer follow-up questions from the agent
 - debug provider, permission, or tool issues
 
-This keeps automation connected to the rest of the OpenCode Manager workflow instead of creating a separate silo.
+This keeps automation connected to the rest of the Subpolar workflow instead of creating a separate silo.
 
 ## Best Practices
 

@@ -1,6 +1,6 @@
 # Features Overview
 
-OpenCode Manager provides a comprehensive web interface for managing OpenCode AI agents.
+Subpolar provides a comprehensive web interface for managing OpenCode AI agents.
 
 ## Core Features
 

@@ -302,12 +302,6 @@ export function SessionDetail() {
   }, [navigate, repoId, isAssistantSession, location.search])
 
   const { leaderActive } = useKeyboardShortcuts({
-    openModelDialog: () => {
-      const modelSelectTrigger = document.querySelector(
-        "[data-model-select-trigger]",
-      ) as HTMLElement;
-      modelSelectTrigger?.click();
-    },
     openSessions: () => setSessionsDialogOpen(true),
     openSettings,
     newSession: handleNewSession,

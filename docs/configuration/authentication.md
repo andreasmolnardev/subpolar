@@ -1,6 +1,6 @@
 # Authentication
 
-OpenCode Manager uses single-user authentication designed for personal deployments.
+Subpolar uses single-user authentication designed for personal deployments.
 
 ## Overview
 
@@ -123,17 +123,17 @@ Configure your domain:
 ```bash
 # Local development (use backend port)
 PASSKEY_RP_ID=localhost
-PASSKEY_RP_NAME=OpenCode Manager
+PASSKEY_RP_NAME=Subpolar
 PASSKEY_ORIGIN=http://localhost:5003
 
 # Production
 PASSKEY_RP_ID=yourdomain.com
-PASSKEY_RP_NAME=OpenCode Manager
+PASSKEY_RP_NAME=Subpolar
 PASSKEY_ORIGIN=https://yourdomain.com
 
 # Local network access
 PASSKEY_RP_ID=localhost
-PASSKEY_RP_NAME=OpenCode Manager
+PASSKEY_RP_NAME=Subpolar
 PASSKEY_ORIGIN=http://192.168.1.244:5003
 ```
 

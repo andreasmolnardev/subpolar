@@ -36,6 +36,7 @@ services:
       - NODE_ENV=development
       - AUTH_SECRET=${AUTH_SECRET:-dev-secret-change-in-production}
       - PORT=5003
+      - BACKEND_HOST=backend
     volumes:
       - ./frontend/src:/app/frontend/src
       - ./frontend/public:/app/frontend/public

@@ -1,10 +1,10 @@
 # `ocm` CLI
 
-`ocm` is a small CLI that attaches your local OpenCode TUI to a repo hosted on an OpenCode Manager. Prompts execute on the Manager's filesystem against a single shared OpenCode server, while your laptop terminal hosts the TUI.
+`ocm` is a small CLI that attaches your local OpenCode TUI to a repo hosted on an Subpolar. Prompts execute on the Manager's filesystem against a single shared OpenCode server, while your laptop terminal hosts the TUI.
 
 ## Quickstart
 
-1. **Get your Manager URL** — the web UI address where your OpenCode Manager is running (e.g., `https://manager.example.com`)
+1. **Get your Manager URL** — the web UI address where your Subpolar is running (e.g., `https://manager.example.com`)
 2. **Generate an internal token** — go to **Settings → Manager Token** in the web UI and click **Generate**
 3. **Install the CLI** — `pnpm add -g @opencode-manager/ocm-cli`
 4. **Log in** — `ocm login https://your-manager-url` (paste the token when prompted)

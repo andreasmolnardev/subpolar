@@ -1,9 +1,9 @@
-# OpenCode Manager
+# Subpolar
 
 Mobile-first web interface for [OpenCode](https://opencode.ai) AI agents. Manage, control, and code from any device - your phone, tablet, or desktop.
 
 <p align="center">
-  <img src="images/ocmgr-main.webp" alt="OpenCode Manager" width="600" style="border: none" />
+  <img src="images/ocmgr-main.webp" alt="Subpolar" width="600" style="border: none" />
   <img src="images/ocmgr-mobile.webp" alt="Mobile view" height="400" style="border: none; margin-left: 12px" />
 </p>
 
@@ -19,9 +19,9 @@ docker-compose up -d
 
 Open [http://localhost:5003](http://localhost:5003) and create your admin account. That's it!
 
-## What is OpenCode Manager?
+## What is Subpolar?
 
-OpenCode Manager is a mobile-first web interface for [OpenCode](https://opencode.ai) AI agents. It combines repository management, chat/session control, Git and file tools, schedules, AI configuration, MCP server management, push notifications, and full PWA support into a single responsive application.
+Subpolar is a mobile-first web interface for [OpenCode](https://opencode.ai) AI agents. It combines repository management, chat/session control, Git and file tools, schedules, AI configuration, MCP server management, push notifications, and full PWA support into a single responsive application.
 
 - **Repository management** — Clone, discover, and manage multiple Git repos with SSH authentication and worktree support
 - **Chat & sessions** — Real-time SSE streaming with slash commands, `@file` mentions, Plan/Build modes, and per-agent model selection
@@ -33,7 +33,7 @@ OpenCode Manager is a mobile-first web interface for [OpenCode](https://opencode
 
 ## How It Works
 
-OpenCode Manager runs as a pnpm workspace:
+Subpolar runs as a pnpm workspace:
 
 - The Bun/Hono backend initializes SQLite, Better Auth, settings, schedules, notifications, and an OpenCode client.
 - A supervised OpenCode server handles agent sessions while the backend proxies API calls and streams events over SSE.
@@ -67,7 +67,7 @@ OpenCode Manager runs as a pnpm workspace:
 - [Installation Guide](getting-started/installation.md) - Detailed setup instructions
 - [Quick Start](getting-started/quickstart.md) - Get up and running fast
 - [Development Setup](development/setup.md) - Local environment, scripts, and testing
-- [Contributing](development/contributing.md) - How to contribute to OpenCode Manager
+- [Contributing](development/contributing.md) - How to contribute to Subpolar
 - [Features Overview](features/overview.md) - Explore all features
 - [Schedules & Recurring Jobs](features/schedules.md) - Automate recurring repo reviews and follow-ups
 - [Configuration](configuration/environment.md) - Environment variables and setup

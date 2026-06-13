@@ -1,6 +1,6 @@
 # Contributing
 
-Guide for contributing to OpenCode Manager.
+Guide for contributing to Subpolar.
 
 ## Getting Started
 

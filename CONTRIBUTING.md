@@ -1,4 +1,4 @@
-# Contributing to OpenCode Manager
+# Contributing to Subpolar
 
 Thanks for your interest in contributing! This guide covers our workflow and how to get started.
 

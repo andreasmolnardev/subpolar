@@ -21,7 +21,7 @@ Import repositories you already have on disk without recloning them:
 4. Enter a parent folder such as `/Users/you/Development`
 5. Click **Discover Repositories**
 
-OpenCode Manager scans that folder for nested git repositories and links each one into the workspace. If standalone OpenCode already has chats stored for those same paths, the sessions show up automatically.
+Subpolar scans that folder for nested git repositories and links each one into the workspace. If standalone OpenCode already has chats stored for those same paths, the sessions show up automatically.
 
 ### Private Repositories
 

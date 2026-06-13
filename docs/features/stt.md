@@ -4,7 +4,7 @@ Dictate messages to AI agents using voice input.
 
 ## Overview
 
-OpenCode Manager supports two STT providers:
+Subpolar supports two STT providers:
 
 1. **Built-in Browser** - Uses your browser's Web Speech API
 2. **External API** - OpenAI-compatible STT endpoints (Whisper)

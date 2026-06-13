@@ -17,7 +17,7 @@ Configure social login with OAuth providers.
 1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
 2. Click **OAuth Apps** > **New OAuth App**
 3. Fill in:
-   - **Application name**: `OpenCode Manager`
+   - **Application name**: `Subpolar`
    - **Homepage URL**: `http://localhost:5003`
    - **Authorization callback URL**: `http://localhost:5003/api/auth/callback/github`
 4. Click **Register application**
@@ -50,7 +50,7 @@ Adjust the callback URL for your environment:
 4. Click **Create Credentials** > **OAuth client ID**
 5. Select **Web application**
 6. Configure:
-   - **Name**: `OpenCode Manager`
+   - **Name**: `Subpolar`
    - **Authorized redirect URIs**: `http://localhost:5003/api/auth/callback/google`
 7. Click **Create**
 8. Copy **Client ID** and **Client Secret**
@@ -78,7 +78,7 @@ You may need to configure the OAuth consent screen:
 
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
 2. Click **New Application**
-3. Name it `OpenCode Manager`
+3. Name it `Subpolar`
 4. Go to **OAuth2** section
 5. Add redirect: `http://localhost:5003/api/auth/callback/discord`
 6. Copy **Client ID** and **Client Secret**

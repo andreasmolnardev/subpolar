@@ -1,6 +1,6 @@
 # Quick Start
 
-Get up and running with OpenCode Manager in minutes.
+Get up and running with Subpolar in minutes.
 
 ## 1. Start the Application
 

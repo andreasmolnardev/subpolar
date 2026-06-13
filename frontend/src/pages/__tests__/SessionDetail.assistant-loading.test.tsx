@@ -126,10 +126,6 @@ vi.mock('@/api/repos', () => ({
   } : null)),
 }))
 
-vi.mock('@/components/model/ModelSelectDialog', () => ({
-  ModelSelectDialog: vi.fn(() => null),
-}))
-
 vi.mock('@/components/session/SessionList', () => ({
   SessionList: vi.fn(() => null),
 }))

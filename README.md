@@ -1,5 +1,5 @@
 <p align="center">
-    <img src=".github/social-preview.png" alt="OpenCode Manager" width="600" style="border: none" />
+    <img src=".github/social-preview.png" alt="Subpolar" width="600" style="border: none" />
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/ocmgr-main.webp" alt="OpenCode Manager" width="600" style="border: none" />
+  <img src="docs/images/ocmgr-main.webp" alt="Subpolar" width="600" style="border: none" />
   <img src="docs/images/ocmgr-mobile.webp" alt="Mobile view" height="400" style="border: none; margin-left: 12px" />
 </p>
 
@@ -58,7 +58,7 @@ For local development setup, see the [Development Guide](https://chriswritescode
 
 ## Architecture
 
-OpenCode Manager is a pnpm workspace with three TypeScript packages:
+Subpolar is a pnpm workspace with three TypeScript packages:
 
 - `backend/` — Bun + Hono API server with Better Auth, SQLite migrations, OpenCode process management, SSE, schedules, and push notifications.
 - `frontend/` — React + Vite SPA using React Router, TanStack Query, Radix UI/Tailwind, service worker support, and mobile-first navigation.
@@ -99,7 +99,7 @@ For OAuth, Passkeys, Push Notifications (VAPID), and advanced configuration, see
 
 ## `ocm` CLI
 
-OpenCode Manager ships an `ocm` CLI (from `ocm-cli/`) that attaches your local OpenCode TUI to a repo hosted on the Manager. It lists ready repos, attaches via the Manager's `/api/opencode-proxy` (so prompts run on the Manager's filesystem against a single shared OpenCode server), and can tarball-sync the working tree up or down with `ocm push` / `ocm pull`. Running `ocm` inside a local clone auto-detects the matching Manager repo by `origin` URL.
+Subpolar ships an `ocm` CLI (from `ocm-cli/`) that attaches your local OpenCode TUI to a repo hosted on the Manager. It lists ready repos, attaches via the Manager's `/api/opencode-proxy` (so prompts run on the Manager's filesystem against a single shared OpenCode server), and can tarball-sync the working tree up or down with `ocm push` / `ocm pull`. Running `ocm` inside a local clone auto-detects the matching Manager repo by `origin` URL.
 
 See the [`ocm` CLI guide](docs/ocm-cli.md) for setup and commands.
 

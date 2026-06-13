@@ -4,13 +4,11 @@ import { useCommands } from '@/hooks/useCommands'
 import { useCommandHandler } from '@/hooks/useCommandHandler'
 import { useFileSearch } from '@/hooks/useFileSearch'
 import { useModelSelection } from '@/hooks/useModelSelection'
-import { useOpenCodeClient } from '@/hooks/useOpenCode'
-import { useVariants } from '@/hooks/useVariants'
+
 import { useSessionAgent } from '@/hooks/useSessionAgent'
 import { useSTT } from '@/hooks/useSTT'
 
 import { useUserBash } from '@/stores/userBashStore'
-import { useModelStore } from '@/stores/modelStore'
 import { useSessionAgentStore } from '@/stores/sessionAgentStore'
 import { useUIState } from '@/stores/uiStateStore'
 import { useSendErrorStore } from '@/stores/sendErrorStore'
@@ -24,12 +22,10 @@ import { SquareFill } from '@/components/ui/square-fill'
 import { CommandSuggestions } from '@/components/command/CommandSuggestions'
 import { MentionSuggestions, type MentionItem } from './MentionSuggestions'
 import { SessionStatusIndicator } from '@/components/ui/session-status-indicator'
-import { ModelQuickSelect } from '@/components/model/ModelQuickSelect'
 import { AgentQuickSelect } from '@/components/agent/AgentQuickSelect'
 import { VoiceStatusOverlay, type VoiceStatusOverlayState } from './VoiceStatusOverlay'
 import { detectMentionTrigger, parsePromptToParts, getFilename, filterAgentsByQuery } from '@/lib/promptParser'
-import { formatModelName, getProviders } from '@/api/providers'
-import { useQuery } from '@tanstack/react-query'
+
 
 
 import type { components } from '@/api/opencode-types'
@@ -295,7 +291,6 @@ export const PromptInput = memo(forwardRef<PromptInputHandle, PromptInputProps>(
           parts,
           model: currentModel,
           agent: agentUsed,
-          variant: currentVariant,
           queued: true
         },
         {
@@ -368,7 +363,6 @@ export const PromptInput = memo(forwardRef<PromptInputHandle, PromptInputProps>(
         parts,
         model: currentModel,
         agent: agentUsed,
-        variant: currentVariant
       },
       {
         onSuccess: () => {
@@ -1010,11 +1004,6 @@ if (isIOS && isSecureContext && navigator.clipboard && navigator.clipboard.read)
       setImageAttachments([])
       resetVoiceGestureState()
       clearSTT()
-    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 't') {
-      e.preventDefault()
-      if (hasVariants) {
-        cycleVariant()
-      }
     }
   }
 
@@ -1072,17 +1061,7 @@ if (isIOS && isSecureContext && navigator.clipboard && navigator.clipboard.read)
   const setStoredAgent = useSessionAgentStore((s) => s.setAgent)
   const syncedSessionModelRef = useRef<string | undefined>(undefined)
 
-  const client = useOpenCodeClient(opcodeUrl, directory)
-  const { data: providersData } = useQuery({
-    queryKey: ['opencode', 'providers', opcodeUrl, directory],
-    queryFn: () => getProviders(directory),
-    enabled: !!client,
-    staleTime: 30000,
-  })
-
   const { model, modelString, setModel: setStoredModel, restoreSessionModel } = useModelSelection(opcodeUrl, directory)
-  const setStoreVariant = useModelStore((state) => state.setVariant)
-  const clearStoreVariant = useModelStore((state) => state.clearVariant)
 
   const sessionModelSyncKey = sessionID ? `${directory ?? ''}:${sessionID}` : undefined
 
@@ -1094,31 +1073,13 @@ if (isIOS && isSecureContext && navigator.clipboard && navigator.clipboard.read)
     restoreSessionModel(sessionAgent.model)
 
     syncedSessionModelRef.current = sessionModelSyncKey
-
-    if (sessionAgent.variant) {
-      setStoreVariant(sessionAgent.model, sessionAgent.variant)
-    } else {
-      clearStoreVariant(sessionAgent.model)
-    }
-  }, [clearStoreVariant, sessionAgent.model, sessionAgent.variant, sessionModelSyncKey, restoreSessionModel, setStoreVariant])
+  }, [sessionAgent.model, sessionModelSyncKey, restoreSessionModel])
 
   const currentModel = modelString || ''
-  const displayModelName = useMemo(() => {
-    if (!model) {
-      return currentModel
-    }
-
-    const provider = providersData?.providers.find((item) => item.id === model.providerID)
-    const modelData = provider?.models?.[model.modelID]
-
-    return modelData ? formatModelName(modelData) : model.modelID || currentModel
-  }, [currentModel, model, providersData])
   const isMobile = useMobile()
   const { setShowDialog, hasForSession: hasPermissionsForSession } = usePermissions()
   const hasPendingPermissionForSession = hasPermissionsForSession(sessionID)
-  const { hasVariants, currentVariant, cycleVariant } = useVariants(opcodeUrl, directory)
   const showStopButton = isSessionActive
-  const hideSecondaryButtons = isMobile && isSessionActive
   const showMobileScrollButton = isMobile && showScrollButton
   const voiceFeedbackState: VoiceStatusOverlayState | null = isTogglingRecording
     ? 'starting'
@@ -1330,23 +1291,7 @@ return (
               <div className="px-2.5 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm font-medium text-muted-foreground max-w-[120px] md:max-w-[180px]">
                 <SessionStatusIndicator sessionID={sessionID} showLabel />
               </div>
-            ) : (
-               !hideSecondaryButtons && (
-                  <ModelQuickSelect
-                    opcodeUrl={opcodeUrl}
-                    directory={directory}
-                  >
-<button
-                      className="px-2.5 py-0.5 md:px-3 min-h-[36px] min-w-0 rounded-lg text-xs md:text-sm font-medium border bg-muted border-border text-muted-foreground hover:bg-muted-foreground/10 hover:border-foreground/30 transition-colors cursor-pointer flex-1 md:flex-initial md:w-auto max-w-[110px] md:max-w-[220px] dark:border-white/30 flex flex-col items-start justify-center overflow-hidden"
-                    >
-                      <span className="truncate w-full text-left">{displayModelName || 'Select model'}</span>
-{hasVariants && currentVariant && (
-                        <span className="text-[10px] text-orange-500 truncate w-full text-center capitalize">{currentVariant}</span>
-                      )}
-                   </button>
-                 </ModelQuickSelect>
-                )
-              )}
+            ) : null}
             </>
           )}
         </div>

@@ -1,10 +1,10 @@
 # Assistant Mode
 
-Assistant Mode gives OpenCode Manager a dedicated AI workspace — an isolated directory (`repos/assistant/`) where a built-in assistant agent can manage scheduled jobs, send push notifications, and read or update settings via a secure internal API.
+Assistant Mode gives Subpolar a dedicated AI workspace — an isolated directory (`repos/assistant/`) where a built-in assistant agent can manage scheduled jobs, send push notifications, and read or update settings via a secure internal API.
 
 ## What Is Assistant Mode?
 
-The assistant workspace is a special repository-like directory managed and maintained by OpenCode Manager. When initialized it contains:
+The assistant workspace is a special repository-like directory managed and maintained by Subpolar. When initialized it contains:
 
 | File | Purpose |
 |------|---------|
@@ -36,7 +36,7 @@ When the assistant self-edits its agent definition (e.g., to refine behavior or 
 ## Getting Started
 
 1. Click **Assistant** in the sidebar or mobile tab bar
-2. On first visit, OpenCode Manager initializes the workspace and creates a new session
+2. On first visit, Subpolar initializes the workspace and creates a new session
 3. A welcome prompt is automatically sent to orient the agent
 4. Subsequent visits resume the most recent session
 
@@ -55,7 +55,7 @@ The session list exposes the same management panels as regular repos — file br
 
 ## Workspace Initialization
 
-The workspace is initialized idempotently. Managed files are only rewritten when OpenCode Manager has updated their content. User customizations to managed files are preserved.
+The workspace is initialized idempotently. Managed files are only rewritten when Subpolar has updated their content. User customizations to managed files are preserved.
 
 ### Warnings
 

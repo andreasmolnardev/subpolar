@@ -29,7 +29,7 @@ Complete reference for all configuration options.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PASSKEY_RP_ID` | Relying party ID (your domain) | `localhost` |
-| `PASSKEY_RP_NAME` | Display name for passkey prompts | `OpenCode Manager` |
+| `PASSKEY_RP_NAME` | Display name for passkey prompts | `Subpolar` |
 | `PASSKEY_ORIGIN` | Origin URL for WebAuthn (backend port) | `http://localhost:5003` |
 
 
@@ -159,7 +159,7 @@ GITHUB_CLIENT_SECRET=your-client-secret
 
 # Passkeys (optional - use BACKEND port)
 PASSKEY_RP_ID=localhost
-PASSKEY_RP_NAME=OpenCode Manager
+PASSKEY_RP_NAME=Subpolar
 PASSKEY_ORIGIN=http://localhost:5003
 
 # Push notifications (optional)
