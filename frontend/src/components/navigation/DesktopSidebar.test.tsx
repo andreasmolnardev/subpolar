@@ -49,7 +49,7 @@ describe('DesktopSidebar', () => {
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
       isAuthenticated: false,
       isLoading: false,
-      logout: vi.fn(),
+      user: null,
     } as any)
 
     const { container } = render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
@@ -63,7 +63,7 @@ describe('DesktopSidebar', () => {
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
       isAuthenticated: true,
       isLoading: true,
-      logout: vi.fn(),
+      user: null,
     } as any)
 
     const { container } = render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
@@ -77,7 +77,7 @@ describe('DesktopSidebar', () => {
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
       isAuthenticated: true,
       isLoading: false,
-      logout: vi.fn(),
+      user: null,
     } as any)
 
     const { container } = render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
@@ -91,7 +91,7 @@ describe('DesktopSidebar', () => {
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
       isAuthenticated: true,
       isLoading: false,
-      logout: vi.fn(),
+      user: null,
     } as any)
 
     render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
@@ -99,36 +99,20 @@ describe('DesktopSidebar', () => {
     expect(screen.getByText('subpolar')).toBeInTheDocument()
   })
 
-  it('renders Home, Agents & Skills, Apps, and Projects sections', () => {
+  it('renders Home, Agents & Skills, and Projects sections', () => {
     vi.spyOn(useDesktopModule, 'useDesktop').mockReturnValue(true)
     vi.spyOn(useSidebarCollapsedModule, 'useSidebarCollapsed').mockReturnValue([false, vi.fn()])
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
       isAuthenticated: true,
       isLoading: false,
-      logout: vi.fn(),
+      user: null,
     } as any)
 
     render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
 
     expect(screen.getByText('Home')).toBeInTheDocument()
     expect(screen.getByText('Agents & Skills')).toBeInTheDocument()
-    expect(screen.getByText('Apps')).toBeInTheDocument()
     expect(screen.getByText('Projects')).toBeInTheDocument()
-  })
-
-  it('renders Settings and Logout at the bottom', () => {
-    vi.spyOn(useDesktopModule, 'useDesktop').mockReturnValue(true)
-    vi.spyOn(useSidebarCollapsedModule, 'useSidebarCollapsed').mockReturnValue([false, vi.fn()])
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
-      isAuthenticated: true,
-      isLoading: false,
-      logout: vi.fn(),
-    } as any)
-
-    render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
-
-    expect(screen.getByText('Settings')).toBeInTheDocument()
-    expect(screen.getByText('Logout')).toBeInTheDocument()
   })
 
   it('shows Assistant sub-item under Agents & Skills', () => {
@@ -137,11 +121,40 @@ describe('DesktopSidebar', () => {
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
       isAuthenticated: true,
       isLoading: false,
-      logout: vi.fn(),
+      user: null,
     } as any)
 
     render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
 
     expect(screen.getByText('Assistant')).toBeInTheDocument()
+  })
+
+  it('shows user name and email in profile section', () => {
+    vi.spyOn(useDesktopModule, 'useDesktop').mockReturnValue(true)
+    vi.spyOn(useSidebarCollapsedModule, 'useSidebarCollapsed').mockReturnValue([false, vi.fn()])
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+      isAuthenticated: true,
+      isLoading: false,
+      user: { name: 'Test User', email: 'test@example.com', image: null },
+    } as any)
+
+    render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
+
+    expect(screen.getByText('Test User')).toBeInTheDocument()
+    expect(screen.getByText('test@example.com')).toBeInTheDocument()
+  })
+
+  it('shows user initial when no image', () => {
+    vi.spyOn(useDesktopModule, 'useDesktop').mockReturnValue(true)
+    vi.spyOn(useSidebarCollapsedModule, 'useSidebarCollapsed').mockReturnValue([false, vi.fn()])
+    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+      isAuthenticated: true,
+      isLoading: false,
+      user: { name: 'Alice', email: 'alice@example.com', image: null },
+    } as any)
+
+    render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
+
+    expect(screen.getByText('A')).toBeInTheDocument()
   })
 })

@@ -8,7 +8,7 @@ import { useUrlParams } from '@/hooks/useUrlParams'
 import { listRepos } from '@/api/repos'
 import { settingsApi } from '@/api/settings'
 import { getAssistantPath } from '@/lib/navigation'
-import { FolderGit2, Home, Bot, AppWindow, Settings, LogOut, ChevronDown, ChevronRight } from 'lucide-react'
+import { FolderGit2, Home, Bot, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Sidebar, SidebarCollapseToggle } from '@/components/ui/sidebar'
 
@@ -85,7 +85,7 @@ export function DesktopSidebar() {
   const navigate = useNavigate()
   const { updateParams } = useUrlParams()
   const [collapsed, toggle] = useSidebarCollapsed()
-  const { isAuthenticated, isLoading, logout } = useAuth()
+  const { isAuthenticated, isLoading, user } = useAuth()
   const isDesktop = useDesktop()
 
   const [agentsExpanded, setAgentsExpanded] = useState(true)
@@ -164,13 +164,6 @@ export function DesktopSidebar() {
           ))}
         </SidebarSection>
 
-        {/* Apps */}
-        <SidebarNavItem
-          icon={AppWindow}
-          label="Apps"
-          onClick={() => {}}
-        />
-
         {/* Projects */}
         <SidebarSection
           label="Projects"
@@ -191,11 +184,10 @@ export function DesktopSidebar() {
         </SidebarSection>
       </div>
 
-      {/* Bottom actions */}
-      <div className="border-t border-border p-2 mt-auto">
-        <SidebarNavItem
-          icon={Settings}
-          label="Settings"
+      {/* Profile */}
+      <div className="border-t border-border mt-auto">
+        <button
+          type="button"
           onClick={() => {
             updateParams((p) => {
               p.set('settings', 'open')
@@ -203,12 +195,29 @@ export function DesktopSidebar() {
               p.delete('mobileTab')
             }, 'push')
           }}
-        />
-        <SidebarNavItem
-          icon={LogOut}
-          label="Logout"
-          onClick={() => logout()}
-        />
+          className={cn(
+            'flex items-center gap-3 w-full p-3 hover:bg-accent/50 transition-colors',
+            collapsed && 'justify-center',
+          )}
+        >
+          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary flex-shrink-0 overflow-hidden">
+            {user?.image ? (
+              <img src={user.image} alt="" className="h-full w-full object-cover" />
+            ) : (
+              (user?.name?.[0] || user?.email?.[0] || '?').toUpperCase()
+            )}
+          </div>
+          {!collapsed && (
+            <div className="flex flex-col items-start min-w-0">
+              <span className="text-sm font-medium text-foreground truncate w-full text-left">
+                {user?.name || 'User'}
+              </span>
+              <span className="text-xs text-muted-foreground truncate w-full text-left">
+                {user?.email || ''}
+              </span>
+            </div>
+          )}
+        </button>
       </div>
     </Sidebar>
   )
