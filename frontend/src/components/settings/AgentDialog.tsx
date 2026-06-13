@@ -29,7 +29,10 @@ const agentFormSchema = z.object({
   editPermission: z.enum(['ask', 'allow', 'deny']),
   bashPermission: z.enum(['ask', 'allow', 'deny']),
   webfetchPermission: z.enum(['ask', 'allow', 'deny']),
-  disable: z.boolean()
+  disable: z.boolean(),
+  icon: z.string().optional(),
+  skills: z.array(z.string()).optional(),
+  allowedCommands: z.array(z.string()).optional(),
 })
 
 type AgentFormValues = z.infer<typeof agentFormSchema>
@@ -48,6 +51,9 @@ interface Agent {
     bash?: 'ask' | 'allow' | 'deny' | Record<string, 'ask' | 'allow' | 'deny'>
     webfetch?: 'ask' | 'allow' | 'deny'
   }
+  icon?: string
+  skills?: string[]
+  allowedCommands?: string[]
   disable?: boolean
   [key: string]: unknown
 }
@@ -63,6 +69,7 @@ interface AgentDialogProps {
   onOpenChange: (open: boolean) => void
   onSubmit: (name: string, agent: Agent) => void
   editingAgent?: { name: string; agent: Agent } | null
+  availableSkills?: string[]
 }
 
 export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent }: AgentDialogProps) {
@@ -105,7 +112,10 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent }: Agen
       editPermission: agent?.agent.permission?.edit ?? 'allow',
       bashPermission: typeof agent?.agent.permission?.bash === 'string' ? agent.agent.permission.bash : 'allow',
       webfetchPermission: agent?.agent.permission?.webfetch ?? 'allow',
-      disable: agent?.agent.disable ?? false
+      disable: agent?.agent.disable ?? false,
+      icon: agent?.agent.icon || '',
+      skills: agent?.agent.skills || [],
+      allowedCommands: agent?.agent.allowedCommands || [],
     }
   }
 
@@ -160,6 +170,18 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent }: Agen
 
     if (values.modelId && values.providerId) {
       agent.model = `${values.providerId}/${values.modelId}`
+    }
+
+    if (values.icon) {
+      agent.icon = values.icon
+    }
+
+    if (values.skills && values.skills.length > 0) {
+      agent.skills = values.skills
+    }
+
+    if (values.allowedCommands && values.allowedCommands.length > 0) {
+      agent.allowedCommands = values.allowedCommands
     }
 
     onSubmit(values.name, agent)
@@ -495,6 +517,74 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent }: Agen
                     )}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Icon</div>
+                <FormField
+                  control={form.control}
+                  name="icon"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="emoji or icon name (e.g., 🤖, robot, code)"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Optional icon for the agent (emoji or icon identifier)
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Skills Access</div>
+                <FormField
+                  control={form.control}
+                  name="skills"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          value={field.value?.join(', ') || ''}
+                          placeholder="comma-separated skill names (e.g., git, filesystem, web)"
+                          onChange={(e) => field.onChange(e.target.value ? e.target.value.split(',').map(s => s.trim()) : [])}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Comma-separated list of skill names this agent can access
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Allowed Commands</div>
+                <FormField
+                  control={form.control}
+                  name="allowedCommands"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          value={field.value?.join(', ') || ''}
+                          placeholder="comma-separated command names (e.g., /build, /test)"
+                          onChange={(e) => field.onChange(e.target.value ? e.target.value.split(',').map(s => s.trim()) : [])}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Comma-separated list of slash commands this agent can run
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
 
               <FormField

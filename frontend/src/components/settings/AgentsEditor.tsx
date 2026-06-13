@@ -19,6 +19,9 @@ interface Agent {
     bash?: 'ask' | 'allow' | 'deny' | Record<string, 'ask' | 'allow' | 'deny'>
     webfetch?: 'ask' | 'allow' | 'deny'
   }
+  icon?: string
+  skills?: string[]
+  allowedCommands?: string[]
   disable?: boolean
   [key: string]: unknown
 }

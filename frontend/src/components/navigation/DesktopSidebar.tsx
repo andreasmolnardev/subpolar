@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDesktop } from '@/hooks/useDesktop'
 import { useSidebarCollapsed } from '@/hooks/useSidebarCollapsed'
 import { useAuth } from '@/hooks/useAuth'
@@ -8,9 +8,11 @@ import { useUrlParams } from '@/hooks/useUrlParams'
 import { listRepos } from '@/api/repos'
 import { settingsApi } from '@/api/settings'
 import { getAssistantPath } from '@/lib/navigation'
-import { FolderGit2, Home, Bot, ChevronDown, ChevronRight, Zap } from 'lucide-react'
+import { FolderGit2, Home, Bot, ChevronDown, ChevronRight, Zap, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Sidebar, SidebarCollapseToggle } from '@/components/ui/sidebar'
+import { Button } from '@/components/ui/button'
+import { AgentDialog } from '@/components/settings/AgentDialog'
 
 function SidebarSection({
   label,
@@ -80,6 +82,27 @@ function SidebarNavItem({
   )
 }
 
+interface Agent {
+  prompt?: string
+  description?: string
+  mode?: 'subagent' | 'primary' | 'all'
+  temperature?: number
+  topP?: number
+  top_p?: number
+  model?: string
+  tools?: Record<string, boolean>
+  permission?: {
+    edit?: 'ask' | 'allow' | 'deny'
+    bash?: 'ask' | 'allow' | 'deny' | Record<string, 'ask' | 'allow' | 'deny'>
+    webfetch?: 'ask' | 'allow' | 'deny'
+  }
+  icon?: string
+  skills?: string[]
+  allowedCommands?: string[]
+  disable?: boolean
+  [key: string]: unknown
+}
+
 export function DesktopSidebar() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -87,10 +110,12 @@ export function DesktopSidebar() {
   const [collapsed, toggle] = useSidebarCollapsed()
   const { isAuthenticated, isLoading, user } = useAuth()
   const isDesktop = useDesktop()
+  const queryClient = useQueryClient()
 
   const [agentsExpanded, setAgentsExpanded] = useState(true)
   const [projectsExpanded, setProjectsExpanded] = useState(true)
   const [automationsExpanded, setAutomationsExpanded] = useState(true)
+  const [isCreateAgentDialogOpen, setIsCreateAgentDialogOpen] = useState(false)
 
   const { data: repos } = useQuery({
     queryKey: ['repos'],
@@ -102,11 +127,30 @@ export function DesktopSidebar() {
     queryFn: () => settingsApi.getOpenCodeConfigs(),
   })
 
+  const { data: opencodeSkills } = useQuery({
+    queryKey: ['managed-skills'],
+    queryFn: () => settingsApi.listManagedSkills(),
+    staleTime: 5 * 60 * 1000,
+  })
+
   const defaultConfig = configs?.defaultConfig
   const rawContent = defaultConfig?.rawContent
   const parsedConfig = rawContent ? tryParseJson(rawContent) : null
-  const agents = parsedConfig?.agents as Record<string, { description?: string; disable?: boolean }> | undefined
+  const agents = parsedConfig?.agents as Record<string, Agent> | undefined
   const agentNames = agents ? Object.keys(agents).filter((name) => !agents[name]?.disable) : []
+
+  const updateConfigMutation = useMutation({
+    mutationFn: async ({ name, agent }: { name: string; agent: Agent }) => {
+      if (!defaultConfig) throw new Error('No default config found')
+      const updatedAgents = { ...(parsedConfig?.agents || {}), [name]: agent }
+      const updatedContent = { ...parsedConfig, agents: updatedAgents }
+      await settingsApi.updateOpenCodeConfig('default', { content: JSON.stringify(updatedContent, null, 2) })
+      return { success: true }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opencode-configs'] })
+    },
+  })
 
   if (isLoading || !isAuthenticated) {
     return null
@@ -119,6 +163,14 @@ export function DesktopSidebar() {
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/'
     return location.pathname.startsWith(path)
+  }
+
+  const handleCreateAgent = (name: string, agent: Agent) => {
+    updateConfigMutation.mutate({ name, agent }, {
+      onSuccess: () => {
+        setIsCreateAgentDialogOpen(false)
+      },
+    })
   }
 
   return (
@@ -155,14 +207,30 @@ export function DesktopSidebar() {
             onClick={() => navigate(getAssistantPath())}
             indent
           />
-          {agentNames.map((name) => (
-            <SidebarNavItem
-              key={name}
-              label={name}
-              onClick={() => navigate(`/assistant?agent=${encodeURIComponent(name)}`)}
-              indent
-            />
-          ))}
+          {agentNames.map((name) => {
+            const agent = agents[name]
+            const displayName = agent?.icon ? `${agent.icon} ${name}` : name
+            return (
+              <SidebarNavItem
+                key={name}
+                label={displayName}
+                onClick={() => navigate(`/assistant?agent=${encodeURIComponent(name)}`)}
+                indent
+              />
+            )
+          })}
+          {!collapsed && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsCreateAgentDialogOpen(true)}
+              disabled={updateConfigMutation.isPending}
+              className="w-full justify-start gap-2 mt-1"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Agent</span>
+            </Button>
+          )}
         </SidebarSection>
 
         {/* Projects */}
@@ -237,6 +305,14 @@ export function DesktopSidebar() {
         </button>
       </div>
     </Sidebar>
+    
+    <AgentDialog
+      open={isCreateAgentDialogOpen}
+      onOpenChange={setIsCreateAgentDialogOpen}
+      onSubmit={handleCreateAgent}
+      editingAgent={null}
+      availableSkills={opencodeSkills?.map(s => s.name) || []}
+    />
   )
 }
 
