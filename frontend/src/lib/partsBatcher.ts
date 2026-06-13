@@ -66,7 +66,7 @@ export function createPartsBatcher(
   const pendingOperations = new Map<string, OperationGroup>()
   let pendingFrameId: number | null = null
 
-  const scheduleFlush = () => {
+  const automationFlush = () => {
     if (pendingFrameId !== null) return
     pendingFrameId = requestAnimationFrame(() => {
       pendingFrameId = null
@@ -282,7 +282,7 @@ export function createPartsBatcher(
       pendingOperations.set(key, group)
     }
     group.operations.push(operation)
-    scheduleFlush()
+    automationFlush()
   }
 
   const queuePartUpdate = (sessionID: string, part: Part, directory?: string) => {

@@ -31,15 +31,15 @@ function createTestApp(db: Database, openCodeClient: OpenCodeClient = createStub
   getJson: mock(async () => []) as any,
 })): Hono {
   const app = new Hono()
-  const scheduleService = {
-    createSchedule: () => {},
-    getScheduleById: () => null,
-    listSchedules: () => [],
-    updateSchedule: () => {},
-    deleteSchedule: () => {},
+  const automationservice = {
+    createautomation: () => {},
+    getautomationById: () => null,
+    listautomations: () => [],
+    updateautomation: () => {},
+    deleteautomation: () => {},
     prepareRepoDelete: () => {},
   } as any
-  app.route('/repos', createRepoRoutes(db, stubGitAuthService, scheduleService, openCodeClient))
+  app.route('/repos', createRepoRoutes(db, stubGitAuthService, automationservice, openCodeClient))
   return app
 }
 

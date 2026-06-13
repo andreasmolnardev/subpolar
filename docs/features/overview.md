@@ -34,15 +34,15 @@ Subpolar provides a comprehensive web interface for managing OpenCode AI agents.
 
 [Learn more →](chat.md)
 
-### Schedules & Recurring Jobs
+### automations & Recurring Jobs
 
-- **Recurring Repo Jobs** - Run reusable prompts against a repository on an interval or cron schedule
+- **Recurring Repo Jobs** - Run reusable prompts against a repository on an interval or cron automation
 - **Prompt Templates** - Start with built-in reviews for repo health, dependencies, release readiness, docs drift, and more
 - **Run History** - Inspect statuses, logs, errors, and assistant output from past runs
 - **Session Handoff** - Open the linked OpenCode session for any run and continue from there
 - **Manual Runs** - Trigger the same job on demand when you want a fresh report immediately
 
-[Learn more →](schedules.md)
+[Learn more →](automations.md)
 
 ### AI Configuration
 
@@ -99,7 +99,7 @@ Subpolar provides a comprehensive web interface for managing OpenCode AI agents.
 ### Assistant Mode
 
 - **Dedicated AI Workspace** — Isolated assistant directory with managed configuration and a built-in bearer-token API
-- **Auto-Provisioned Skills** — Schedule management, notifications, settings, and repo listing skills available out of the box
+- **Auto-Provisioned Skills** — automation management, notifications, settings, and repo listing skills available out of the box
 - **Session Continuity** — Navigating to the assistant always resumes the most recent session or creates one automatically
 
 [Learn more →](assistant-mode.md)

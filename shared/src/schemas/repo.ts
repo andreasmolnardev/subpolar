@@ -79,7 +79,7 @@ export const AssistantModeStatusSchema = z.object({
     path: z.string(),
     created: z.boolean(),
   }).optional(),
-  schedulesSkill: z.object({
+  automationsSkill: z.object({
     path: z.string(),
     created: z.boolean(),
   }).optional(),

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import * as schedulesDb from '../../src/db/schedules'
+import * as automationsDb from '../../src/db/automations'
 
 const mockDb = {
   prepare: vi.fn(),
@@ -12,7 +12,7 @@ function makeJobRow(overrides: Record<string, unknown> = {}) {
     name: 'Weekly engineering summary',
     description: 'Summarize repo health and recent changes.',
     enabled: 1,
-    schedule_mode: 'cron',
+    automation_mode: 'cron',
     interval_minutes: null,
     cron_expression: '0 9 * * 1',
     timezone: 'UTC',
@@ -39,7 +39,7 @@ function makeRunRow(overrides: Record<string, unknown> = {}) {
     finished_at: null,
     created_at: Date.UTC(2026, 2, 9, 12, 0, 0),
     session_id: 'ses-1',
-    session_title: 'Scheduled: Weekly engineering summary',
+    session_title: 'automationd: Weekly engineering summary',
     log_text: 'Run started. Waiting for assistant response...',
     response_text: null,
     error_text: null,
@@ -47,24 +47,24 @@ function makeRunRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
-describe('schedule database queries', () => {
+describe('automation database queries', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('lists schedule jobs and parses persisted metadata', () => {
+  it('lists automation jobs and parses persisted metadata', () => {
     const stmt = {
       all: vi.fn().mockReturnValue([makeJobRow()]),
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const jobs = schedulesDb.listScheduleJobsByRepo(mockDb, 42)
+    const jobs = automationsDb.listAutomationJobsByRepo(mockDb, 42)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM schedule_jobs WHERE repo_id = ? ORDER BY created_at DESC')
+    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM automation_jobs WHERE repo_id = ? ORDER BY created_at DESC')
     expect(jobs[0]).toMatchObject({
       id: 7,
       repoId: 42,
-      scheduleMode: 'cron',
+      automationMode: 'cron',
       skillMetadata: {
         skillSlugs: ['planning'],
         notes: 'Optional notes',
@@ -72,20 +72,20 @@ describe('schedule database queries', () => {
     })
   })
 
-  it('lists schedule job ids without loading full job rows', () => {
+  it('lists automation job ids without loading full job rows', () => {
     const stmt = {
       all: vi.fn().mockReturnValue([{ id: 7 }, { id: 8 }]),
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const jobIds = schedulesDb.listScheduleJobIdsByRepo(mockDb, 42)
+    const jobIds = automationsDb.listAutomationJobIdsByRepo(mockDb, 42)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT id FROM schedule_jobs WHERE repo_id = ? ORDER BY created_at DESC')
+    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT id FROM automation_jobs WHERE repo_id = ? ORDER BY created_at DESC')
     expect(stmt.all).toHaveBeenCalledWith(42)
     expect(jobIds).toEqual([7, 8])
   })
 
-  it('creates a schedule job and reloads the inserted row', () => {
+  it('creates a automation job and reloads the inserted row', () => {
     const insertStmt = {
       run: vi.fn().mockReturnValue({ lastInsertRowid: 7 }),
     }
@@ -95,11 +95,11 @@ describe('schedule database queries', () => {
 
     mockDb.prepare.mockReturnValueOnce(insertStmt).mockReturnValueOnce(selectStmt)
 
-    const job = schedulesDb.createScheduleJob(mockDb, 42, {
+    const job = automationsDb.createAutomationJob(mockDb, 42, {
       name: 'Weekly engineering summary',
       description: 'Summarize repo health and recent changes.',
       enabled: true,
-      scheduleMode: 'cron',
+      automationMode: 'cron',
       intervalMinutes: null,
       cronExpression: '0 9 * * 1',
       timezone: 'UTC',
@@ -131,7 +131,7 @@ describe('schedule database queries', () => {
     expect(job.id).toBe(7)
   })
 
-  it('updates a schedule job when it exists', () => {
+  it('updates a automation job when it exists', () => {
     const existingStmt = {
       get: vi.fn().mockReturnValue(makeJobRow({ name: 'Existing summary' })),
     }
@@ -147,11 +147,11 @@ describe('schedule database queries', () => {
       .mockReturnValueOnce(updateStmt)
       .mockReturnValueOnce(reloadStmt)
 
-    const job = schedulesDb.updateScheduleJob(mockDb, 42, 7, {
+    const job = automationsDb.updateAutomationJob(mockDb, 42, 7, {
       name: 'Updated summary',
       description: null,
       enabled: false,
-      scheduleMode: 'interval',
+      automationMode: 'interval',
       intervalMinutes: 90,
       cronExpression: null,
       timezone: null,
@@ -186,7 +186,7 @@ describe('schedule database queries', () => {
     })
   })
 
-  it('deletes schedule runs before deleting a schedule job', () => {
+  it('deletes automation runs before deleting a automation job', () => {
     const deleteRunsStmt = {
       run: vi.fn().mockReturnValue({ changes: 2 }),
     }
@@ -198,11 +198,11 @@ describe('schedule database queries', () => {
       .mockReturnValueOnce(deleteRunsStmt)
       .mockReturnValueOnce(deleteJobStmt)
 
-    const deleted = schedulesDb.deleteScheduleJob(mockDb, 42, 7)
+    const deleted = automationsDb.deleteAutomationJob(mockDb, 42, 7)
 
-    expect(mockDb.prepare).toHaveBeenNthCalledWith(1, 'DELETE FROM schedule_runs WHERE repo_id = ? AND job_id = ?')
+    expect(mockDb.prepare).toHaveBeenNthCalledWith(1, 'DELETE FROM automation_runs WHERE repo_id = ? AND job_id = ?')
     expect(deleteRunsStmt.run).toHaveBeenCalledWith(42, 7)
-    expect(mockDb.prepare).toHaveBeenNthCalledWith(2, 'DELETE FROM schedule_jobs WHERE repo_id = ? AND id = ?')
+    expect(mockDb.prepare).toHaveBeenNthCalledWith(2, 'DELETE FROM automation_jobs WHERE repo_id = ? AND id = ?')
     expect(deleteJobStmt.run).toHaveBeenCalledWith(42, 7)
     expect(deleted).toBe(true)
   })
@@ -213,14 +213,14 @@ describe('schedule database queries', () => {
     }
     mockDb.prepare.mockReturnValue(selectStmt)
 
-    const run = schedulesDb.updateScheduleRunMetadata(mockDb, 42, 7, 5, {
+    const run = automationsDb.updateAutomationRunMetadata(mockDb, 42, 7, 5, {
       sessionTitle: 'Updated title',
     })
 
     expect(run).toBeNull()
   })
 
-  it('updates schedule run metadata while preserving omitted fields', () => {
+  it('updates automation run metadata while preserving omitted fields', () => {
     const existingRun = makeRunRow({ response_text: 'Existing response', error_text: 'Existing error' })
     const existingStmt = {
       get: vi.fn().mockReturnValue(existingRun),
@@ -237,7 +237,7 @@ describe('schedule database queries', () => {
       .mockReturnValueOnce(updateStmt)
       .mockReturnValueOnce(reloadStmt)
 
-    const run = schedulesDb.updateScheduleRunMetadata(mockDb, 42, 7, 5, {
+    const run = automationsDb.updateAutomationRunMetadata(mockDb, 42, 7, 5, {
       sessionTitle: 'Updated title',
     })
 
@@ -254,7 +254,7 @@ describe('schedule database queries', () => {
     expect(run?.sessionTitle).toBe('Updated title')
   })
 
-  it('creates and reloads a schedule run', () => {
+  it('creates and reloads a automation run', () => {
     const insertStmt = {
       run: vi.fn().mockReturnValue({ lastInsertRowid: 5 }),
     }
@@ -264,7 +264,7 @@ describe('schedule database queries', () => {
 
     mockDb.prepare.mockReturnValueOnce(insertStmt).mockReturnValueOnce(selectStmt)
 
-    const run = schedulesDb.createScheduleRun(mockDb, {
+    const run = automationsDb.createAutomationRun(mockDb, {
       jobId: 7,
       repoId: 42,
       triggerSource: 'manual',
@@ -286,7 +286,7 @@ describe('schedule database queries', () => {
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const runs = schedulesDb.listRunningScheduleRuns(mockDb, 10)
+    const runs = automationsDb.listRunningAutomationRuns(mockDb, 10)
 
     expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('WHERE status = \'running\''))
     expect(runs).toHaveLength(2)
@@ -301,7 +301,7 @@ describe('schedule database queries', () => {
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const runs = schedulesDb.listScheduleRunsByJob(mockDb, 42, 7, 5)
+    const runs = automationsDb.listAutomationRunsByJob(mockDb, 42, 7, 5)
 
     expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('NULL AS log_text'))
     expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('NULL AS response_text'))
@@ -319,76 +319,76 @@ describe('schedule database queries', () => {
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const run = schedulesDb.getRunningScheduleRunByJob(mockDb, 42, 7)
+    const run = automationsDb.getRunningAutomationRunByJob(mockDb, 42, 7)
 
     expect(run).toMatchObject({ id: 8, sessionId: 'ses-1' })
   })
 
-  it('lists enabled schedule jobs ordered by id', () => {
+  it('lists enabled automation jobs ordered by id', () => {
     const jobRow = makeJobRow()
     const stmt = {
       all: vi.fn().mockReturnValue([jobRow]),
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const jobs = schedulesDb.listEnabledScheduleJobs(mockDb)
+    const jobs = automationsDb.listEnabledAutomationJobs(mockDb)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM schedule_jobs WHERE enabled = 1 ORDER BY id ASC')
+    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM automation_jobs WHERE enabled = 1 ORDER BY id ASC')
     expect(stmt.all).toHaveBeenCalledWith()
     expect(jobs).toHaveLength(1)
     expect(jobs.at(0)?.enabled).toBe(true)
   })
 
-  it('gets a schedule job by id when found', () => {
+  it('gets a automation job by id when found', () => {
     const jobRow = makeJobRow()
     const stmt = {
       get: vi.fn().mockReturnValue(jobRow),
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const job = schedulesDb.getScheduleJobById(mockDb, 42, 7)
+    const job = automationsDb.getAutomationJobById(mockDb, 42, 7)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM schedule_jobs WHERE repo_id = ? AND id = ?')
+    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM automation_jobs WHERE repo_id = ? AND id = ?')
     expect(stmt.get).toHaveBeenCalledWith(42, 7)
     expect(job).toMatchObject({ id: 7, repoId: 42, name: 'Weekly engineering summary' })
   })
 
-  it('returns null when schedule job is not found', () => {
+  it('returns null when automation job is not found', () => {
     const stmt = {
       get: vi.fn().mockReturnValue(undefined),
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const job = schedulesDb.getScheduleJobById(mockDb, 42, 7)
+    const job = automationsDb.getAutomationJobById(mockDb, 42, 7)
 
     expect(job).toBeNull()
   })
 
-  it('deletes a schedule job successfully', () => {
+  it('deletes a automation job successfully', () => {
     const stmt = {
       run: vi.fn().mockReturnValue({ changes: 1 }),
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const result = schedulesDb.deleteScheduleJob(mockDb, 42, 7)
+    const result = automationsDb.deleteAutomationJob(mockDb, 42, 7)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('DELETE FROM schedule_jobs WHERE repo_id = ? AND id = ?')
+    expect(mockDb.prepare).toHaveBeenCalledWith('DELETE FROM automation_jobs WHERE repo_id = ? AND id = ?')
     expect(stmt.run).toHaveBeenCalledWith(42, 7)
     expect(result).toBe(true)
   })
 
-  it('returns false when deleting a non-existent schedule job', () => {
+  it('returns false when deleting a non-existent automation job', () => {
     const stmt = {
       run: vi.fn().mockReturnValue({ changes: 0 }),
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const result = schedulesDb.deleteScheduleJob(mockDb, 42, 7)
+    const result = automationsDb.deleteAutomationJob(mockDb, 42, 7)
 
     expect(result).toBe(false)
   })
 
-  it('updates the run state of a schedule job', () => {
+  it('updates the run state of a automation job', () => {
     const lastRunAt = Date.now()
     const nextRunAt = Date.now() + 3600000
     const stmt = {
@@ -396,13 +396,13 @@ describe('schedule database queries', () => {
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    schedulesDb.updateScheduleJobRunState(mockDb, 42, 7, { lastRunAt, nextRunAt })
+    automationsDb.updateAutomationJobRunState(mockDb, 42, 7, { lastRunAt, nextRunAt })
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('UPDATE schedule_jobs SET last_run_at = ?, next_run_at = ?, updated_at = ? WHERE repo_id = ? AND id = ?')
+    expect(mockDb.prepare).toHaveBeenCalledWith('UPDATE automation_jobs SET last_run_at = ?, next_run_at = ?, updated_at = ? WHERE repo_id = ? AND id = ?')
     expect(stmt.run).toHaveBeenCalledWith(lastRunAt, nextRunAt, expect.any(Number), 42, 7)
   })
 
-  it('updates a schedule run and reloads the result', () => {
+  it('updates a automation run and reloads the result', () => {
     const updateStmt = {
       run: vi.fn(),
     }
@@ -412,7 +412,7 @@ describe('schedule database queries', () => {
 
     mockDb.prepare.mockReturnValueOnce(updateStmt).mockReturnValueOnce(selectStmt)
 
-    const run = schedulesDb.updateScheduleRun(mockDb, 42, 7, 5, {
+    const run = automationsDb.updateAutomationRun(mockDb, 42, 7, 5, {
       status: 'completed',
       finishedAt: Date.now(),
       sessionId: 'ses-1',
@@ -437,27 +437,27 @@ describe('schedule database queries', () => {
     expect(run).toMatchObject({ status: 'completed', responseText: 'Completed' })
   })
 
-  it('gets a schedule run by id when found', () => {
+  it('gets a automation run by id when found', () => {
     const runRow = makeRunRow()
     const stmt = {
       get: vi.fn().mockReturnValue(runRow),
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const run = schedulesDb.getScheduleRunById(mockDb, 42, 7, 5)
+    const run = automationsDb.getAutomationRunById(mockDb, 42, 7, 5)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM schedule_runs WHERE repo_id = ? AND job_id = ? AND id = ?')
+    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM automation_runs WHERE repo_id = ? AND job_id = ? AND id = ?')
     expect(stmt.get).toHaveBeenCalledWith(42, 7, 5)
     expect(run).toMatchObject({ id: 5, jobId: 7, repoId: 42, status: 'running' })
   })
 
-  it('returns null when schedule run is not found', () => {
+  it('returns null when automation run is not found', () => {
     const stmt = {
       get: vi.fn().mockReturnValue(undefined),
     }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const run = schedulesDb.getScheduleRunById(mockDb, 42, 7, 5)
+    const run = automationsDb.getAutomationRunById(mockDb, 42, 7, 5)
 
     expect(run).toBeNull()
   })
@@ -471,7 +471,7 @@ describe('schedule database queries', () => {
     const stmt = { all: vi.fn().mockReturnValue([row]) }
     mockDb.prepare.mockReturnValue(stmt)
 
-    const result = schedulesDb.listAllScheduleRuns(mockDb, {})
+    const result = automationsDb.listAllAutomationRuns(mockDb, {})
 
     expect(stmt.all).toHaveBeenCalledWith(50, 0)
     expect(result).toHaveLength(1)
@@ -487,7 +487,7 @@ describe('schedule database queries', () => {
     const stmt = { all: vi.fn().mockReturnValue([]) }
     mockDb.prepare.mockReturnValue(stmt)
 
-    schedulesDb.listAllScheduleRuns(mockDb, { status: 'completed' })
+    automationsDb.listAllAutomationRuns(mockDb, { status: 'completed' })
 
     expect(stmt.all).toHaveBeenCalledWith('completed', 50, 0)
     expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('sr.status = ?'))
@@ -497,7 +497,7 @@ describe('schedule database queries', () => {
     const stmt = { all: vi.fn().mockReturnValue([]) }
     mockDb.prepare.mockReturnValue(stmt)
 
-    schedulesDb.listAllScheduleRuns(mockDb, { repoId: 42 })
+    automationsDb.listAllAutomationRuns(mockDb, { repoId: 42 })
 
     expect(stmt.all).toHaveBeenCalledWith(42, 50, 0)
     expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('sr.repo_id = ?'))
@@ -507,7 +507,7 @@ describe('schedule database queries', () => {
     const stmt = { all: vi.fn().mockReturnValue([]) }
     mockDb.prepare.mockReturnValue(stmt)
 
-    schedulesDb.listAllScheduleRuns(mockDb, { jobId: 7 })
+    automationsDb.listAllAutomationRuns(mockDb, { jobId: 7 })
 
     expect(stmt.all).toHaveBeenCalledWith(7, 50, 0)
   })
@@ -516,7 +516,7 @@ describe('schedule database queries', () => {
     const stmt = { all: vi.fn().mockReturnValue([]) }
     mockDb.prepare.mockReturnValue(stmt)
 
-    schedulesDb.listAllScheduleRuns(mockDb, { triggerSource: 'manual' })
+    automationsDb.listAllAutomationRuns(mockDb, { triggerSource: 'manual' })
 
     expect(stmt.all).toHaveBeenCalledWith('manual', 50, 0)
   })
@@ -525,7 +525,7 @@ describe('schedule database queries', () => {
     const stmt = { all: vi.fn().mockReturnValue([]) }
     mockDb.prepare.mockReturnValue(stmt)
 
-    schedulesDb.listAllScheduleRuns(mockDb, { limit: 10, offset: 20 })
+    automationsDb.listAllAutomationRuns(mockDb, { limit: 10, offset: 20 })
 
     expect(stmt.all).toHaveBeenCalledWith(10, 20)
   })
@@ -539,7 +539,7 @@ describe('schedule database queries', () => {
     const stmt = { all: vi.fn().mockReturnValue([row]) }
     mockDb.prepare.mockReturnValue(stmt)
 
-    schedulesDb.listAllScheduleRuns(mockDb, {})
+    automationsDb.listAllAutomationRuns(mockDb, {})
 
     expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('NULL AS log_text'))
     expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('NULL AS response_text'))

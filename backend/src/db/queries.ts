@@ -42,7 +42,7 @@ function rowToRepo(row: RepoRow): Repo {
   }
 }
 
-const TABLES_WITH_REPO_ID = ['schedule_jobs', 'schedule_runs', 'repo_settings'] as const
+const TABLES_WITH_REPO_ID = ['automation_jobs', 'automation_runs', 'repo_settings'] as const
 type RepoIdTable = typeof TABLES_WITH_REPO_ID[number]
 
 function updateRepoIdReference(db: Database, tableName: RepoIdTable, fromRepoId: number, toRepoId: number): void {

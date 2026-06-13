@@ -221,7 +221,7 @@ export class OpenCodeEventStream {
     this.notifyHealth()
 
     if (this.subscribers.size > 0) {
-      this.scheduleReconnect()
+      this.automationReconnect()
     }
   }
 
@@ -302,7 +302,7 @@ export class OpenCodeEventStream {
     this.notifyHealth()
   }
 
-  private scheduleReconnect(): void {
+  private automationReconnect(): void {
     if (this.reconnectTimeout) return
 
     this.reconnectTimeout = setTimeout(() => {

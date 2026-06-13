@@ -6,8 +6,8 @@ import { Toaster } from 'sonner'
 import { Repos } from './pages/Repos'
 import { RepoDetail } from './pages/RepoDetail'
 import { SessionDetail } from './pages/SessionDetail'
-import { Schedules } from './pages/Schedules'
-import { GlobalSchedules } from './pages/GlobalSchedules'
+import { Automations } from './pages/Automations'
+import { GlobalAutomations } from './pages/GlobalAutomations'
 import { Login } from './pages/Login'
 import { Register } from './pages/Register'
 import { Setup } from './pages/Setup'
@@ -227,13 +227,13 @@ const router = createBrowserRouter([
         loader: protectedLoader,
       },
       {
-        path: '/repos/:id/schedules',
-        element: <Schedules />,
+        path: '/repos/:id/automations',
+        element: <Automations />,
         loader: protectedLoader,
       },
       {
-        path: '/schedules',
-        element: <GlobalSchedules />,
+        path: '/automations',
+        element: <GlobalAutomations />,
         loader: protectedLoader,
       },
     ],

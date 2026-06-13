@@ -40,7 +40,7 @@ import * as db from '../../src/db/queries'
 import { createRepoRoutes } from '../../src/routes/repos'
 import { opencodeServerManager } from '../../src/services/opencode-single-server'
 import type { GitAuthService } from '../../src/services/git-auth'
-import type { ScheduleService } from '../../src/services/schedules'
+import type { AutomationService } from '../../src/services/automations'
 import type { AssistantModeStatus } from '@subpolar/shared/types'
 import { getAssistantModeStatus, ensureAssistantMode } from '../../src/services/assistant-mode'
 
@@ -48,7 +48,7 @@ const mockGitAuthService = {
   getGitEnvironment: vi.fn().mockReturnValue({})
 } as unknown as GitAuthService
 
-const mockScheduleService = {} as ScheduleService
+const mockautomationservice = {} as AutomationService
 
 describe('Repo Routes', () => {
   beforeEach(() => {
@@ -59,7 +59,7 @@ describe('Repo Routes', () => {
     it('should return 404 when repo not found', async () => {
       vi.mocked(db.getRepoById).mockReturnValue(null)
 
-      const app = createRepoRoutes(mockDb, mockGitAuthService, mockScheduleService, createStubOpenCodeClient())
+      const app = createRepoRoutes(mockDb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
       const res = await app.request('/1/access', { method: 'POST' })
 
       expect(res.status).toBe(404)
@@ -82,7 +82,7 @@ describe('Repo Routes', () => {
       }
       vi.mocked(db.getRepoById).mockReturnValue(mockRepo)
 
-      const app = createRepoRoutes(mockDb, mockGitAuthService, mockScheduleService, createStubOpenCodeClient())
+      const app = createRepoRoutes(mockDb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
       const res = await app.request('/1/access', { method: 'POST' })
 
       expect(res.status).toBe(200)
@@ -108,7 +108,7 @@ describe('Repo Routes', () => {
         throw new Error('Database error')
       })
 
-      const app = createRepoRoutes(mockDb, mockGitAuthService, mockScheduleService, createStubOpenCodeClient())
+      const app = createRepoRoutes(mockDb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
       const res = await app.request('/1/access', { method: 'POST' })
 
       expect(res.status).toBe(500)
@@ -121,7 +121,7 @@ describe('Repo Routes', () => {
     it('should return 404 when repo not found', async () => {
       vi.mocked(db.getRepoById).mockReturnValue(null)
 
-      const app = createRepoRoutes(mockDb, mockGitAuthService, mockScheduleService, createStubOpenCodeClient())
+      const app = createRepoRoutes(mockDb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
       const res = await app.request('/1/assistant-mode', { method: 'GET' })
 
       expect(res.status).toBe(404)
@@ -156,7 +156,7 @@ describe('Repo Routes', () => {
 
       vi.mocked(getAssistantModeStatus).mockResolvedValue(mockStatus)
 
-      const app = createRepoRoutes(mockDb, mockGitAuthService, mockScheduleService, createStubOpenCodeClient())
+      const app = createRepoRoutes(mockDb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
       const res = await app.request('/1/assistant-mode', { method: 'GET' })
 
       expect(res.status).toBe(200)
@@ -172,7 +172,7 @@ describe('Repo Routes', () => {
     it('should return 404 when repo not found', async () => {
       vi.mocked(db.getRepoById).mockReturnValue(null)
 
-      const app = createRepoRoutes(mockDb, mockGitAuthService, mockScheduleService, createStubOpenCodeClient())
+      const app = createRepoRoutes(mockDb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
       const res = await app.request('/1/assistant-mode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -211,7 +211,7 @@ describe('Repo Routes', () => {
 
       vi.mocked(ensureAssistantMode).mockResolvedValue(mockStatus)
 
-      const app = createRepoRoutes(mockDb, mockGitAuthService, mockScheduleService, createStubOpenCodeClient())
+      const app = createRepoRoutes(mockDb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
       const res = await app.request('/1/assistant-mode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -251,7 +251,7 @@ describe('Repo Routes', () => {
 
       vi.mocked(ensureAssistantMode).mockRejectedValue(new Error('Test error'))
 
-      const app = createRepoRoutes(mockDb, mockGitAuthService, mockScheduleService, createStubOpenCodeClient())
+      const app = createRepoRoutes(mockDb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
       const res = await app.request('/1/assistant-mode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -266,7 +266,7 @@ describe('Repo Routes', () => {
     it('should return 404 when repo not found', async () => {
       vi.mocked(db.getRepoById).mockReturnValue(null)
 
-      const app = createRepoRoutes(mockDb, mockGitAuthService, mockScheduleService, createStubOpenCodeClient())
+      const app = createRepoRoutes(mockDb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
       const res = await app.request('/1/reset-permissions', { method: 'POST' })
 
       expect(res.status).toBe(404)
@@ -287,7 +287,7 @@ describe('Repo Routes', () => {
       vi.mocked(db.getRepoById).mockReturnValue(mockRepo)
 
       const forward = vi.fn(async () => new Response(JSON.stringify(true), { status: 200 }))
-      const app = createRepoRoutes(mockDb, mockGitAuthService, mockScheduleService, createStubOpenCodeClient({ forward }))
+      const app = createRepoRoutes(mockDb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient({ forward }))
       const res = await app.request('/1/reset-permissions', { method: 'POST' })
 
       expect(res.status).toBe(400)
@@ -309,7 +309,7 @@ describe('Repo Routes', () => {
       vi.mocked(db.getRepoById).mockReturnValue(mockRepo)
 
       const forward = vi.fn(async () => new Response(JSON.stringify(true), { status: 200 }))
-      const app = createRepoRoutes(mockDb, mockGitAuthService, mockScheduleService, createStubOpenCodeClient({ forward }))
+      const app = createRepoRoutes(mockDb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient({ forward }))
       const res = await app.request('/1/reset-permissions', { method: 'POST' })
 
       expect(res.status).toBe(200)

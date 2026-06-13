@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
 import { Database } from 'bun:sqlite'
 import { createInternalRoutes } from '../../src/routes/internal'
-import { ScheduleService } from '../../src/services/schedules'
+import { AutomationService } from '../../src/services/automations'
 import { NotificationService } from '../../src/services/notification'
 import { SettingsService } from '../../src/services/settings'
 import { allMigrations } from '../../src/db/migrations'
@@ -13,7 +13,7 @@ import type { OpenCodeClient } from '../../src/services/opencode/client'
 
 describe('internal/assistant routes', () => {
   let db: Database
-  let scheduleService: ScheduleService
+  let automationservice: AutomationService
   let notificationService: NotificationService
   let settingsService: SettingsService
   let app: Hono
@@ -36,11 +36,11 @@ describe('internal/assistant routes', () => {
       authenticateMcp: vi.fn(),
     } as unknown as OpenCodeClient
 
-    scheduleService = new ScheduleService(db, openCodeClient)
+    automationservice = new AutomationService(db, openCodeClient)
     notificationService = new NotificationService(db)
     settingsService = new SettingsService(db)
     app = new Hono()
-    app.route('/api/internal', createInternalRoutes(db, scheduleService, notificationService, settingsService, openCodeClient))
+    app.route('/api/internal', createInternalRoutes(db, automationservice, notificationService, settingsService, openCodeClient))
     token = getOrCreateInternalToken(db)
   })
 

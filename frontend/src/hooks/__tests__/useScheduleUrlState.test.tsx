@@ -2,46 +2,46 @@ import { useEffect, useRef, useState } from 'react'
 import { act, render, screen } from '@testing-library/react'
 import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { describe, it, expect } from 'vitest'
-import { useScheduleUrlState } from '../useScheduleUrlState'
+import { useAutomationUrlState } from '../useAutomationUrlState'
 import { renderHookWithRouterAndLocation } from '@/test/test-utils'
 
-describe('useScheduleUrlState', () => {
+describe('useAutomationUrlState', () => {
   it('defaults to jobs tab, null dialog, and null ids when URL is empty', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState())
-    expect(result.current.scheduleTab).toBe('jobs')
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState())
+    expect(result.current.automationTab).toBe('jobs')
     expect(result.current.dialog).toBeNull()
     expect(result.current.jobId).toBeNull()
     expect(result.current.runId).toBeNull()
     expect(result.current.templateId).toBeNull()
   })
 
-  it('setScheduleTab updates tab and removes param when set to jobs', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState())
+  it('setautomationTab updates tab and removes param when set to jobs', () => {
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState())
     act(() => {
-      result.current.setScheduleTab('prompts')
+      result.current.setautomationTab('prompts')
     })
-    expect(result.current.scheduleTab).toBe('prompts')
+    expect(result.current.automationTab).toBe('prompts')
 
     act(() => {
-      result.current.setScheduleTab('jobs')
+      result.current.setautomationTab('jobs')
     })
-    expect(result.current.scheduleTab).toBe('jobs')
+    expect(result.current.automationTab).toBe('jobs')
   })
 
   it('openEditJob sets dialog to edit and sets jobId', () => {
-    const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), )
+    const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), )
     act(() => {
       result.current.openEditJob(12)
     })
     expect(result.current.dialog).toBe('edit')
     expect(result.current.jobId).toBe(12)
     expect(result.current.templateId).toBeNull()
-    expect(capturedSearch.current).toContain('scheduleDialog=edit')
+    expect(capturedSearch.current).toContain('automationDialog=edit')
     expect(capturedSearch.current).toContain('jobId=12')
   })
 
   it('openDeleteTemplate sets promptDialog to delete and sets templateId', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), )
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), )
     act(() => {
       result.current.openDeleteTemplate(5)
     })
@@ -51,7 +51,7 @@ describe('useScheduleUrlState', () => {
   })
 
   it('openImportTemplate sets promptDialog to import and clears templateId', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?templateId=3&jobId=7'])
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?templateId=3&jobId=7'])
     act(() => {
       result.current.openImportTemplate()
     })
@@ -60,8 +60,8 @@ describe('useScheduleUrlState', () => {
     expect(result.current.jobId).toBeNull()
   })
 
-  it('closeDialog after edit preserves scheduleDialog and jobId', () => {
-    const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), )
+  it('closeDialog after edit preserves automationDialog and jobId', () => {
+    const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), )
     act(() => {
       result.current.openEditJob(12)
     })
@@ -74,12 +74,12 @@ describe('useScheduleUrlState', () => {
     expect(result.current.dialog).toBeNull()
     expect(result.current.jobId).toBe(12)
     expect(result.current.templateId).toBeNull()
-    expect(capturedSearch.current).not.toContain('scheduleDialog')
+    expect(capturedSearch.current).not.toContain('automationDialog')
     expect(capturedSearch.current).toContain('jobId=12')
   })
 
   it('closeDialog after delete preserves jobId when canceling', () => {
-    const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), )
+    const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), )
     act(() => {
       result.current.openDeleteJob(42)
     })
@@ -91,12 +91,12 @@ describe('useScheduleUrlState', () => {
     })
     expect(result.current.dialog).toBeNull()
     expect(result.current.jobId).toBe(42)
-    expect(capturedSearch.current).not.toContain('scheduleDialog')
+    expect(capturedSearch.current).not.toContain('automationDialog')
     expect(capturedSearch.current).toContain('jobId=42')
   })
 
   it('closePromptDialog after openNewTemplate clears promptDialog and templateId', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), )
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), )
     // Open new template
     act(() => {
       result.current.openNewTemplate()
@@ -113,38 +113,38 @@ describe('useScheduleUrlState', () => {
   })
 
   it('parses jobId=abc as null (NaN) and runId=44 as 44', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?jobId=abc&runId=44'])
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?jobId=abc&runId=44'])
     expect(result.current.jobId).toBeNull()
     expect(result.current.runId).toBe(44)
   })
 
-  it('preserves unrelated params across setScheduleTab and openEditJob and closeDialog', () => {
-    const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?assistant=1'])
+  it('preserves unrelated params across setautomationTab and openEditJob and closeDialog', () => {
+    const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?assistant=1'])
 
-    // setScheduleTab preserves assistant param
+    // setautomationTab preserves assistant param
     act(() => {
-      result.current.setScheduleTab('runs')
+      result.current.setautomationTab('runs')
     })
     expect(capturedSearch.current).toContain('assistant=1')
-    expect(capturedSearch.current).toContain('scheduleTab=runs')
+    expect(capturedSearch.current).toContain('automationTab=runs')
 
     // openEditJob preserves assistant param
     act(() => {
       result.current.openEditJob(3)
     })
     expect(capturedSearch.current).toContain('assistant=1')
-    expect(capturedSearch.current).toContain('scheduleDialog=edit')
+    expect(capturedSearch.current).toContain('automationDialog=edit')
 
     // closeDialog preserves assistant param
     act(() => {
       result.current.closeDialog()
     })
     expect(capturedSearch.current).toContain('assistant=1')
-    expect(capturedSearch.current).not.toContain('scheduleDialog')
+    expect(capturedSearch.current).not.toContain('automationDialog')
   })
 
   it('openNewJob sets dialog to new and clears jobId and templateId', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?templateId=2&jobId=5'])
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?templateId=2&jobId=5'])
     act(() => {
       result.current.openNewJob()
     })
@@ -154,7 +154,7 @@ describe('useScheduleUrlState', () => {
   })
 
   it('openDeleteJob sets dialog to delete and sets jobId', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), )
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), )
     act(() => {
       result.current.openDeleteJob(42)
     })
@@ -164,7 +164,7 @@ describe('useScheduleUrlState', () => {
   })
 
   it('openEditTemplate sets promptDialog to edit and sets templateId', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), )
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), )
     act(() => {
       result.current.openEditTemplate(99)
     })
@@ -174,7 +174,7 @@ describe('useScheduleUrlState', () => {
   })
 
   it('selectRun sets and clears runId', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), )
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), )
     act(() => {
       result.current.selectRun(20)
     })
@@ -186,33 +186,33 @@ describe('useScheduleUrlState', () => {
     expect(result.current.runId).toBeNull()
   })
 
-  it('reads valid scheduleTab from URL', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?scheduleTab=detail'])
-    expect(result.current.scheduleTab).toBe('detail')
+  it('reads valid automationTab from URL', () => {
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?automationTab=detail'])
+    expect(result.current.automationTab).toBe('detail')
   })
 
-  it('reads valid scheduleDialog from URL', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?scheduleDialog=edit'])
+  it('reads valid automationDialog from URL', () => {
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?automationDialog=edit'])
     expect(result.current.dialog).toBe('edit')
   })
 
   it('reads valid promptDialog from URL', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?promptDialog=import'])
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?promptDialog=import'])
     expect(result.current.promptDialog).toBe('import')
   })
 
   it('resolves invalid tab values to jobs', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?scheduleTab=invalid'])
-    expect(result.current.scheduleTab).toBe('jobs')
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?automationTab=invalid'])
+    expect(result.current.automationTab).toBe('jobs')
   })
 
   it('resolves invalid dialog values to null', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?scheduleDialog=invalid'])
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?automationDialog=invalid'])
     expect(result.current.dialog).toBeNull()
   })
 
   it('closeDialog for new dialog does not affect jobId', () => {
-    const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?scheduleDialog=new&jobId=7'])
+    const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?automationDialog=new&jobId=7'])
     expect(result.current.dialog).toBe('new')
     expect(result.current.jobId).toBe(7)
 
@@ -221,12 +221,12 @@ describe('useScheduleUrlState', () => {
     })
     expect(result.current.dialog).toBeNull()
     expect(result.current.jobId).toBe(7)
-    expect(capturedSearch.current).not.toContain('scheduleDialog')
+    expect(capturedSearch.current).not.toContain('automationDialog')
     expect(capturedSearch.current).toContain('jobId=7')
   })
 
   it('closePromptDialog for import clears promptDialog but preserves jobId', () => {
-    const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?jobId=7&promptDialog=import'])
+    const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?jobId=7&promptDialog=import'])
     act(() => {
       result.current.closePromptDialog()
     })
@@ -236,8 +236,8 @@ describe('useScheduleUrlState', () => {
   })
 
   it('returns stable function references across rerenders', () => {
-    const { result, rerender } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), )
-    const firstSetScheduleTab = result.current.setScheduleTab
+    const { result, rerender } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), )
+    const firstSetautomationTab = result.current.setautomationTab
     const firstOpenEditJob = result.current.openEditJob
     const firstCloseDialog = result.current.closeDialog
     const firstClosePromptDialog = result.current.closePromptDialog
@@ -247,7 +247,7 @@ describe('useScheduleUrlState', () => {
 
     rerender()
 
-    expect(result.current.setScheduleTab).toBe(firstSetScheduleTab)
+    expect(result.current.setautomationTab).toBe(firstSetautomationTab)
     expect(result.current.openEditJob).toBe(firstOpenEditJob)
     expect(result.current.closeDialog).toBe(firstCloseDialog)
     expect(result.current.closePromptDialog).toBe(firstClosePromptDialog)
@@ -257,94 +257,94 @@ describe('useScheduleUrlState', () => {
   })
 
   describe('combined atomic URL mutations', () => {
-    it('selectJobAndView sets jobId and scheduleTab in a single navigation', () => {
-      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), )
+    it('selectJobAndView sets jobId and automationTab in a single navigation', () => {
+      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), )
       act(() => {
         result.current.selectJobAndView(42)
       })
       expect(result.current.jobId).toBe(42)
-      expect(result.current.scheduleTab).toBe('detail')
+      expect(result.current.automationTab).toBe('detail')
       expect(capturedSearch.current).toContain('jobId=42')
-      expect(capturedSearch.current).toContain('scheduleTab=detail')
+      expect(capturedSearch.current).toContain('automationTab=detail')
     })
 
     it('selectJobAndView preserves unrelated params', () => {
-      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?assistant=1'])
+      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?assistant=1'])
       act(() => {
         result.current.selectJobAndView(99)
       })
       expect(capturedSearch.current).toContain('assistant=1')
       expect(capturedSearch.current).toContain('jobId=99')
-      expect(capturedSearch.current).toContain('scheduleTab=detail')
+      expect(capturedSearch.current).toContain('automationTab=detail')
     })
 
-    it('selectJobAndCloseDialog sets jobId and removes scheduleDialog', () => {
-      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?scheduleDialog=new'])
+    it('selectJobAndCloseDialog sets jobId and removes automationDialog', () => {
+      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?automationDialog=new'])
       act(() => {
         result.current.selectJobAndCloseDialog(7)
       })
       expect(result.current.jobId).toBe(7)
       expect(result.current.dialog).toBeNull()
-      expect(capturedSearch.current).not.toContain('scheduleDialog')
+      expect(capturedSearch.current).not.toContain('automationDialog')
       expect(capturedSearch.current).toContain('jobId=7')
     })
 
     it('selectJobAndCloseDialog from edit preserves jobId and removes dialog', () => {
-      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?scheduleDialog=edit&jobId=3'])
+      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?automationDialog=edit&jobId=3'])
       act(() => {
         result.current.selectJobAndCloseDialog(3)
       })
       expect(result.current.jobId).toBe(3)
       expect(result.current.dialog).toBeNull()
-      expect(capturedSearch.current).not.toContain('scheduleDialog')
+      expect(capturedSearch.current).not.toContain('automationDialog')
       expect(capturedSearch.current).toContain('jobId=3')
     })
 
     it('selectJobAndCloseDialog preserves unrelated params', () => {
-      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?scheduleDialog=edit&assistant=1'])
+      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?automationDialog=edit&assistant=1'])
       act(() => {
         result.current.selectJobAndCloseDialog(5)
       })
       expect(capturedSearch.current).toContain('assistant=1')
-      expect(capturedSearch.current).not.toContain('scheduleDialog')
+      expect(capturedSearch.current).not.toContain('automationDialog')
       expect(capturedSearch.current).toContain('jobId=5')
     })
 
     it('replaceUrlParams can set and delete multiple params atomically', () => {
-      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?foo=1&bar=2'])
+      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?foo=1&bar=2'])
       act(() => {
         result.current.replaceUrlParams((p) => {
           p.set('jobId', '10')
-          p.set('scheduleTab', 'runs')
+          p.set('automationTab', 'runs')
           p.delete('foo')
         })
       })
       expect(result.current.jobId).toBe(10)
-      expect(result.current.scheduleTab).toBe('runs')
+      expect(result.current.automationTab).toBe('runs')
       expect(capturedSearch.current).toContain('jobId=10')
-      expect(capturedSearch.current).toContain('scheduleTab=runs')
+      expect(capturedSearch.current).toContain('automationTab=runs')
       expect(capturedSearch.current).not.toContain('foo=')
       expect(capturedSearch.current).toContain('bar=2')
     })
 
     it('replaceUrlParams preserves all params when no modifications are made', () => {
-      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), ['/?jobId=5&scheduleTab=detail'])
+      const { result, capturedSearch } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), ['/?jobId=5&automationTab=detail'])
       act(() => {
         result.current.replaceUrlParams((_p) => {
           // No modifications
         })
       })
       expect(result.current.jobId).toBe(5)
-      expect(result.current.scheduleTab).toBe('detail')
+      expect(result.current.automationTab).toBe('detail')
       expect(capturedSearch.current).toContain('jobId=5')
-      expect(capturedSearch.current).toContain('scheduleTab=detail')
+      expect(capturedSearch.current).toContain('automationTab=detail')
     })
   })
 
   describe('push/replace history mode', () => {
     it('openNewJob uses push so navigate(-1) closes the dialog', () => {
       function PushHarness() {
-        const { dialog, openNewJob } = useScheduleUrlState()
+        const { dialog, openNewJob } = useAutomationUrlState()
         const navigate = useNavigate()
         const [step, setStep] = useState<'start' | 'opened' | 'back'>('start')
         const handled = useRef(false)
@@ -388,9 +388,9 @@ describe('useScheduleUrlState', () => {
       expect(screen.getByTestId('dialog').textContent).toBe('null')
     })
 
-    it('setScheduleTab uses replace so navigate(-1) does not step through tab changes', () => {
+    it('setautomationTab uses replace so navigate(-1) does not step through tab changes', () => {
       function ReplaceHarness() {
-        const { scheduleTab, setScheduleTab } = useScheduleUrlState()
+        const { automationTab, setautomationTab } = useAutomationUrlState()
         const navigate = useNavigate()
         const [step, setStep] = useState<'start' | 'switched' | 'back'>('start')
         const handled = useRef(false)
@@ -399,16 +399,16 @@ describe('useScheduleUrlState', () => {
           if (handled.current) return
           if (step === 'switched') {
             handled.current = true
-            setScheduleTab('runs')
+            setautomationTab('runs')
           } else if (step === 'back') {
             handled.current = true
             navigate(-1)
           }
-        }, [step, setScheduleTab, navigate])
+        }, [step, setautomationTab, navigate])
 
         return (
           <div>
-            <span data-testid="scheduleTab">{scheduleTab}</span>
+            <span data-testid="automationTab">{automationTab}</span>
             <button onClick={() => { handled.current = false; setStep('switched') }}>
               switch
             </button>
@@ -425,17 +425,17 @@ describe('useScheduleUrlState', () => {
         </MemoryRouter>,
       )
 
-      expect(screen.getByTestId('scheduleTab').textContent).toBe('jobs')
+      expect(screen.getByTestId('automationTab').textContent).toBe('jobs')
 
       act(() => { screen.getByText('switch').click() })
-      expect(screen.getByTestId('scheduleTab').textContent).toBe('runs')
+      expect(screen.getByTestId('automationTab').textContent).toBe('runs')
 
       act(() => { screen.getByText('back').click() })
-      expect(screen.getByTestId('scheduleTab').textContent).toBe('jobs')
+      expect(screen.getByTestId('automationTab').textContent).toBe('jobs')
     })
 
     it('openEditTemplate(7) sets promptDialog=edit and templateId=7', () => {
-      const { result } = renderHookWithRouterAndLocation(() => useScheduleUrlState(), )
+      const { result } = renderHookWithRouterAndLocation(() => useAutomationUrlState(), )
       act(() => {
         result.current.openEditTemplate(7)
       })

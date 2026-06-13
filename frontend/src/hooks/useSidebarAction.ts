@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-type SidebarActionKey = 'new-session' | 'new-repo' | 'new-schedule'
+type SidebarActionKey = 'new-session' | 'new-repo' | 'new-automation'
 
 export function useSidebarAction(action: SidebarActionKey, handler: () => void) {
   useEffect(() => {

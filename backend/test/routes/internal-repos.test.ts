@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { Hono } from 'hono'
 import { Database } from 'bun:sqlite'
 import { createInternalRoutes } from '../../src/routes/internal'
-import { ScheduleService } from '../../src/services/schedules'
+import { AutomationService } from '../../src/services/automations'
 import { NotificationService } from '../../src/services/notification'
 import { SettingsService } from '../../src/services/settings'
 import { createOpenCodeClient } from '../../src/services/opencode/client'
@@ -14,7 +14,7 @@ import type { CreateRepoInput } from '../../src/types/repo'
 
 describe('internal-repos routes', () => {
   let db: Database
-  let scheduleService: ScheduleService
+  let automationservice: AutomationService
   let notificationService: NotificationService
   let settingsService: SettingsService
   let app: Hono
@@ -24,11 +24,11 @@ describe('internal-repos routes', () => {
     db = new Database(':memory:')
     migrate(db, allMigrations)
     const openCodeClient = createOpenCodeClient()
-    scheduleService = new ScheduleService(db, openCodeClient)
+    automationservice = new AutomationService(db, openCodeClient)
     notificationService = new NotificationService(db)
     settingsService = new SettingsService(db)
     app = new Hono()
-    app.route('/api/internal', createInternalRoutes(db, scheduleService, notificationService, settingsService, openCodeClient))
+    app.route('/api/internal', createInternalRoutes(db, automationservice, notificationService, settingsService, openCodeClient))
     token = getOrCreateInternalToken(db)
   })
 
@@ -105,7 +105,7 @@ describe('internal-repos routes', () => {
     expect(body.repos[1]?.id).toBe(repo1.id)
   })
 
-  it('GET /api/internal/repos/:id/schedules still works after adding repos route', async () => {
+  it('GET /api/internal/repos/:id/automations still works after adding repos route', async () => {
     const repoInput: CreateRepoInput = {
       localPath: 'test-repo',
       defaultBranch: 'main',
@@ -115,7 +115,7 @@ describe('internal-repos routes', () => {
     }
     const repo = createRepo(db, repoInput)
 
-    const res = await app.request(`/api/internal/repos/${repo.id}/schedules`, {
+    const res = await app.request(`/api/internal/repos/${repo.id}/automations`, {
       headers: { authorization: `Bearer ${token}` },
     })
     expect(res.status).toBe(200)

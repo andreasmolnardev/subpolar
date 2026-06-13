@@ -30,8 +30,8 @@ describe('isAssistantPath', () => {
     expect(isAssistantPath('/repos/5')).toBe(false);
   });
 
-  it('returns false for /schedules', () => {
-    expect(isAssistantPath('/schedules')).toBe(false);
+  it('returns false for /automations', () => {
+    expect(isAssistantPath('/automations')).toBe(false);
   });
 });
 
@@ -62,8 +62,8 @@ describe('getSessionListPath', () => {
 
 describe('return target helpers', () => {
   it('adds encoded returnTo params for internal paths', () => {
-    expect(getPathWithReturnTo('/repos/5/schedules', '/repos/5/sessions/abc?assistant=1')).toBe(
-      '/repos/5/schedules?returnTo=%2Frepos%2F5%2Fsessions%2Fabc%3Fassistant%3D1'
+    expect(getPathWithReturnTo('/repos/5/automations', '/repos/5/sessions/abc?assistant=1')).toBe(
+      '/repos/5/automations?returnTo=%2Frepos%2F5%2Fsessions%2Fabc%3Fassistant%3D1'
     );
   });
 
@@ -129,23 +129,23 @@ describe('getSwipeBackTarget', () => {
     });
   });
 
-  describe('schedules routes', () => {
-    it('returns /assistant for assistant schedules', () => {
-      expect(getSwipeBackTarget('/repos/0/schedules', '')).toBe('/assistant');
+  describe('automations routes', () => {
+    it('returns /assistant for assistant automations', () => {
+      expect(getSwipeBackTarget('/repos/0/automations', '')).toBe('/assistant');
     });
 
-    it('returns repo path for repo schedules', () => {
-      expect(getSwipeBackTarget('/repos/42/schedules', '')).toBe('/repos/42');
+    it('returns repo path for repo automations', () => {
+      expect(getSwipeBackTarget('/repos/42/automations', '')).toBe('/repos/42');
     });
 
-    it('returns returnTo path for repo schedules when present', () => {
-      expect(getSwipeBackTarget('/repos/42/schedules', '?returnTo=%2Frepos%2F42%2Fsessions%2Fabc%3Fassistant%3D1')).toBe(
+    it('returns returnTo path for repo automations when present', () => {
+      expect(getSwipeBackTarget('/repos/42/automations', '?returnTo=%2Frepos%2F42%2Fsessions%2Fabc%3Fassistant%3D1')).toBe(
         '/repos/42/sessions/abc?assistant=1'
       );
     });
 
-    it('returns root for top-level schedules', () => {
-      expect(getSwipeBackTarget('/schedules', '')).toBe('/');
+    it('returns root for top-level automations', () => {
+      expect(getSwipeBackTarget('/automations', '')).toBe('/');
     });
   });
 

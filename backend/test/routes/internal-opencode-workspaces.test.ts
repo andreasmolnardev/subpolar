@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
 import type { Database } from 'bun:sqlite'
 import { createInternalRoutes } from '../../src/routes/internal'
-import type { ScheduleService } from '../../src/services/schedules'
+import type { AutomationService } from '../../src/services/automations'
 import type { NotificationService } from '../../src/services/notification'
 import type { SettingsService } from '../../src/services/settings'
 import type { OpenCodeClient } from '../../src/services/opencode/client'
@@ -36,8 +36,8 @@ vi.mock('../../src/services/internal-token', () => ({
   getOrCreateInternalToken: vi.fn().mockReturnValue('test-internal-token'),
 }))
 
-vi.mock('../../src/services/schedules', () => ({
-  ScheduleService: vi.fn(),
+vi.mock('../../src/services/automations', () => ({
+  AutomationService: vi.fn(),
 }))
 
 vi.mock('../../src/services/notification', () => ({
@@ -71,7 +71,7 @@ describe('internal-opencode-workspaces routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockListRepos.mockReturnValue([])
-    const scheduleService = {} as ScheduleService
+    const automationservice = {} as AutomationService
     const notificationService = {} as NotificationService
     const settingsService = {} as SettingsService
     const openCodeClient = {
@@ -85,7 +85,7 @@ describe('internal-opencode-workspaces routes', () => {
       authenticateMcp: vi.fn(),
     } as unknown as OpenCodeClient
     app = new Hono()
-    app.route('/api/internal', createInternalRoutes(mockDb, scheduleService, notificationService, settingsService, openCodeClient))
+    app.route('/api/internal', createInternalRoutes(mockDb, automationservice, notificationService, settingsService, openCodeClient))
     token = 'test-internal-token'
   })
 

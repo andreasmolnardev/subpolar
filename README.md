@@ -47,8 +47,8 @@ For local development setup, see the [Development Guide](https://chriswritescode
 - **Repositories & Git** — Multi-repo management, local discovery, SSH auth, worktrees, unified diffs, branch and commit management
 - **Chat & Sessions** — Real-time SSE streaming, slash commands, `@file` mentions, Plan/Build modes, Mermaid diagram rendering
 - **Files** — Directory browser with tree view, syntax highlighting, create/rename/delete, ZIP download
-- **Assistant Mode** — Dedicated AI workspace with auto-provisioned skills for schedules, notifications, settings, and repo operations
-- **Schedules** — Recurring repo jobs with reusable prompts, run history, linked sessions, markdown-rendered output
+- **Assistant Mode** — Dedicated AI workspace with auto-provisioned skills for automations, notifications, settings, and repo operations
+- **automations** — Recurring repo jobs with reusable prompts, run history, linked sessions, markdown-rendered output
 - **MCP Servers** — Add, configure, authenticate, and manage local or remote MCP servers with OAuth support
 - **AI Configuration** — Model/provider setup, API keys, OAuth for Anthropic and GitHub Copilot, custom agent definitions
 - **Skills** — Extend agent capabilities with shareable, scoped skill definitions
@@ -60,7 +60,7 @@ For local development setup, see the [Development Guide](https://chriswritescode
 
 Subpolar is a pnpm workspace with three TypeScript packages:
 
-- `backend/` — Bun + Hono API server with Better Auth, SQLite migrations, OpenCode process management, SSE, schedules, and push notifications.
+- `backend/` — Bun + Hono API server with Better Auth, SQLite migrations, OpenCode process management, SSE, automations, and push notifications.
 - `frontend/` — React + Vite SPA using React Router, TanStack Query, Radix UI/Tailwind, service worker support, and mobile-first navigation.
 - `shared/` — shared Zod schemas, config helpers, types, and utilities consumed by both backend and frontend.
 

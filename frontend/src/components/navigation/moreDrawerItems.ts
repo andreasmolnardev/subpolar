@@ -16,7 +16,7 @@ export interface NavPrimaryCta {
   label: string
   icon: LucideIcon
   to?: string
-  onSelect?: 'new-session' | 'new-repo' | 'new-schedule'
+  onSelect?: 'new-session' | 'new-repo' | 'new-automation'
   variant?: 'primary' | 'secondary'
 }
 
@@ -53,7 +53,7 @@ export function buildNavModel(pathname: string): NavModel {
       { key: 'mcp', label: 'MCP', icon: Plug, dialog: 'mcp' },
       { key: 'skills', label: 'Skills', icon: Sparkles, dialog: 'skills' },
       { key: 'reset-permissions', label: 'Reset Permissions', icon: ShieldOff, dialog: 'resetPermissions', danger: true },
-      { key: 'schedules', label: 'Schedules', icon: CalendarClock, to: `/repos/${id}/schedules` },
+      { key: 'automations', label: 'automations', icon: CalendarClock, to: `/repos/${id}/automations` },
       { key: 'source-control', label: 'Source Control', icon: GitCommitHorizontal, dialog: 'sourceControl' },
       ...baseItems,
     ]
@@ -75,7 +75,7 @@ export function buildNavModel(pathname: string): NavModel {
       { key: 'skills', label: 'Skills', icon: Sparkles, dialog: 'skills' },
       { key: 'lsp', label: 'LSP', icon: Code2, dialog: 'lsp' },
       { key: 'reset-permissions', label: 'Reset Permissions', icon: ShieldOff, dialog: 'resetPermissions', danger: true },
-      { key: 'schedules', label: 'Schedules', icon: CalendarClock, to: `/repos/${sessionDetailMatch[1]}/schedules` },
+      { key: 'automations', label: 'automations', icon: CalendarClock, to: `/repos/${sessionDetailMatch[1]}/automations` },
       { key: 'source-control', label: 'Source Control', icon: GitCommitHorizontal, dialog: 'sourceControl' },
       ...baseItems,
     ]
@@ -95,7 +95,7 @@ export function buildNavModel(pathname: string): NavModel {
       { key: 'mcp', label: 'MCP', icon: Plug, dialog: 'mcp' },
       { key: 'skills', label: 'Skills', icon: Sparkles, dialog: 'skills' },
       { key: 'reset-permissions', label: 'Reset Permissions', icon: ShieldOff, dialog: 'resetPermissions', danger: true },
-      { key: 'schedules', label: 'Schedules', icon: CalendarClock, to: '/repos/0/schedules' },
+      { key: 'automations', label: 'automations', icon: CalendarClock, to: '/repos/0/automations' },
       { key: 'source-control', label: 'Source Control', icon: GitCommitHorizontal, dialog: 'sourceControl' },
       ...baseItems,
     ]
@@ -109,10 +109,10 @@ export function buildNavModel(pathname: string): NavModel {
     }
   }
 
-  if (pathname === '/schedules' || /^\/repos\/\d+\/schedules$/.test(pathname)) {
+  if (pathname === '/automations' || /^\/repos\/\d+\/automations$/.test(pathname)) {
     return {
       primary: [
-        { key: 'new-schedule', label: 'New Schedule', icon: Clock, onSelect: 'new-schedule', variant: 'primary' },
+        { key: 'new-automation', label: 'New automation', icon: Clock, onSelect: 'new-automation', variant: 'primary' },
         getAssistantNavItem(pathname),
       ],
       items: baseItems,
@@ -126,7 +126,7 @@ export function buildNavModel(pathname: string): NavModel {
         getAssistantNavItem(pathname),
       ],
       items: [
-        { key: 'all-schedules', label: 'All Schedules', icon: CalendarClock, to: '/schedules' },
+        { key: 'all-automations', label: 'All automations', icon: CalendarClock, to: '/automations' },
         { key: 'files', label: 'Files', icon: Folder, dialog: 'files' },
         ...baseItems,
       ],

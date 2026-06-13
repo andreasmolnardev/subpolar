@@ -2,21 +2,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Schedules } from '../Schedules'
+import { automations } from '../automations'
 
 const mocks = vi.hoisted(() => ({
-  useScheduleTarget: vi.fn(),
-  useRepoSchedules: vi.fn(),
-  useRepoSchedule: vi.fn(),
-  useRepoScheduleRuns: vi.fn(),
-  useRepoScheduleRun: vi.fn(),
-  useCreateRepoSchedule: vi.fn(),
-  useUpdateRepoSchedule: vi.fn(),
-  useDeleteRepoSchedule: vi.fn(),
-  useRunRepoSchedule: vi.fn(),
-  useCancelRepoScheduleRun: vi.fn(),
+  useAutomationTarget: vi.fn(),
+  useRepoautomations: vi.fn(),
+  useRepoautomation: vi.fn(),
+  useRepoautomationRuns: vi.fn(),
+  useRepoautomationRun: vi.fn(),
+  useCreateRepoautomation: vi.fn(),
+  useUpdateRepoautomation: vi.fn(),
+  useDeleteRepoautomation: vi.fn(),
+  useRunRepoautomation: vi.fn(),
+  useCancelRepoautomationRun: vi.fn(),
   useRepoActivity: vi.fn(),
-  useScheduleUrlState: vi.fn(),
+  useAutomationUrlState: vi.fn(),
 }))
 
 const mockNavigate = vi.fn()
@@ -25,34 +25,34 @@ vi.mock('react-router-dom', async (importOriginal) => ({
   useNavigate: () => mockNavigate,
 }))
 
-vi.mock('@/hooks/useScheduleTarget', () => ({
-  useScheduleTarget: mocks.useScheduleTarget,
+vi.mock('@/hooks/useAutomationTarget', () => ({
+  useAutomationTarget: mocks.useAutomationTarget,
 }))
 
-vi.mock('@/hooks/useSchedules', () => ({
-  useRepoSchedules: mocks.useRepoSchedules,
-  useRepoSchedule: mocks.useRepoSchedule,
-  useRepoScheduleRuns: mocks.useRepoScheduleRuns,
-  useRepoScheduleRun: mocks.useRepoScheduleRun,
-  useCreateRepoSchedule: mocks.useCreateRepoSchedule,
-  useUpdateRepoSchedule: mocks.useUpdateRepoSchedule,
-  useDeleteRepoSchedule: mocks.useDeleteRepoSchedule,
-  useRunRepoSchedule: mocks.useRunRepoSchedule,
-  useCancelRepoScheduleRun: mocks.useCancelRepoScheduleRun,
+vi.mock('@/hooks/useAutomations', () => ({
+  useRepoautomations: mocks.useRepoautomations,
+  useRepoautomation: mocks.useRepoautomation,
+  useRepoautomationRuns: mocks.useRepoautomationRuns,
+  useRepoautomationRun: mocks.useRepoautomationRun,
+  useCreateRepoautomation: mocks.useCreateRepoautomation,
+  useUpdateRepoautomation: mocks.useUpdateRepoautomation,
+  useDeleteRepoautomation: mocks.useDeleteRepoautomation,
+  useRunRepoautomation: mocks.useRunRepoautomation,
+  useCancelRepoautomationRun: mocks.useCancelRepoautomationRun,
 }))
 
 vi.mock('@/hooks/useRepoActivity', () => ({
   useRepoActivity: mocks.useRepoActivity,
 }))
 
-vi.mock('@/hooks/useScheduleUrlState', () => ({
-  useScheduleUrlState: mocks.useScheduleUrlState,
+vi.mock('@/hooks/useAutomationUrlState', () => ({
+  useAutomationUrlState: mocks.useAutomationUrlState,
 }))
 
-vi.mock('@/components/schedules', () => ({
-  ScheduleJobDialog: vi.fn(({ onOpenChange }) => (
+vi.mock('@/components/automations', () => ({
+  automationJobDialog: vi.fn(({ onOpenChange }) => (
     <div>
-      ScheduleJobDialog
+      automationJobDialog
       <button onClick={() => onOpenChange(false)} data-testid="close-job-dialog">Close</button>
     </div>
   )),
@@ -69,13 +69,13 @@ vi.mock('@/components/schedules', () => ({
     </div>
   )),
   RunHistoryTab: vi.fn(() => <div>RunHistoryTab</div>),
-  ScheduleTabMenu: vi.fn(() => <div>ScheduleTabMenu</div>),
+  automationTabMenu: vi.fn(() => <div>automationTabMenu</div>),
 }))
 
-function createMockScheduleUrlState(overrides: Record<string, unknown> = {}) {
+function createMockautomationUrlState(overrides: Record<string, unknown> = {}) {
   return {
-    scheduleTab: 'jobs',
-    setScheduleTab: vi.fn(),
+    automationTab: 'jobs',
+    setautomationTab: vi.fn(),
     dialog: null,
     promptDialog: null,
     jobId: null,
@@ -109,32 +109,32 @@ const createWrapper = () => {
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 }
 
-const renderSchedules = (repoId: string, initialEntry = `/repos/${repoId}/schedules`) => {
+const renderautomations = (repoId: string, initialEntry = `/repos/${repoId}/automations`) => {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
-        <Route path="/repos/:id/schedules" element={<Schedules />} />
+        <Route path="/repos/:id/automations" element={<automations />} />
       </Routes>
     </MemoryRouter>,
     { wrapper: createWrapper() }
   )
 }
 
-describe('Schedules', () => {
+describe('automations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.useScheduleUrlState.mockReturnValue(createMockScheduleUrlState())
-    mocks.useCreateRepoSchedule.mockReturnValue({ mutate: vi.fn(), isPending: false })
-    mocks.useUpdateRepoSchedule.mockReturnValue({ mutate: vi.fn(), isPending: false })
-    mocks.useDeleteRepoSchedule.mockReturnValue({ mutate: vi.fn(), isPending: false })
-    mocks.useRunRepoSchedule.mockReturnValue({ mutate: vi.fn(), isPending: false })
-    mocks.useCancelRepoScheduleRun.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    mocks.useAutomationUrlState.mockReturnValue(createMockautomationUrlState())
+    mocks.useCreateRepoautomation.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    mocks.useUpdateRepoautomation.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    mocks.useDeleteRepoautomation.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    mocks.useRunRepoautomation.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    mocks.useCancelRepoautomationRun.mockReturnValue({ mutate: vi.fn(), isPending: false })
   })
 
-  describe('assistant schedule target (repoId=0)', () => {
+  describe('assistant automation target (repoId=0)', () => {
     it('renders assistant title and subtitle', () => {
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: {
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: {
           repoId: 0,
           kind: 'assistant',
           name: 'Assistant',
@@ -145,20 +145,20 @@ describe('Schedules', () => {
         isLoading: false,
         isError: false,
       })
-      mocks.useRepoSchedules.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: undefined, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomations.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: undefined, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
 
-      renderSchedules('0')
+      renderautomations('0')
 
       expect(screen.getByText('Assistant')).toBeInTheDocument()
       expect(screen.getByText('Built-in assistant')).toBeInTheDocument()
     })
 
     it('does not render Repository not found', () => {
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: {
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: {
           repoId: 0,
           kind: 'assistant',
           name: 'Assistant',
@@ -169,12 +169,12 @@ describe('Schedules', () => {
         isLoading: false,
         isError: false,
       })
-      mocks.useRepoSchedules.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: undefined, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomations.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: undefined, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
 
-      renderSchedules('0')
+      renderautomations('0')
 
       expect(screen.queryByText('Repository not found')).not.toBeInTheDocument()
     })
@@ -182,8 +182,8 @@ describe('Schedules', () => {
     it('renders back button with correct href', () => {
       mockNavigate.mockClear()
 
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: {
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: {
           repoId: 0,
           kind: 'assistant',
           name: 'Assistant',
@@ -194,12 +194,12 @@ describe('Schedules', () => {
         isLoading: false,
         isError: false,
       })
-      mocks.useRepoSchedules.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: undefined, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomations.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: undefined, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
 
-      renderSchedules('0')
+      renderautomations('0')
 
       const backButton = screen.getAllByRole('button')[0]
       expect(backButton).toBeInTheDocument()
@@ -209,8 +209,8 @@ describe('Schedules', () => {
 
     it('calls runMutation with repoId=0 when Run Now is clicked', () => {
       const mutateMock = vi.fn()
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: {
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: {
           repoId: 0,
           kind: 'assistant',
           name: 'Assistant',
@@ -231,7 +231,7 @@ describe('Schedules', () => {
         enabled: true,
         createdAt: 0,
         updatedAt: 0,
-        scheduleMode: 'interval' as const,
+        automationMode: 'interval' as const,
         agentSlug: null,
         prompt: 'test',
         triggerSource: 'manual' as const,
@@ -239,16 +239,16 @@ describe('Schedules', () => {
         nextRunAt: null,
         skillMetadata: null,
       }
-      mocks.useScheduleUrlState.mockReturnValue(createMockScheduleUrlState({
-        scheduleTab: 'detail',
+      mocks.useAutomationUrlState.mockReturnValue(createMockautomationUrlState({
+        automationTab: 'detail',
       }))
-      mocks.useRepoSchedules.mockReturnValue({ data: [mockJob], isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: mockJob, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
-      mocks.useRunRepoSchedule.mockReturnValue({ mutate: mutateMock, isPending: false })
+      mocks.useRepoautomations.mockReturnValue({ data: [mockJob], isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: mockJob, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRunRepoautomation.mockReturnValue({ mutate: mutateMock, isPending: false })
 
-      renderSchedules('0')
+      renderautomations('0')
 
       const runNowButton = screen.getByTestId('run-now')
       runNowButton.click()
@@ -257,10 +257,10 @@ describe('Schedules', () => {
     })
   })
 
-  describe('repo schedule target (repoId=5)', () => {
+  describe('repo automation target (repoId=5)', () => {
     it('renders repo name and subtitle', () => {
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: {
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: {
           repoId: 5,
           kind: 'repo',
           name: 'my-repo',
@@ -271,12 +271,12 @@ describe('Schedules', () => {
         isLoading: false,
         isError: false,
       })
-      mocks.useRepoSchedules.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: undefined, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomations.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: undefined, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
 
-      renderSchedules('5')
+      renderautomations('5')
 
       expect(screen.getByText('my-repo')).toBeInTheDocument()
       expect(screen.getByText('repos/my-repo')).toBeInTheDocument()
@@ -285,8 +285,8 @@ describe('Schedules', () => {
     it('renders back button with correct href', () => {
       mockNavigate.mockClear()
 
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: {
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: {
           repoId: 5,
           kind: 'repo',
           name: 'my-repo',
@@ -297,12 +297,12 @@ describe('Schedules', () => {
         isLoading: false,
         isError: false,
       })
-      mocks.useRepoSchedules.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: undefined, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomations.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: undefined, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
 
-      renderSchedules('5')
+      renderautomations('5')
 
       const backButton = screen.getAllByRole('button')[0]
       expect(backButton).toBeInTheDocument()
@@ -313,8 +313,8 @@ describe('Schedules', () => {
     it('uses returnTo param for back button when present', () => {
       mockNavigate.mockClear()
 
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: {
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: {
           repoId: 5,
           kind: 'repo',
           name: 'my-repo',
@@ -325,12 +325,12 @@ describe('Schedules', () => {
         isLoading: false,
         isError: false,
       })
-      mocks.useRepoSchedules.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: undefined, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomations.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: undefined, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
 
-      renderSchedules('5', '/repos/5/schedules?returnTo=%2Frepos%2F5%2Fsessions%2Fabc%3Fassistant%3D1')
+      renderautomations('5', '/repos/5/automations?returnTo=%2Frepos%2F5%2Fsessions%2Fabc%3Fassistant%3D1')
 
       fireEvent.click(screen.getAllByRole('button')[0])
 
@@ -338,14 +338,14 @@ describe('Schedules', () => {
     })
 
     it('normalizes prompts tab to jobs when jobs exist', () => {
-      const setScheduleTab = vi.fn()
-      mocks.useScheduleUrlState.mockReturnValue(createMockScheduleUrlState({
-        scheduleTab: 'prompts',
+      const setautomationTab = vi.fn()
+      mocks.useAutomationUrlState.mockReturnValue(createMockautomationUrlState({
+        automationTab: 'prompts',
         jobId: 123,
-        setScheduleTab,
+        setautomationTab,
       }))
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: {
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: {
           repoId: 5,
           kind: 'repo',
           name: 'my-repo',
@@ -366,7 +366,7 @@ describe('Schedules', () => {
         enabled: true,
         createdAt: 0,
         updatedAt: 0,
-        scheduleMode: 'interval' as const,
+        automationMode: 'interval' as const,
         agentSlug: null,
         prompt: 'test',
         triggerSource: 'manual' as const,
@@ -374,58 +374,58 @@ describe('Schedules', () => {
         nextRunAt: null,
         skillMetadata: null,
       }
-      mocks.useRepoSchedules.mockReturnValue({ data: [mockJob], isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: mockJob, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomations.mockReturnValue({ data: [mockJob], isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: mockJob, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
 
-      renderSchedules('5')
+      renderautomations('5')
 
       // The normalization effect should have reset the tab to 'jobs'
-      expect(setScheduleTab).toHaveBeenCalledWith('jobs')
+      expect(setautomationTab).toHaveBeenCalledWith('jobs')
       // Jobs tab content should render instead of blank
       expect(screen.getByText('Select Job')).toBeInTheDocument()
     })
   })
 
-  describe('schedule target not found', () => {
+  describe('automation target not found', () => {
     it('renders not found fallback for real repo', () => {
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: undefined,
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: undefined,
         isLoading: false,
         isError: true,
       })
-      mocks.useRepoSchedules.mockReturnValue({ data: undefined, isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: undefined, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomations.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: undefined, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
 
-      renderSchedules('999')
+      renderautomations('999')
 
       expect(screen.getByText('Repository not found')).toBeInTheDocument()
     })
 
     it('renders not found fallback for assistant', () => {
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: undefined,
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: undefined,
         isLoading: false,
         isError: true,
       })
-      mocks.useRepoSchedules.mockReturnValue({ data: undefined, isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: undefined, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomations.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: undefined, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
 
-      renderSchedules('0')
+      renderautomations('0')
 
       expect(screen.getByText('Assistant not found')).toBeInTheDocument()
     })
   })
 
   describe('dialog interactions', () => {
-    it('closing ScheduleJobDialog calls closeDialog', () => {
+    it('closing automationJobDialog calls closeDialog', () => {
       const closeDialog = vi.fn()
-      mocks.useScheduleUrlState.mockReturnValue(createMockScheduleUrlState({
+      mocks.useAutomationUrlState.mockReturnValue(createMockautomationUrlState({
         dialog: 'edit',
         jobId: 123,
         closeDialog,
@@ -440,7 +440,7 @@ describe('Schedules', () => {
         enabled: true,
         createdAt: 0,
         updatedAt: 0,
-        scheduleMode: 'interval' as const,
+        automationMode: 'interval' as const,
         agentSlug: null,
         prompt: 'test',
         triggerSource: 'manual' as const,
@@ -448,8 +448,8 @@ describe('Schedules', () => {
         nextRunAt: null,
         skillMetadata: null,
       }
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: {
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: {
           repoId: 5,
           kind: 'repo',
           name: 'my-repo',
@@ -460,12 +460,12 @@ describe('Schedules', () => {
         isLoading: false,
         isError: false,
       })
-      mocks.useRepoSchedules.mockReturnValue({ data: [mockJob], isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: mockJob, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomations.mockReturnValue({ data: [mockJob], isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: mockJob, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
 
-      renderSchedules('5')
+      renderautomations('5')
 
       const closeButton = screen.getByTestId('close-job-dialog')
       fireEvent.click(closeButton)
@@ -476,7 +476,7 @@ describe('Schedules', () => {
     it('delete mutation success calls closeDialog', () => {
       const closeDialog = vi.fn()
       const deleteMutate = vi.fn((_args, { onSuccess }) => { onSuccess() })
-      mocks.useScheduleUrlState.mockReturnValue(createMockScheduleUrlState({
+      mocks.useAutomationUrlState.mockReturnValue(createMockautomationUrlState({
         dialog: 'delete',
         jobId: 123,
         closeDialog,
@@ -491,7 +491,7 @@ describe('Schedules', () => {
         enabled: true,
         createdAt: 0,
         updatedAt: 0,
-        scheduleMode: 'interval' as const,
+        automationMode: 'interval' as const,
         agentSlug: null,
         prompt: 'test',
         triggerSource: 'manual' as const,
@@ -499,8 +499,8 @@ describe('Schedules', () => {
         nextRunAt: null,
         skillMetadata: null,
       }
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: {
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: {
           repoId: 5,
           kind: 'repo',
           name: 'my-repo',
@@ -511,13 +511,13 @@ describe('Schedules', () => {
         isLoading: false,
         isError: false,
       })
-      mocks.useRepoSchedules.mockReturnValue({ data: [mockJob], isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: mockJob, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
-      mocks.useDeleteRepoSchedule.mockReturnValue({ mutate: deleteMutate, isPending: false })
+      mocks.useRepoautomations.mockReturnValue({ data: [mockJob], isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: mockJob, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useDeleteRepoautomation.mockReturnValue({ mutate: deleteMutate, isPending: false })
 
-      renderSchedules('5')
+      renderautomations('5')
 
       // The DeleteDialog renders a Confirm button that calls onConfirm.
       // Find the confirm button and click it to trigger handleDelete.
@@ -530,8 +530,8 @@ describe('Schedules', () => {
 
     it('edit button on JobDetailTab calls openEditJob', () => {
       const openEditJob = vi.fn()
-      mocks.useScheduleUrlState.mockReturnValue(createMockScheduleUrlState({
-        scheduleTab: 'detail',
+      mocks.useAutomationUrlState.mockReturnValue(createMockautomationUrlState({
+        automationTab: 'detail',
         jobId: 123,
         openEditJob,
       }))
@@ -545,7 +545,7 @@ describe('Schedules', () => {
         enabled: true,
         createdAt: 0,
         updatedAt: 0,
-        scheduleMode: 'interval' as const,
+        automationMode: 'interval' as const,
         agentSlug: null,
         prompt: 'test',
         triggerSource: 'manual' as const,
@@ -553,8 +553,8 @@ describe('Schedules', () => {
         nextRunAt: null,
         skillMetadata: null,
       }
-      mocks.useScheduleTarget.mockReturnValue({
-        scheduleTarget: {
+      mocks.useAutomationTarget.mockReturnValue({
+        automationTarget: {
           repoId: 5,
           kind: 'repo',
           name: 'my-repo',
@@ -565,12 +565,12 @@ describe('Schedules', () => {
         isLoading: false,
         isError: false,
       })
-      mocks.useRepoSchedules.mockReturnValue({ data: [mockJob], isLoading: false })
-      mocks.useRepoSchedule.mockReturnValue({ data: mockJob, isFetching: false })
-      mocks.useRepoScheduleRuns.mockReturnValue({ data: [], isLoading: false })
-      mocks.useRepoScheduleRun.mockReturnValue({ data: undefined, isLoading: false })
+      mocks.useRepoautomations.mockReturnValue({ data: [mockJob], isLoading: false })
+      mocks.useRepoautomation.mockReturnValue({ data: mockJob, isFetching: false })
+      mocks.useRepoautomationRuns.mockReturnValue({ data: [], isLoading: false })
+      mocks.useRepoautomationRun.mockReturnValue({ data: undefined, isLoading: false })
 
-      renderSchedules('5')
+      renderautomations('5')
 
       const editButton = screen.getByTestId('edit-job')
       fireEvent.click(editButton)

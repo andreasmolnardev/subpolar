@@ -3,10 +3,10 @@ import { Database } from 'bun:sqlite'
 import { migrate } from '../../src/db/migration-runner'
 import { allMigrations } from '../../src/db/migrations'
 import {
-  cleanupOrphanedSchedules,
-  listAllScheduleJobsWithRepos,
-  listAllScheduleRuns,
-} from '../../src/db/schedules'
+  cleanupOrphanedAutomations,
+  listAllAutomationJobsWithRepos,
+  listAllAutomationRuns,
+} from '../../src/db/automations'
 
 describe('assistant repo (repo_id=0) in global aggregate queries', () => {
   let db: Database
@@ -25,33 +25,33 @@ describe('assistant repo (repo_id=0) in global aggregate queries', () => {
        VALUES (1, 'https://github.com/test/my-repo', 'repos/my-repo', 'main', 'main', 'ready', ${now})`,
     )
 
-    // Insert a schedule job for the real repo
+    // Insert an automation job for the real repo
     db.exec(
-      `INSERT INTO schedule_jobs (id, repo_id, name, enabled, schedule_mode, prompt, created_at, updated_at)
+      `INSERT INTO automation_jobs (id, repo_id, name, enabled, automation_mode, prompt, created_at, updated_at)
        VALUES (1, 1, 'Real repo job', 1, 'interval', 'Run the real repo job', ${now}, ${now})`,
     )
 
-    // Insert a schedule job for the assistant (repo_id=0)
+    // Insert an automation job for the assistant (repo_id=0)
     db.exec(
-      `INSERT INTO schedule_jobs (id, repo_id, name, enabled, schedule_mode, prompt, created_at, updated_at)
+      `INSERT INTO automation_jobs (id, repo_id, name, enabled, automation_mode, prompt, created_at, updated_at)
        VALUES (2, 0, 'Assistant job', 1, 'interval', 'Run the assistant job', ${now}, ${now})`,
     )
 
-    // Insert a schedule run for the real repo job
+    // Insert an automation run for the real repo job
     db.exec(
-      `INSERT INTO schedule_runs (id, job_id, repo_id, trigger_source, status, started_at, created_at)
+      `INSERT INTO automation_runs (id, job_id, repo_id, trigger_source, status, started_at, created_at)
        VALUES (1, 1, 1, 'manual', 'completed', ${now}, ${now})`,
     )
 
-    // Insert a schedule run for the assistant job
+    // Insert an automation run for the assistant job
     db.exec(
-      `INSERT INTO schedule_runs (id, job_id, repo_id, trigger_source, status, started_at, created_at)
+      `INSERT INTO automation_runs (id, job_id, repo_id, trigger_source, status, started_at, created_at)
        VALUES (2, 2, 0, 'manual', 'completed', ${now}, ${now})`,
     )
   })
 
-  it('listAllScheduleJobsWithRepos includes assistant jobs with synthetic metadata', () => {
-    const jobs = listAllScheduleJobsWithRepos(db)
+  it('listAllAutomationJobsWithRepos includes assistant jobs with synthetic metadata', () => {
+    const jobs = listAllAutomationJobsWithRepos(db)
     expect(jobs).toHaveLength(2)
 
     const assistantJob = jobs.find(j => j.repoId === 0)
@@ -73,8 +73,8 @@ describe('assistant repo (repo_id=0) in global aggregate queries', () => {
     }
   })
 
-  it('listAllScheduleRuns includes assistant runs with synthetic metadata', () => {
-    const runs = listAllScheduleRuns(db, {})
+  it('listAllAutomationRuns includes assistant runs with synthetic metadata', () => {
+    const runs = listAllAutomationRuns(db, {})
     expect(runs).toHaveLength(2)
 
     const assistantRun = runs.find(r => r.repoId === 0)
@@ -94,8 +94,8 @@ describe('assistant repo (repo_id=0) in global aggregate queries', () => {
     }
   })
 
-  it('listAllScheduleRuns with repoId=0 filter returns only assistant runs', () => {
-    const runs = listAllScheduleRuns(db, { repoId: 0 })
+  it('listAllAutomationRuns with repoId=0 filter returns only assistant runs', () => {
+    const runs = listAllAutomationRuns(db, { repoId: 0 })
     expect(runs).toHaveLength(1)
     const run = runs[0]!
     expect(run.repoId).toBe(0)
@@ -103,13 +103,13 @@ describe('assistant repo (repo_id=0) in global aggregate queries', () => {
     expect(run.repoPath).toBe('assistant')
   })
 
-  it('cleanupOrphanedSchedules keeps assistant schedules while deleting real repo orphans', () => {
+  it('cleanupOrphanedAutomations keeps assistant automations while deleting real repo orphans', () => {
     db.exec('DELETE FROM repos WHERE id = 1')
 
-    const result = cleanupOrphanedSchedules(db)
+    const result = cleanupOrphanedAutomations(db)
 
     expect(result).toEqual({ orphanedJobs: 1, orphanedRuns: 1 })
-    expect(listAllScheduleJobsWithRepos(db).map((job) => job.repoId)).toEqual([0])
-    expect(listAllScheduleRuns(db, {}).map((run) => run.repoId)).toEqual([0])
+    expect(listAllAutomationJobsWithRepos(db).map((job) => job.repoId)).toEqual([0])
+    expect(listAllAutomationRuns(db, {}).map((run) => run.repoId)).toEqual([0])
   })
 })

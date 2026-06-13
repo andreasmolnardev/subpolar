@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { useMobile } from '@/hooks/useMobile'
 import { useMobileTabBar } from '@/hooks/useMobileTabBar'
 import { useUrlParams } from '@/hooks/useUrlParams'
-import { useScheduleUrlState, type ScheduleTab } from '@/hooks/useScheduleUrlState'
+import { useAutomationUrlState, type AutomationTab } from '@/hooks/useAutomationUrlState'
 import { getAssistantPath, isAssistantPath } from '@/lib/navigation'
 
 interface TabDef {
@@ -28,7 +28,7 @@ interface GlobalTabsArgs {
   updateParams: ReturnType<typeof useUrlParams>['updateParams']
 }
 
-type TabBarMode = 'hidden' | 'global' | 'schedule'
+type TabBarMode = 'hidden' | 'global' | 'automation'
 
 interface MobileTabRouteState {
   mode: TabBarMode
@@ -45,7 +45,7 @@ function getMobileTabRouteState(pathname: string): MobileTabRouteState {
   const repoId = repoMatch?.[1] ?? null
   const repoSection = repoMatch?.[2]
 
-  if (pathname === '/' || pathname === '/schedules') {
+  if (pathname === '/' || pathname === '/automations') {
     return { mode: 'global', isInsideRepo: false, repoId: null }
   }
 
@@ -56,8 +56,8 @@ function getMobileTabRouteState(pathname: string): MobileTabRouteState {
   switch (repoSection) {
     case undefined:
       return { mode: 'global', isInsideRepo: true, repoId }
-    case 'schedules':
-      return { mode: 'schedule', isInsideRepo: true, repoId }
+    case 'automations':
+      return { mode: 'automation', isInsideRepo: true, repoId }
     default:
       return { mode: 'hidden', isInsideRepo: false, repoId }
   }
@@ -100,11 +100,11 @@ function buildGlobalTabs({ pathname, openSheet, open, close, navigate, isInsideR
       active: isAssistantPath(pathname) && !openSheet,
     },
     {
-      key: 'schedules',
-      label: 'Schedules',
+      key: 'automations',
+      label: 'Automations',
       icon: CalendarClock,
-      onClick: () => navigate('/schedules'),
-      active: pathname === '/schedules' && !openSheet,
+      onClick: () => navigate('/automations'),
+      active: pathname === '/automations' && !openSheet,
     },
     {
       key: 'more',
@@ -116,28 +116,28 @@ function buildGlobalTabs({ pathname, openSheet, open, close, navigate, isInsideR
   ]
 }
 
-function buildScheduleTabs(scheduleTab: ScheduleTab, setScheduleTab: (tab: ScheduleTab) => void): TabDef[] {
+function buildAutomationTabs(automationTab: AutomationTab, setAutomationTab: (tab: AutomationTab) => void): TabDef[] {
   return [
     {
       key: 'jobs',
       label: 'Jobs',
       icon: CalendarClock,
-      onClick: () => setScheduleTab('jobs'),
-      active: scheduleTab === 'jobs',
+      onClick: () => setAutomationTab('jobs'),
+      active: automationTab === 'jobs',
     },
     {
       key: 'detail',
       label: 'Detail',
       icon: Info,
-      onClick: () => setScheduleTab('detail'),
-      active: scheduleTab === 'detail',
+      onClick: () => setAutomationTab('detail'),
+      active: automationTab === 'detail',
     },
     {
       key: 'runs',
       label: 'Runs',
       icon: History,
-      onClick: () => setScheduleTab('runs'),
-      active: scheduleTab === 'runs',
+      onClick: () => setAutomationTab('runs'),
+      active: automationTab === 'runs',
     },
   ]
 }
@@ -182,13 +182,13 @@ export const MobileTabBar = memo(function MobileTabBar() {
   const navigate = useNavigate()
   const { openSheet, open, close } = useMobileTabBar()
   const { updateParams } = useUrlParams()
-  const { scheduleTab, setScheduleTab } = useScheduleUrlState()
+  const { automationTab, setAutomationTab } = useAutomationUrlState()
   const isMobile = useMobile()
   const routeState = useMemo(() => getMobileTabRouteState(pathname), [pathname])
 
   const tabs = useMemo<TabDef[]>(
-    () => (routeState.mode === 'schedule'
-      ? buildScheduleTabs(scheduleTab, setScheduleTab)
+    () => (routeState.mode === 'automation'
+      ? buildAutomationTabs(automationTab, setAutomationTab)
       : buildGlobalTabs({
         pathname,
         openSheet,
@@ -201,8 +201,8 @@ export const MobileTabBar = memo(function MobileTabBar() {
       })),
     [
       routeState,
-      scheduleTab,
-      setScheduleTab,
+      automationTab,
+      setAutomationTab,
       pathname,
       openSheet,
       open,

@@ -21,11 +21,11 @@ Open [http://localhost:5003](http://localhost:5003) and create your admin accoun
 
 ## What is Subpolar?
 
-Subpolar is a mobile-first web interface for [OpenCode](https://opencode.ai) AI agents. It combines repository management, chat/session control, Git and file tools, schedules, AI configuration, MCP server management, push notifications, and full PWA support into a single responsive application.
+Subpolar is a mobile-first web interface for [OpenCode](https://opencode.ai) AI agents. It combines repository management, chat/session control, Git and file tools, automations, AI configuration, MCP server management, push notifications, and full PWA support into a single responsive application.
 
 - **Repository management** — Clone, discover, and manage multiple Git repos with SSH authentication and worktree support
 - **Chat & sessions** — Real-time SSE streaming with slash commands, `@file` mentions, Plan/Build modes, and per-agent model selection
-- **Schedules** — Recurring repo jobs with reusable prompts, run history, and linked sessions
+- **automations** — Recurring repo jobs with reusable prompts, run history, and linked sessions
 - **AI configuration** — Model/provider setup, OAuth for Anthropic/GitHub Copilot, custom agents
 - **MCP & Skills** — MCP server management and skill support
 - **Audio** — Text-to-speech and speech-to-text (browser + OpenAI-compatible)
@@ -35,9 +35,9 @@ Subpolar is a mobile-first web interface for [OpenCode](https://opencode.ai) AI 
 
 Subpolar runs as a pnpm workspace:
 
-- The Bun/Hono backend initializes SQLite, Better Auth, settings, schedules, notifications, and an OpenCode client.
+- The Bun/Hono backend initializes SQLite, Better Auth, settings, automations, notifications, and an OpenCode client.
 - A supervised OpenCode server handles agent sessions while the backend proxies API calls and streams events over SSE.
-- The React/Vite frontend uses React Router and TanStack Query to render repositories, sessions, schedules, settings, and mobile navigation.
+- The React/Vite frontend uses React Router and TanStack Query to render repositories, sessions, automations, settings, and mobile navigation.
 - The shared package keeps config, schemas, and TypeScript types aligned between backend and frontend.
 
 ## Key Features
@@ -45,8 +45,8 @@ Subpolar runs as a pnpm workspace:
 - **Repositories & Git** — Multi-repo management, local discovery, SSH auth, worktrees, unified diffs, branch/commit management — [Learn more](features/git.md)
 - **Chat & Sessions** — Real-time SSE streaming, slash commands, `@file` mentions, Plan/Build modes, Mermaid diagrams — [Learn more](features/chat.md)
 - **Files** — Directory browser with tree view, syntax highlighting, create/rename/delete, ZIP download — [Learn more](features/files.md)
-- **Schedules** — Recurring repo jobs with reusable prompts, run history, linked sessions — [Learn more](features/schedules.md)
-- **Assistant Mode** — Dedicated AI workspace with auto-provisioned skills for schedule management, notifications, settings, and repo listing — [Learn more](features/assistant-mode.md)
+- **automations** — Recurring repo jobs with reusable prompts, run history, linked sessions — [Learn more](features/automations.md)
+- **Assistant Mode** — Dedicated AI workspace with auto-provisioned skills for automation management, notifications, settings, and repo listing — [Learn more](features/assistant-mode.md)
 - **AI Configuration** — Model/provider setup, OAuth for Anthropic/GitHub Copilot, custom agents — [Learn more](features/ai-config.md)
 - **MCP Servers** — Add local or remote MCP servers with OAuth support — [Learn more](features/mcp.md)
 - **Skills** — Skill support for extended agent capabilities — [Learn more](features/skills.md)
@@ -56,7 +56,7 @@ Subpolar runs as a pnpm workspace:
 
 ## Project Layout
 
-- `backend/` — Bun + Hono API routes, services, database migrations, auth, schedules, and OpenCode integration.
+- `backend/` — Bun + Hono API routes, services, database migrations, auth, automations, and OpenCode integration.
 - `frontend/` — React + Vite app, pages, components, hooks, API clients, stores, contexts, and PWA assets.
 - `shared/` — Workspace package for schemas, types, config, and utilities.
 - `docs/` — MkDocs Material documentation.
@@ -69,5 +69,5 @@ Subpolar runs as a pnpm workspace:
 - [Development Setup](development/setup.md) - Local environment, scripts, and testing
 - [Contributing](development/contributing.md) - How to contribute to Subpolar
 - [Features Overview](features/overview.md) - Explore all features
-- [Schedules & Recurring Jobs](features/schedules.md) - Automate recurring repo reviews and follow-ups
+- [automations & Recurring Jobs](features/automations.md) - Automate recurring repo reviews and follow-ups
 - [Configuration](configuration/environment.md) - Environment variables and setup

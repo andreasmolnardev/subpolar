@@ -12,7 +12,7 @@ import { createHealthRoutes } from './routes/health'
 import { createTTSRoutes, cleanupExpiredCache } from './routes/tts';
 import { createSTTRoutes } from './routes/stt'
 import { createFileRoutes } from './routes/files'
-import { createScheduleRoutes } from './routes/schedules'
+import { createAutomationRoutes } from './routes/automations'
 
 async function getAppVersion(): Promise<string> {
   try {
@@ -43,7 +43,7 @@ import { SettingsService } from './services/settings'
 import { opencodeServerManager } from './services/opencode-single-server'
 import { createOpenCodeClient } from './services/opencode/client'
 import { NotificationService } from './services/notification'
-import { ScheduleRunner, ScheduleService } from './services/schedules'
+import { AutomationRunner, AutomationService } from './services/automations'
 import { migrateGlobalSkills } from './services/skills'
 import { installAssistantWorkspace } from './services/assistant-mode'
 import { getOpenCodeImportStatus, syncOpenCodeImport } from './services/opencode-import'
@@ -287,8 +287,8 @@ try {
   logger.error('Failed to initialize workspace:', error)
 }
 
-const scheduleService = new ScheduleService(db, openCodeClient)
-const scheduleRunnerInstance = new ScheduleRunner(scheduleService)
+const automationService = new AutomationService(db, openCodeClient)
+const automationRunnerInstance = new AutomationRunner(automationService)
 
 const notificationService = new NotificationService(db)
 
@@ -315,7 +315,7 @@ sseAggregator.setPendingActionsFetcher(openCodeClient)
 sseAggregator.setPasswordResolver(() => new SettingsService(db).getOpenCodeServerPassword())
 sseAggregator.start()
 
-void scheduleRunnerInstance.start()
+void automationRunnerInstance.start()
 
 const settingsService = new SettingsService(db)
 
@@ -324,13 +324,13 @@ app.route('/api/auth-info', createAuthInfoRoutes(auth, db))
 app.route('/api/health', createHealthRoutes(db, openCodeSupervisor))
 
 app.route('/api/mcp-oauth-proxy', createMcpOauthProxyRoutes(openCodeClient, requireAuth))
-app.route('/api/internal', createInternalRoutes(db, scheduleService, notificationService, settingsService, openCodeClient))
+app.route('/api/internal', createInternalRoutes(db, automationService, notificationService, settingsService, openCodeClient))
 app.route('/api/opencode-proxy', createOpenCodeProxyRoutes(db, settingsService))
 
 const protectedApi = new Hono()
 protectedApi.use('/*', requireAuth)
 
-protectedApi.route('/repos', createRepoRoutes(db, gitAuthService, scheduleService, openCodeClient, openCodeSupervisor))
+protectedApi.route('/repos', createRepoRoutes(db, gitAuthService, automationService, openCodeClient, openCodeSupervisor))
 protectedApi.route('/settings', createSettingsRoutes(db, gitAuthService, openCodeClient, openCodeSupervisor))
 protectedApi.route('/files', createFileRoutes())
 protectedApi.route('/providers', createProvidersRoutes(db, openCodeClient, openCodeSupervisor))
@@ -341,7 +341,7 @@ protectedApi.route('/sse', createSSERoutes())
 protectedApi.route('/ssh', createSSHRoutes(gitAuthService))
 protectedApi.route('/notifications', createNotificationRoutes(notificationService))
 protectedApi.route('/prompt-templates', createPromptTemplateRoutes(db))
-protectedApi.route('/schedules', createScheduleRoutes(scheduleService))
+protectedApi.route('/automations', createAutomationRoutes(automationService))
 
 app.route('/api', protectedApi)
 
@@ -446,8 +446,8 @@ const shutdown = async (signal: string) => {
     if (openCodeSupervisor) {
       await openCodeSupervisor.stop()
     }
-    scheduleRunnerInstance?.stop()
-    logger.info('Schedule runner stopped')
+    automationRunnerInstance?.stop()
+    logger.info('Automation runner stopped')
     if (!openCodeSupervisor) {
       await opencodeServerManager.stop()
     }

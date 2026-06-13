@@ -27,7 +27,7 @@ const ASSISTANT_OPENCODE_CONFIG_FILENAME = 'opencode.json'
 const ASSISTANT_OPENCODE_DIR = '.opencode'
 const ASSISTANT_INTERNAL_TOKEN_FILENAME = 'internal-token'
 const ASSISTANT_SKILLS_DIR = 'skills'
-const ASSISTANT_SCHEDULES_SKILL_DIR = 'schedule-management'
+const ASSISTANT_AUTOMATIONS_SKILL_DIR = 'automation-management'
 const ASSISTANT_NOTIFICATIONS_SKILL_DIR = 'notifications'
 const ASSISTANT_SETTINGS_SKILL_DIR = 'manager-settings'
 const ASSISTANT_REPOS_SKILL_DIR = 'repo-management'
@@ -66,8 +66,8 @@ function getInternalTokenPath(assistantDir: string): string {
   return path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_INTERNAL_TOKEN_FILENAME)
 }
 
-function getSchedulesSkillPath(assistantDir: string): string {
-  return path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, ASSISTANT_SCHEDULES_SKILL_DIR, ASSISTANT_SKILL_FILENAME)
+function getAutomationsSkillPath(assistantDir: string): string {
+  return path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, ASSISTANT_AUTOMATIONS_SKILL_DIR, ASSISTANT_SKILL_FILENAME)
 }
 
 function getNotificationsSkillPath(assistantDir: string): string {
@@ -133,11 +133,11 @@ The agent MAY self-edit the following files within this workspace:
 
 ## Repo Management
 
-This workspace includes a skill at \`.opencode/skills/repo-management/SKILL.md\` for listing repos available to subpolar via the internal HTTP API. Load it before the schedule-management skill when you don't know the repo ID.
+This workspace includes a skill at \`.opencode/skills/repo-management/SKILL.md\` for listing repos available to subpolar via the internal HTTP API. Load it before the automation-management skill when you don't know the repo ID.
 
-## Schedule Management
+## Automation Management
 
-This workspace ships with a workspace-scoped skill at \`.opencode/skills/schedule-management/SKILL.md\` that documents how to list, create, update, delete, run, inspect, and cancel schedule jobs and runs across any repo via the internal HTTP API. Load it whenever the user asks about schedules.
+This workspace ships with a workspace-scoped skill at \`.opencode/skills/automation-management/SKILL.md\` that documents how to list, create, update, delete, run, inspect, and cancel automation jobs and runs across any repo via the internal HTTP API. Load it whenever the user asks about automations.
 
 ## Notifications
 
@@ -153,11 +153,11 @@ function buildLegacyAssistantAgentPrompt(): string {
   return [
     'You are the default Assistant Mode agent for subpolar.',
     '',
-    'This workspace is the shared assistant workspace. Help the user manage repos, schedules, notifications, settings, and assistant behavior safely.',
+    'This workspace is the shared assistant workspace. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.',
     '',
     'Use the workspace skills when relevant:',
-    '- Load repo-management before schedule-management when you need a repo ID.',
-    '- Load schedule-management for schedule jobs and runs.',
+    '- Load repo-management before automation-management when you need a repo ID.',
+    '- Load automation-management for automation jobs and runs.',
     '- Load notifications when the user should be notified about important events.',
     '- Load manager-settings when reading or safely updating UI preferences.',
     '',
@@ -229,7 +229,7 @@ This directory is the shared Assistant Mode workspace for subpolar.
 
 - \`opencode.json\` configures this workspace and selects the default assistant agent.
 - \`.opencode/agents/assistant.md\` contains the default assistant agent instructions, behavior, durable preferences, and self-editing rules.
-- \`.opencode/skills/\` contains managed workspace skills for repos, schedules, notifications, and settings.
+- \`.opencode/skills/\` contains managed workspace skills for repos, automations, notifications, and settings.
 - \`.opencode/internal-token\` is managed by subpolar for internal API authentication.
 
 Assistant-specific instructions belong in \`.opencode/agents/assistant.md\`.
@@ -240,7 +240,7 @@ function buildPreviousAssistantAgentPrompt(): string {
   return [
     'You are the default Assistant Mode agent for subpolar.',
     '',
-    'This workspace is the shared assistant workspace for subpolar. Help the user manage repos, schedules, notifications, settings, and assistant behavior safely.',
+    'This workspace is the shared assistant workspace for subpolar. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.',
     '',
     '## Self-Editing Rules',
     '',
@@ -253,8 +253,8 @@ function buildPreviousAssistantAgentPrompt(): string {
     '## Skill Usage',
     '',
     'Use the workspace skills when relevant:',
-    '- Load `repo-management` before `schedule-management` when you need a repo ID.',
-    '- Load `schedule-management` for schedule jobs and runs.',
+    '- Load `repo-management` before `automation-management` when you need a repo ID.',
+    '- Load `automation-management` for automation jobs and runs.',
     '- Load `notifications` when the user should be notified about important events.',
     '- Load `manager-settings` when reading or safely updating UI preferences.',
   ].join('\n')
@@ -264,7 +264,7 @@ function buildAssistantAgentPrompt(): string {
   return [
     'You are the default Assistant Mode agent for subpolar.',
     '',
-    'This workspace is the shared assistant workspace for subpolar. Help the user manage repos, schedules, notifications, settings, and assistant behavior safely.',
+    'This workspace is the shared assistant workspace for subpolar. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.',
     '',
     '## Self-Editing Rules',
     '',
@@ -279,8 +279,8 @@ function buildAssistantAgentPrompt(): string {
     '## Skill Usage',
     '',
     'Use the workspace skills when relevant:',
-    '- Load `repo-management` before `schedule-management` when you need a repo ID.',
-    '- Load `schedule-management` for schedule jobs and runs.',
+    '- Load `repo-management` before `automation-management` when you need a repo ID.',
+    '- Load `automation-management` for automation jobs and runs.',
     '- Load `notifications` when the user should be notified about important events.',
     '- Load `manager-settings` when reading or safely updating UI preferences.',
   ].join('\n')
@@ -314,17 +314,17 @@ function toLocalhostInternalBaseUrl(baseUrl: string): string {
   return url.toString().replace(/\/$/, '')
 }
 
-export function buildSchedulesSkill(baseUrl: string): string {
+export function buildAutomationsSkill(baseUrl: string): string {
   const internalBaseUrl = toLocalhostInternalBaseUrl(baseUrl)
 
   return `---
-name: schedule-management
-description: Manage schedule jobs and runs across any repo via the internal HTTP API
+name: automation-management
+description: Manage automation jobs and runs across any repo via the internal HTTP API
 ---
 
 ## When to Load
 
-Load this skill when the user asks about managing schedules, schedule jobs, schedule runs, or anything related to automated task execution across repos.
+Load this skill when the user asks about managing automations, automation jobs, automation runs, or anything related to automated task execution across repos.
 
 ## Authentication
 
@@ -338,99 +338,99 @@ Authorization: Bearer <token>
 
 \`${internalBaseUrl}\`
 
-## Assistant Schedules
+## Assistant Automations
 
-Use repo ID \`0\` for the built-in Assistant. For example, use \`/repos/0/schedules\` to list or create schedule jobs that run in the Assistant workspace.
+Use repo ID \`0\` for the built-in Assistant. For example, use \`/repos/0/automations\` to list or create automation jobs that run in the Assistant workspace.
 
 ## Endpoints
 
-### GET /schedules/all
-List all schedule jobs across all repos.
+### GET /automations/all
+List all automation jobs across all repos.
 
 \`\`\`bash
-curl -H "Authorization: Bearer <token>" ${internalBaseUrl}/schedules/all
+curl -H "Authorization: Bearer <token>" ${internalBaseUrl}/automations/all
 \`\`\`
 
-### GET /schedules/all/runs
-List all schedule runs across all repos with optional filtering.
+### GET /automations/all/runs
+List all automation runs across all repos with optional filtering.
 
 Query params: \`limit\`, \`offset\`, \`status\`, \`repoId\`, \`jobId\`, \`triggerSource\`
 
 \`\`\`bash
-curl -H "Authorization: Bearer <token>" "${internalBaseUrl}/schedules/all/runs?limit=20"
+curl -H "Authorization: Bearer <token>" "${internalBaseUrl}/automations/all/runs?limit=20"
 \`\`\`
 
-### GET /repos/:repoId/schedules
-List all schedule jobs for a specific repo.
+### GET /repos/:repoId/automations
+List all automation jobs for a specific repo.
 
 \`\`\`bash
-curl -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/schedules
+curl -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/automations
 \`\`\`
 
-### POST /repos/:repoId/schedules
-Create a new schedule job.
+### POST /repos/:repoId/automations
+Create a new automation job.
 
-Body matches \`CreateScheduleJobRequest\` schema (discriminated union with \`scheduleMode: 'interval' | 'cron'\`).
+Body matches \`CreateAutomationJobRequest\` schema (discriminated union with \`automationMode: 'interval' | 'cron'\`).
 
 \`\`\`bash
 curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \\
-  -d '{"name":"my-job","prompt":"do something","scheduleMode":"interval","intervalMinutes":60}' \\
-  ${internalBaseUrl}/repos/:repoId/schedules
+  -d '{"name":"my-job","prompt":"do something","automationMode":"interval","intervalMinutes":60}' \\
+  ${internalBaseUrl}/repos/:repoId/automations
 \`\`\`
 
-### GET /repos/:repoId/schedules/:jobId
-Get a specific schedule job.
+### GET /repos/:repoId/automations/:jobId
+Get a specific automation job.
 
 \`\`\`bash
-curl -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/schedules/:jobId
+curl -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/automations/:jobId
 \`\`\`
 
-### PATCH /repos/:repoId/schedules/:jobId
-Update an existing schedule job.
+### PATCH /repos/:repoId/automations/:jobId
+Update an existing automation job.
 
-Body matches \`UpdateScheduleJobRequest\` schema.
+Body matches \`UpdateAutomationJobRequest\` schema.
 
 \`\`\`bash
 curl -X PATCH -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \\
   -d '{"enabled":false}' \\
-  ${internalBaseUrl}/repos/:repoId/schedules/:jobId
+  ${internalBaseUrl}/repos/:repoId/automations/:jobId
 \`\`\`
 
-### DELETE /repos/:repoId/schedules/:jobId
-Delete a schedule job.
+### DELETE /repos/:repoId/automations/:jobId
+Delete an automation job.
 
 \`\`\`bash
-curl -X DELETE -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/schedules/:jobId
+curl -X DELETE -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/automations/:jobId
 \`\`\`
 
-### POST /repos/:repoId/schedules/:jobId/run
-Manually trigger a schedule job.
+### POST /repos/:repoId/automations/:jobId/run
+Manually trigger an automation job.
 
 \`\`\`bash
-curl -X POST -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/schedules/:jobId/run
+curl -X POST -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/automations/:jobId/run
 \`\`\`
 
-### GET /repos/:repoId/schedules/:jobId/runs
+### GET /repos/:repoId/automations/:jobId/runs
 List runs for a specific job.
 
 Query params: \`limit\`
 
 \`\`\`bash
-curl -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/schedules/:jobId/runs?limit=20
+curl -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/automations/:jobId/runs?limit=20
 \`\`\`
 
-### GET /repos/:repoId/schedules/:jobId/runs/:runId
-Get a specific schedule run.
+### GET /repos/:repoId/automations/:jobId/runs/:runId
+Get a specific automation run.
 
 \`\`\`bash
-curl -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/schedules/:jobId/runs/:runId
+curl -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/automations/:jobId/runs/:runId
 \`\`\`
 
-### POST /repos/:repoId/schedules/:jobId/runs/:runId/cancel
-Cancel a running schedule run.
+### POST /repos/:repoId/automations/:jobId/runs/:runId/cancel
+Cancel a running automation run.
 
 \`\`\`bash
-curl -X POST -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/schedules/:jobId/runs/:runId/cancel
+curl -X POST -H "Authorization: Bearer <token>" ${internalBaseUrl}/repos/:repoId/automations/:jobId/runs/:runId/cancel
 \`\`\`
 
 ## Safety
@@ -652,7 +652,7 @@ description: List repos available to subpolar via the internal HTTP API
 
 ## When to Load
 
-Load this skill when you need to discover repos, look up repo IDs, or need to reference repo information before managing schedules. Load it before the schedule-management skill if you don't know the repo ID.
+Load this skill when you need to discover repos, look up repo IDs, or need to reference repo information before managing automations. Load it before the automation-management skill if you don't know the repo ID.
 
 ## Authentication
 
@@ -701,7 +701,7 @@ curl -H "Authorization: Bearer <token>" "${internalBaseUrl}/repos"
 
 ## Notes
 
-- Use \`id\` as \`:repoId\` in other API endpoints (e.g., \`/repos/:repoId/schedules\`)
+- Use \`id\` as \`:repoId\` in other API endpoints (e.g., \`/repos/:repoId/automations\`)
 - \`fullPath\` is the absolute local path - use it for file operations
 - This endpoint is read-only - there are no POST/PUT/DELETE operations for repos
 - \`currentBranch\` is not included in the response - it requires git operations to determine
@@ -739,7 +739,7 @@ export async function ensureAssistantMode(
   const agentsMdPath = path.join(assistantDir, ASSISTANT_AGENTS_MD_FILENAME)
   const opencodeJsonPath = path.join(assistantDir, ASSISTANT_OPENCODE_CONFIG_FILENAME)
   const tokenPath = getInternalTokenPath(assistantDir)
-  const skillPath = getSchedulesSkillPath(assistantDir)
+  const automationsSkillPath = getAutomationsSkillPath(assistantDir)
   const assistantAgentPath = getAssistantDefaultAgentPath(assistantDir)
 
   const agentsMdExists = await fileExists(agentsMdPath)
@@ -815,7 +815,7 @@ export async function ensureAssistantMode(
 
   await ensureDirectoryExists(path.join(assistantDir, ASSISTANT_OPENCODE_DIR))
   await ensureDirectoryExists(path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_AGENTS_DIR))
-  await ensureDirectoryExists(path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, ASSISTANT_SCHEDULES_SKILL_DIR))
+  await ensureDirectoryExists(path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, ASSISTANT_AUTOMATIONS_SKILL_DIR))
   await ensureDirectoryExists(path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, ASSISTANT_NOTIFICATIONS_SKILL_DIR))
   await ensureDirectoryExists(path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, ASSISTANT_SETTINGS_SKILL_DIR))
   await ensureDirectoryExists(path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, ASSISTANT_REPOS_SKILL_DIR))
@@ -827,11 +827,11 @@ export async function ensureAssistantMode(
     await writeFileContent(tokenPath, token)
   }
 
-  const schedulesSkillContent = buildSchedulesSkill(deps.apiBaseUrl)
-  const existingSchedulesSkillContent = await fileExists(skillPath) ? await readFileContent(skillPath) : undefined
-  const schedulesSkillCreated = !hasSameContentHash(existingSchedulesSkillContent, schedulesSkillContent)
-  if (schedulesSkillCreated) {
-    await writeFileContent(skillPath, schedulesSkillContent)
+  const automationsSkillContent = buildAutomationsSkill(deps.apiBaseUrl)
+  const existingAutomationsSkillContent = await fileExists(automationsSkillPath) ? await readFileContent(automationsSkillPath) : undefined
+  const automationsSkillCreated = !hasSameContentHash(existingAutomationsSkillContent, automationsSkillContent)
+  if (automationsSkillCreated) {
+    await writeFileContent(automationsSkillPath, automationsSkillContent)
   }
 
   const notificationsSkillPath = getNotificationsSkillPath(assistantDir)
@@ -907,9 +907,9 @@ export async function ensureAssistantMode(
       path: tokenPath,
       created: tokenCreated,
     },
-    schedulesSkill: {
-      path: skillPath,
-      created: schedulesSkillCreated,
+    automationsSkill: {
+      path: automationsSkillPath,
+      created: automationsSkillCreated,
     },
     notificationsSkill: {
       path: notificationsSkillPath,
@@ -1023,7 +1023,7 @@ export async function getAssistantModeStatus(repo: Repo): Promise<AssistantModeS
   const agentsMdPath = path.join(assistantDir, ASSISTANT_AGENTS_MD_FILENAME)
   const opencodeJsonPath = path.join(assistantDir, ASSISTANT_OPENCODE_CONFIG_FILENAME)
   const tokenPath = getInternalTokenPath(assistantDir)
-  const skillPath = getSchedulesSkillPath(assistantDir)
+  const skillPath = getAutomationsSkillPath(assistantDir)
   const notificationsSkillPath = getNotificationsSkillPath(assistantDir)
   const settingsSkillPath = getSettingsSkillPath(assistantDir)
   const reposSkillPath = getReposSkillPath(assistantDir)
@@ -1053,7 +1053,7 @@ export async function getAssistantModeStatus(repo: Repo): Promise<AssistantModeS
       path: tokenPath,
       created: false,
     },
-    schedulesSkill: {
+    automationsSkill: {
       path: skillPath,
       created: false,
     },

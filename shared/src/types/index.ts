@@ -108,18 +108,18 @@ export type {
 } from '../schemas/settings'
 
 export type {
-  ScheduleMode,
-  ScheduleRunTriggerSource,
-  ScheduleRunStatus,
-  ScheduleSkillMetadata,
-  ScheduleJob,
-  ScheduleRun,
-  CreateScheduleJobRequest,
-  UpdateScheduleJobRequest,
+  AutomationMode,
+  AutomationRunTriggerSource,
+  AutomationRunStatus,
+  AutomationSkillMetadata,
+  AutomationJob,
+  AutomationRun,
+  CreateAutomationJobRequest,
+  UpdateAutomationJobRequest,
   PromptTemplate,
   CreatePromptTemplateRequest,
   UpdatePromptTemplateRequest,
-} from '../schemas/schedule'
+} from '../schemas/automation'
 
 export type {
   SkillScope,

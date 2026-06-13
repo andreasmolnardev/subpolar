@@ -80,7 +80,7 @@ export function MoreDrawer({ isOpen, onClose }: MoreDrawerProps) {
 
   const handleItemClick = (item: ReturnType<typeof buildMoreItems>[0]) => {
     if (item.to) {
-      const to = item.key === 'schedules'
+      const to = item.key === 'automations'
         ? getPathWithReturnTo(item.to, `${location.pathname}${location.search}`)
         : item.to
       navigate(to)

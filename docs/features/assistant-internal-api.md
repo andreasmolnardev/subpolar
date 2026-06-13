@@ -190,7 +190,7 @@ Retrieve a list of all managed repositories, ordered by the user's repo preferen
 
 The assistant workspace includes four skills that document these capabilities:
 
-1. **Schedule Management** (`.opencode/skills/schedule-management/SKILL.md`)
+1. **automation Management** (`.opencode/skills/automation-management/SKILL.md`)
 2. **Notifications** (`.opencode/skills/notifications/SKILL.md`)
 3. **Manager Settings** (`.opencode/skills/manager-settings/SKILL.md`)
 4. **Repo Management** (`.opencode/skills/repo-management/SKILL.md`)

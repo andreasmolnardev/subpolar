@@ -1,23 +1,16 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { RepoList } from "@/components/repo/RepoList";
 import { AddRepoDialog } from "@/components/repo/AddRepoDialog";
-import { FileBrowserSheet } from "@/components/file-browser/FileBrowserSheet";
 import { Header } from "@/components/ui/header";
 import { Button } from "@/components/ui/button";
-import { Plus, FolderOpen, CalendarClock } from "lucide-react";
+import { Plus, Zap } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { PendingActionsGroup } from "@/components/notifications/PendingActionsGroup";
 import { useSidebarAction } from "@/hooks/useSidebarAction";
-import { useDialogParam } from "@/hooks/useDialogParam";
 
 export function Repos() {
   const navigate = useNavigate();
   const [addRepoOpen, setAddRepoOpen] = useState(false);
-  const [fileBrowserOpen, setFileBrowserOpen] = useDialogParam('files');
-
-  const handleCloseFileBrowser = () => {
-    setFileBrowserOpen(false);
-  };
 
   useSidebarAction('new-repo', () => {
     setAddRepoOpen(true);
@@ -34,29 +27,18 @@ export function Repos() {
             <PendingActionsGroup />
           </div>
           <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setFileBrowserOpen(true)}
-            className="hidden sm:flex text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 h-8 w-8"
-          >
-            <FolderOpen className="w-4 h-4" />
-          </Button>
-          <Button
             variant="outline"
-            onClick={() => navigate('/schedules')}
+            onClick={() => navigate('/automations')}
             size="sm"
-            className="hidden sm:flex text-foreground border-border hover:bg-accent transition-all duration-200 hover:scale-105"
+            className="hidden sm:flex text-foreground border-border hover:bg-accent"
           >
-            <CalendarClock className="w-4 h-4 mr-2" />
-            All Schedules
+            <Zap className="w-4 h-4 mr-2" />
+            Automations
           </Button>
           <Button onClick={() => setAddRepoOpen(true)} size="sm">
             <Plus className="w-4 h-4 mr-1" />
             Repo
           </Button>
-          <span>
-            <Header.Settings />
-          </span>
         </Header.Actions>
       </Header>
       <div className="container mx-auto flex-1 pt-2 px-2 min-h-0 overflow-auto pb-[calc(env(safe-area-inset-bottom)+60px)] sm:pb-0">
@@ -64,13 +46,6 @@ export function Repos() {
         <RepoList />
       </div>
       <AddRepoDialog open={addRepoOpen} onOpenChange={setAddRepoOpen} />
-      <FileBrowserSheet
-        isOpen={fileBrowserOpen}
-        onClose={handleCloseFileBrowser}
-        basePath=""
-        repoName="Workspace Root"
-        allowNavigateAboveBase={true}
-      />
     </div>
   );
 }

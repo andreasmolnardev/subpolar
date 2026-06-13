@@ -250,16 +250,16 @@ describe('MoreDrawer', () => {
     expect(screen.queryByText('wrong-repo')).not.toBeInTheDocument()
   })
 
-  it('preserves session route as return target when opening schedules', () => {
+  it('preserves session route as return target when opening automations', () => {
     const navigateMock = vi.fn()
     vi.mocked(useNavigate).mockReturnValue(navigateMock)
     mockAuth()
     mockServerHealth()
     renderMoreDrawer({ initialEntry: '/repos/1/sessions/session-1?assistant=1', routePath: '/repos/:id/sessions/:sessionId' })
 
-    fireEvent.click(screen.getByText('Schedules'))
+    fireEvent.click(screen.getByText('automations'))
 
-    expect(navigateMock).toHaveBeenCalledWith('/repos/1/schedules?returnTo=%2Frepos%2F1%2Fsessions%2Fsession-1%3Fassistant%3D1')
+    expect(navigateMock).toHaveBeenCalledWith('/repos/1/automations?returnTo=%2Frepos%2F1%2Fsessions%2Fsession-1%3Fassistant%3D1')
   })
 
 })

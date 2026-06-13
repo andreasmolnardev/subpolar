@@ -359,7 +359,7 @@ class SSEAggregator {
         logger.warn(`SSE upstream error${code ? ` (code=${code})` : ''}${message ? `: ${message}` : ''}`)
         es.close()
         this.upstream = null
-        this.scheduleReconnect()
+        this.automationReconnect()
       }
     }
 
@@ -368,7 +368,7 @@ class SSEAggregator {
     }
   }
 
-  private scheduleReconnect(): void {
+  private automationReconnect(): void {
     if (!this.started || this.reconnectTimeout) return
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectTimeout = null

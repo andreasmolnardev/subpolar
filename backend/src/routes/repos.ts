@@ -16,9 +16,9 @@ import { getErrorMessage, getStatusCode } from '../utils/error-utils'
 import { getOpenCodeConfigFilePath } from '@subpolar/shared/config/env'
 import { ASSISTANT_REPO_ID } from '@subpolar/shared/utils'
 import { createRepoGitRoutes } from './repo-git'
-import { createScheduleRoutes } from './schedules'
+import { createAutomationRoutes } from './automations'
 import type { GitAuthService } from '../services/git-auth'
-import { ScheduleService } from '../services/schedules'
+import { AutomationService } from '../services/automations'
 import { ensureAssistantMode, getAssistantModeStatus, buildAssistantRepo } from '../services/assistant-mode'
 import path from 'path'
 
@@ -39,14 +39,14 @@ function resolveRepo(database: Database, id: number): Repo | null {
 export function createRepoRoutes(
   database: Database,
   gitAuthService: GitAuthService,
-  scheduleService: ScheduleService,
+  automationService: AutomationService,
   openCodeClient: OpenCodeClient,
   openCodeSupervisor?: OpenCodeSupervisor,
 ) {
   const app = new Hono()
 
   app.route('/', createRepoGitRoutes(database, gitAuthService))
-  app.route('/:id/schedules', createScheduleRoutes(scheduleService))
+  app.route('/:id/automations', createAutomationRoutes(automationService))
 
   app.post('/', async (c) => {
     try {
@@ -282,7 +282,7 @@ app.get('/', async (c) => {
         return c.json({ error: 'Repo not found' }, 404)
       }
       
-      scheduleService.prepareRepoDelete(id)
+      automationService.prepareRepoDelete(id)
       
       await repoService.deleteRepoFiles(database, id)
       

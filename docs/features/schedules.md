@@ -1,10 +1,10 @@
-# Schedules & Recurring Jobs
+# automations & Recurring Jobs
 
 Create recurring repo jobs that run reusable prompts against a repository, store run history, and link every run back to a normal OpenCode session.
 
-## What Schedules Are Good For
+## What automations Are Good For
 
-Schedules make Subpolar proactive instead of purely session-driven. Good examples include:
+automations make Subpolar proactive instead of purely session-driven. Good examples include:
 
 - **Repo health reports** for a quick morning review
 - **Dependency watchlists** to catch upgrade pressure early
@@ -14,21 +14,21 @@ Schedules make Subpolar proactive instead of purely session-driven. Good example
 
 Each run is stored with status, timestamps, logs, assistant output, and a linked session you can open and continue.
 
-## Creating a Schedule
+## Creating a automation
 
 1. Open a repository
-2. Click **Schedules**
-3. Click **New Schedule**
+2. Click **automations**
+3. Click **New automation**
 4. Configure the job name, prompt, timing, and optional overrides
-5. Save the schedule
+5. Save the automation
 
-The schedule is scoped to the current repository.
+The automation is scoped to the current repository.
 
-![Schedule Creation](../images/schedules/09-schedule-creation.png)
+![automation Creation](../images/automations/09-automation-creation.png)
 
 ## Timing Options
 
-The schedule builder supports both simple presets and advanced cron:
+The automation builder supports both simple presets and advanced cron:
 
 - **Interval** - Repeat every N minutes
 - **Hourly** - Run once each hour at a chosen minute
@@ -38,9 +38,9 @@ The schedule builder supports both simple presets and advanced cron:
 - **Monthly** - Run on a day of the month
 - **Advanced** - Enter a cron expression directly
 
-Cron-based schedules also store a timezone so runs happen when expected.
+Cron-based automations also store a timezone so runs happen when expected.
 
-![Timing Options](../images/schedules/10-timing-options.png)
+![Timing Options](../images/automations/10-timing-options.png)
 
 ## Prompt Templates
 
@@ -55,11 +55,11 @@ Built-in prompt templates help you start quickly with recurring jobs like:
 - Security and config review
 - CI and ops review
 
-Applying a template fills the schedule name, description, and prompt so you can customize from a strong default instead of starting from scratch.
+Applying a template fills the automation name, description, and prompt so you can customize from a strong default instead of starting from scratch.
 
 ## Agent and Model Overrides
 
-Schedules can run with:
+automations can run with:
 
 - the default workspace agent and model
 - a custom agent slug
@@ -69,17 +69,17 @@ If a requested model is no longer available, Subpolar falls back to a valid conf
 
 ## Run History
 
-Each schedule stores a run history panel with:
+Each automation stores a run history panel with:
 
 - **Status** - Running, completed, or failed
-- **Trigger source** - Manual or scheduled
+- **Trigger source** - Manual or automationd
 - **Log output** - Execution metadata and captured results
 - **Assistant output** - Rendered markdown preview and raw markdown
 - **Errors** - Failure details when a run does not complete
 
 This makes recurring jobs easy to review without digging through raw session data first.
 
-![Run History](../images/schedules/11-run-history-view.png)
+![Run History](../images/automations/11-run-history-view.png)
 
 ## Linked Sessions
 
@@ -97,10 +97,10 @@ This keeps automation connected to the rest of the Subpolar workflow instead of 
 ## Best Practices
 
 - Keep prompts focused on one recurring outcome
-- Prefer a few high-value schedules per repo over many overlapping jobs
-- Use manual runs to validate a prompt before relying on the schedule
+- Prefer a few high-value automations per repo over many overlapping jobs
+- Use manual runs to validate a prompt before relying on the automation
 - Review failed runs quickly so broken provider or permission setups do not go unnoticed
-- Treat schedules as reusable repo routines, not long-running background workers
+- Treat automations as reusable repo routines, not long-running background workers
 
 ## Troubleshooting
 
@@ -118,8 +118,8 @@ If a run starts but does not produce assistant output:
 1. Open the linked session
 2. Check for a provider error
 3. Check whether the agent asked a question or needed permission
-4. Re-run the schedule manually after fixing the issue
+4. Re-run the automation manually after fixing the issue
 
 ### Prompt Needs Iteration
 
-Use **Run now** to test prompt changes immediately before waiting for the next scheduled run.
+Use **Run now** to test prompt changes immediately before waiting for the next automationd run.

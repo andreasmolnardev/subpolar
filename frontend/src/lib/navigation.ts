@@ -63,7 +63,7 @@ export function getSwipeBackTarget(pathname: string, search = ''): string | null
     return '/';
   }
 
-  if (/^\/repos\/[^/]+\/schedules$/.test(pathname)) {
+  if (/^\/repos\/[^/]+\/automations$/.test(pathname)) {
     const returnTo = getReturnToPath(search, '');
     if (returnTo) return returnTo;
     const repoId = pathname.split('/')[2];
@@ -73,7 +73,7 @@ export function getSwipeBackTarget(pathname: string, search = ''): string | null
     return `/repos/${repoId}`;
   }
 
-  if (pathname === '/schedules') {
+  if (pathname === '/automations') {
     return '/';
   }
 

@@ -2,27 +2,27 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test'
 import path from 'path'
 import { readFile, stat, writeFile } from 'fs/promises'
 import { Hono } from 'hono'
-import { ensureAssistantMode, getAssistantModeStatus, buildSchedulesSkill, buildReposSkill, buildSettingsSkill, buildAssistantDefaultAgentMd, buildAssistantOpenCodeConfig, buildAssistantRepo, installAssistantWorkspace } from '../../src/services/assistant-mode'
+import { ensureAssistantMode, getAssistantModeStatus, buildautomationsSkill, buildReposSkill, buildSettingsSkill, buildAssistantDefaultAgentMd, buildAssistantOpenCodeConfig, buildAssistantRepo, installAssistantWorkspace } from '../../src/services/assistant-mode'
 import { createTempAssistantWorkspace, createTestDb, mockRepo } from '../helpers/assistant-workspace'
 import { createInternalRoutes } from '../../src/routes/internal'
-import { ScheduleService } from '../../src/services/schedules'
+import { automationservice } from '../../src/services/automations'
 import { NotificationService } from '../../src/services/notification'
 import { SettingsService } from '../../src/services/settings'
 import { createOpenCodeClient } from '../../src/services/opencode/client'
 import { getRepoById } from '../../src/db/queries'
 import { ENV } from '@subpolar/shared/config/env'
 
-describe('buildSchedulesSkill', () => {
+describe('buildautomationsSkill', () => {
   it('uses ENV.SERVER.PORT in the internal base URL', () => {
-    const skill = buildSchedulesSkill('https://example.com:443/api/internal')
+    const skill = buildautomationsSkill('https://example.com:443/api/internal')
     expect(skill).toContain(`http://localhost:${ENV.SERVER.PORT}/api/internal`)
     expect(skill).not.toContain(':443')
   })
 
-  it('documents repoId 0 for Assistant schedules', () => {
-    const skill = buildSchedulesSkill('http://localhost:5003/api/internal')
+  it('documents repoId 0 for Assistant automations', () => {
+    const skill = buildautomationsSkill('http://localhost:5003/api/internal')
     expect(skill).toContain('Use repo ID `0` for the built-in Assistant')
-    expect(skill).toContain('/repos/0/schedules')
+    expect(skill).toContain('/repos/0/automations')
   })
 })
 
@@ -98,7 +98,7 @@ describe('buildAssistantDefaultAgentMd', () => {
   it('references workspace skills', () => {
     const content = buildAssistantDefaultAgentMd()
     expect(content).toContain('repo-management')
-    expect(content).toContain('schedule-management')
+    expect(content).toContain('automation-management')
     expect(content).toContain('notifications')
     expect(content).toContain('manager-settings')
   })
@@ -143,7 +143,7 @@ describe('ensureAssistantMode', () => {
     const agentsMd = await readFile(path.join(ws.assistantDir, 'AGENTS.md'), 'utf8')
     const opencodeJson = await readFile(path.join(ws.assistantDir, 'opencode.json'), 'utf8')
     const token = await readFile(path.join(ws.assistantDir, '.opencode/internal-token'), 'utf8')
-    const skill = await readFile(path.join(ws.assistantDir, '.opencode/skills/schedule-management/SKILL.md'), 'utf8')
+    const skill = await readFile(path.join(ws.assistantDir, '.opencode/skills/automation-management/SKILL.md'), 'utf8')
     const repoSkill = await readFile(path.join(ws.assistantDir, '.opencode/skills/repo-management/SKILL.md'), 'utf8')
     const assistantAgent = await readFile(path.join(ws.assistantDir, '.opencode/agents/assistant.md'), 'utf8')
 
@@ -184,7 +184,7 @@ describe('ensureAssistantMode', () => {
     expect(secondToken).toBe(firstToken)
     expect(secondStat.mtimeMs).toBe(firstStat.mtimeMs)
     expect(result.internalToken?.created).toBe(false)
-    expect(result.schedulesSkill?.created).toBe(false)
+    expect(result.automationsSkill?.created).toBe(false)
     expect(result.repoManagementSkill?.created).toBe(false)
   })
 
@@ -193,7 +193,7 @@ describe('ensureAssistantMode', () => {
 
     const opencodeJsonPath = path.join(ws.assistantDir, 'opencode.json')
     const agentsMdPath = path.join(ws.assistantDir, 'AGENTS.md')
-    const schedulesSkillPath = path.join(ws.assistantDir, '.opencode/skills/schedule-management/SKILL.md')
+    const automationsSkillPath = path.join(ws.assistantDir, '.opencode/skills/automation-management/SKILL.md')
     const notificationsSkillPath = path.join(ws.assistantDir, '.opencode/skills/notifications/SKILL.md')
     const settingsSkillPath = path.join(ws.assistantDir, '.opencode/skills/manager-settings/SKILL.md')
     const reposSkillPath = path.join(ws.assistantDir, '.opencode/skills/repo-management/SKILL.md')
@@ -222,16 +222,16 @@ describe('ensureAssistantMode', () => {
     expect(agentsMdContent).toContain('Assistant Mode Workspace')
     expect(agentsMdContent).toContain('.opencode/agents/assistant.md')
     expect(agentsMdContent).not.toContain('Self-Editing Rules')
-    expect(agentsMdContent).not.toContain('Schedule Management')
+    expect(agentsMdContent).not.toContain('automation Management')
     expect(agentsMdContent).not.toContain('Notifications')
     expect(agentsMdContent).not.toContain('Settings Management')
     expect(agentsMdContent).not.toContain('Repo Management')
 
-    const schedulesSkillContent = await readFile(schedulesSkillPath, 'utf8')
-    expect(schedulesSkillContent).toContain('name: schedule-management')
-    expect(schedulesSkillContent).toContain('Manage schedule jobs')
-    expect(schedulesSkillContent).toContain('Use repo ID `0` for the built-in Assistant')
-    expect(schedulesSkillContent).toContain('/repos/0/schedules')
+    const automationsSkillContent = await readFile(automationsSkillPath, 'utf8')
+    expect(automationsSkillContent).toContain('name: automation-management')
+    expect(automationsSkillContent).toContain('Manage automation jobs')
+    expect(automationsSkillContent).toContain('Use repo ID `0` for the built-in Assistant')
+    expect(automationsSkillContent).toContain('/repos/0/automations')
 
     const notificationsSkillContent = await readFile(notificationsSkillPath, 'utf8')
     expect(notificationsSkillContent).toContain('name: notifications')
@@ -249,7 +249,7 @@ describe('ensureAssistantMode', () => {
     expect(assistantAgentContent).toContain('mode: primary')
     expect(assistantAgentContent).toContain('Self-Editing')
     expect(assistantAgentContent).toContain('repo-management')
-    expect(assistantAgentContent).toContain('schedule-management')
+    expect(assistantAgentContent).toContain('automation-management')
     expect(assistantAgentContent).toContain('notifications')
     expect(assistantAgentContent).toContain('manager-settings')
 
@@ -373,11 +373,11 @@ The agent MAY self-edit the following files within this workspace:
 
 ## Repo Management
 
-This workspace includes a skill at \`.opencode/skills/repo-management/SKILL.md\` for listing repos available to subpolar via the internal HTTP API. Load it before the schedule-management skill when you don't know the repo ID.
+This workspace includes a skill at \`.opencode/skills/repo-management/SKILL.md\` for listing repos available to subpolar via the internal HTTP API. Load it before the automation-management skill when you don't know the repo ID.
 
-## Schedule Management
+## automation Management
 
-This workspace ships with a workspace-scoped skill at \`.opencode/skills/schedule-management/SKILL.md\` that documents how to list, create, update, delete, run, inspect, and cancel schedule jobs and runs across any repo via the internal HTTP API. Load it whenever the user asks about schedules.
+This workspace ships with a workspace-scoped skill at \`.opencode/skills/automation-management/SKILL.md\` that documents how to list, create, update, delete, run, inspect, and cancel automation jobs and runs across any repo via the internal HTTP API. Load it whenever the user asks about automations.
 
 ## Notifications
 
@@ -403,11 +403,11 @@ permission:
 
 You are the default Assistant Mode agent for subpolar.
 
-This workspace is the shared assistant workspace. Help the user manage repos, schedules, notifications, settings, and assistant behavior safely.
+This workspace is the shared assistant workspace. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.
 
 Use the workspace skills when relevant:
-- Load repo-management before schedule-management when you need a repo ID.
-- Load schedule-management for schedule jobs and runs.
+- Load repo-management before automation-management when you need a repo ID.
+- Load automation-management for automation jobs and runs.
 - Load notifications when the user should be notified about important events.
 - Load manager-settings when reading or safely updating UI preferences.
 
@@ -468,7 +468,7 @@ Ask before destructive operations or changes outside this assistant workspace.
     expect(updatedAssistantAgent).toContain('/assistant/reload')
     expect(updatedAssistantAgent).toContain('Always ask the user before reloading')
     expect(updatedAssistantAgent).toContain('repo-management')
-    expect(updatedAssistantAgent).toContain('schedule-management')
+    expect(updatedAssistantAgent).toContain('automation-management')
     expect(updatedAssistantAgent).toContain('notifications')
     expect(updatedAssistantAgent).toContain('manager-settings')
 
@@ -525,11 +525,11 @@ permission:
 
 You are the default Assistant Mode agent for subpolar.
 
-This workspace is the shared assistant workspace. Help the user manage repos, schedules, notifications, settings, and assistant behavior safely.
+This workspace is the shared assistant workspace. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.
 
 Use the workspace skills when relevant:
-- Load repo-management before schedule-management when you need a repo ID.
-- Load schedule-management for schedule jobs and runs.
+- Load repo-management before automation-management when you need a repo ID.
+- Load automation-management for automation jobs and runs.
 - Load notifications when the user should be notified about important events.
 - Load manager-settings when reading or safely updating UI preferences.
 
@@ -574,22 +574,22 @@ describe('assistant-mode end-to-end', () => {
   })
   afterEach(async () => { await ws.cleanup() })
 
-  it('token written by ensureAssistantMode authenticates a request to /api/internal/schedules/all', async () => {
+  it('token written by ensureAssistantMode authenticates a request to /api/internal/automations/all', async () => {
     const apiBaseUrl = 'http://127.0.0.1:5003/api/internal'
     await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
 
     const token = (await readFile(path.join(ws.assistantDir, '.opencode/internal-token'), 'utf8')).trim()
 
-    const scheduleService = new ScheduleService(db, createOpenCodeClient())
+    const automationservice = new automationservice(db, createOpenCodeClient())
     const notificationService = new NotificationService(db)
     const settingsService = new SettingsService(db)
     const app = new Hono()
-    app.route('/api/internal', createInternalRoutes(db, scheduleService, notificationService, settingsService, createOpenCodeClient()))
+    app.route('/api/internal', createInternalRoutes(db, automationservice, notificationService, settingsService, createOpenCodeClient()))
 
-    const unauth = await app.request('/api/internal/schedules/all')
+    const unauth = await app.request('/api/internal/automations/all')
     expect(unauth.status).toBe(401)
 
-    const authed = await app.request('/api/internal/schedules/all', {
+    const authed = await app.request('/api/internal/automations/all', {
       headers: { authorization: `Bearer ${token}` },
     })
     expect(authed.status).toBe(200)
@@ -662,13 +662,13 @@ describe('installAssistantWorkspace', () => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(99, null, 'assistant', null, null, 'main', 'ready', Date.now(), Date.now(), 0, 0)
     db.prepare(`
-      INSERT INTO schedule_jobs (
+      INSERT INTO automation_jobs (
         repo_id,
         name,
         description,
         enabled,
         interval_minutes,
-        schedule_mode,
+        automation_mode,
         cron_expression,
         timezone,
         agent_slug,
@@ -688,7 +688,7 @@ describe('installAssistantWorkspace', () => {
     const assistantRepo = getRepoById(db, 0)
     expect(assistantRepo?.localPath).toBe('assistant')
 
-    const migratedJob = db.prepare('SELECT repo_id FROM schedule_jobs WHERE name = ?').get('Assistant job') as { repo_id: number }
+    const migratedJob = db.prepare('SELECT repo_id FROM automation_jobs WHERE name = ?').get('Assistant job') as { repo_id: number }
     expect(migratedJob.repo_id).toBe(0)
   })
 

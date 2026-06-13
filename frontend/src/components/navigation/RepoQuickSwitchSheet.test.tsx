@@ -187,7 +187,7 @@ describe('RepoQuickSwitchSheet', () => {
     const handleClose = vi.fn()
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <MemoryRouter initialEntries={['/schedules?mobileTab=repos&mobileTabAction=assistant']}>
+        <MemoryRouter initialEntries={['/automations?mobileTab=repos&mobileTabAction=assistant']}>
           <Routes>
             <Route
               path="*"

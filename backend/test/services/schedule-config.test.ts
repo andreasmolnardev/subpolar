@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import type { ScheduleJob } from '@subpolar/shared/types'
+import type { AutomationJob } from '@subpolar/shared/types'
 import {
-  buildCreateSchedulePersistenceInput,
-  buildUpdatedSchedulePersistenceInput,
+  buildCreateAutomationPersistenceInput,
+  buildUpdatedAutomationPersistenceInput,
   computeNextRunAtForJob,
-} from '../../src/services/schedule-config'
+} from '../../src/services/automation-config'
 
-describe('schedule-config', () => {
-  it('builds interval schedule persistence input with trimmed fields', () => {
+describe('automation-config', () => {
+  it('builds interval automation persistence input with trimmed fields', () => {
     const currentDate = Date.UTC(2026, 2, 9, 12, 0, 0)
 
-    const result = buildCreateSchedulePersistenceInput({
+    const result = buildCreateAutomationPersistenceInput({
       name: '  Daily health check  ',
       description: '  Summarize repo health  ',
       enabled: true,
-      scheduleMode: 'interval',
+      automationMode: 'interval',
       intervalMinutes: 60,
       prompt: '  Review the repository and summarize risks.  ',
       agentSlug: '  code  ',
@@ -25,7 +25,7 @@ describe('schedule-config', () => {
       name: 'Daily health check',
       description: 'Summarize repo health',
       enabled: true,
-      scheduleMode: 'interval',
+      automationMode: 'interval',
       intervalMinutes: 60,
       cronExpression: null,
       timezone: null,
@@ -37,32 +37,32 @@ describe('schedule-config', () => {
     })
   })
 
-  it('defaults cron schedules to UTC and computes the next run', () => {
+  it('defaults cron automations to UTC and computes the next run', () => {
     const currentDate = Date.UTC(2026, 2, 9, 8, 15, 0)
 
-    const result = buildCreateSchedulePersistenceInput({
+    const result = buildCreateAutomationPersistenceInput({
       name: 'Morning report',
       enabled: true,
-      scheduleMode: 'cron',
+      automationMode: 'cron',
       cronExpression: ' 0 9 * * * ',
       timezone: '   ',
       prompt: 'Generate the daily report.',
     }, currentDate)
 
-    expect(result.scheduleMode).toBe('cron')
+    expect(result.automationMode).toBe('cron')
     expect(result.cronExpression).toBe('0 9 * * *')
     expect(result.timezone).toBe('UTC')
     expect(result.nextRunAt).toBe(Date.UTC(2026, 2, 9, 9, 0, 0))
   })
 
   it('preserves the existing next run when only prompt text changes', () => {
-    const existing: ScheduleJob = {
+    const existing: AutomationJob = {
       id: 7,
       repoId: 42,
       name: 'Weekly engineering summary',
       description: 'Summarize health',
       enabled: true,
-      scheduleMode: 'interval',
+      automationMode: 'interval',
       intervalMinutes: 60,
       cronExpression: null,
       timezone: null,
@@ -76,7 +76,7 @@ describe('schedule-config', () => {
       updatedAt: Date.UTC(2026, 2, 9, 12, 0, 0),
     }
 
-    const result = buildUpdatedSchedulePersistenceInput(existing, {
+    const result = buildUpdatedAutomationPersistenceInput(existing, {
       prompt: '  New prompt body  ',
     }, Date.UTC(2026, 2, 9, 12, 30, 0))
 
@@ -84,14 +84,14 @@ describe('schedule-config', () => {
     expect(result.nextRunAt).toBe(existing.nextRunAt)
   })
 
-  it('normalizes optional text fields when updating a schedule', () => {
-    const existing: ScheduleJob = {
+  it('normalizes optional text fields when updating a automation', () => {
+    const existing: AutomationJob = {
       id: 10,
       repoId: 42,
       name: 'Weekly engineering summary',
       description: 'Existing description',
       enabled: true,
-      scheduleMode: 'interval',
+      automationMode: 'interval',
       intervalMinutes: 60,
       cronExpression: null,
       timezone: null,
@@ -105,7 +105,7 @@ describe('schedule-config', () => {
       updatedAt: Date.UTC(2026, 2, 9, 12, 0, 0),
     }
 
-    const result = buildUpdatedSchedulePersistenceInput(existing, {
+    const result = buildUpdatedAutomationPersistenceInput(existing, {
       description: '   ',
       agentSlug: '  reviewer  ',
       model: '   ',
@@ -116,14 +116,14 @@ describe('schedule-config', () => {
     expect(result.model).toBeNull()
   })
 
-  it('recomputes the next run when a disabled schedule is re-enabled', () => {
-    const existing: ScheduleJob = {
+  it('recomputes the next run when a disabled automation is re-enabled', () => {
+    const existing: AutomationJob = {
       id: 8,
       repoId: 42,
       name: 'Paused summary',
       description: null,
       enabled: false,
-      scheduleMode: 'interval',
+      automationMode: 'interval',
       intervalMinutes: 30,
       cronExpression: null,
       timezone: null,
@@ -138,7 +138,7 @@ describe('schedule-config', () => {
     }
 
     const currentDate = Date.UTC(2026, 2, 9, 14, 0, 0)
-    const result = buildUpdatedSchedulePersistenceInput(existing, {
+    const result = buildUpdatedAutomationPersistenceInput(existing, {
       enabled: true,
     }, currentDate)
 
@@ -147,10 +147,10 @@ describe('schedule-config', () => {
   })
 
   it('throws for invalid cron timezones', () => {
-    expect(() => buildCreateSchedulePersistenceInput({
+    expect(() => buildCreateAutomationPersistenceInput({
       name: 'Invalid timezone',
       enabled: true,
-      scheduleMode: 'cron',
+      automationMode: 'cron',
       cronExpression: '0 9 * * *',
       timezone: 'Mars/Phobos',
       prompt: 'Test prompt',
@@ -158,13 +158,13 @@ describe('schedule-config', () => {
   })
 
   it('returns null for disabled jobs when computing the next run', () => {
-    const job: ScheduleJob = {
+    const job: AutomationJob = {
       id: 9,
       repoId: 42,
       name: 'Disabled summary',
       description: null,
       enabled: false,
-      scheduleMode: 'interval',
+      automationMode: 'interval',
       intervalMinutes: 15,
       cronExpression: null,
       timezone: null,

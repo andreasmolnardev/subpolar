@@ -51,7 +51,7 @@ AGENTS.md explains the assistant workspace directory and points to the files sub
 .opencode/agents/assistant.md contains the default Assistant Mode agent instructions, durable preferences, self-editing rules, and skill guidance.
 
 **4. Use workspace skills**
-.opencode/skills/ contains managed workspace skills for repos, schedules, notifications, and settings.
+.opencode/skills/ contains managed workspace skills for repos, automations, notifications, and settings.
 
 Take your time exploring and customizing these settings. Let me know when you're ready to start coding, or if you have any questions about getting set up!`
 

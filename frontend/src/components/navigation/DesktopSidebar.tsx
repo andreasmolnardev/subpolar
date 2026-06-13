@@ -8,7 +8,7 @@ import { useUrlParams } from '@/hooks/useUrlParams'
 import { listRepos } from '@/api/repos'
 import { settingsApi } from '@/api/settings'
 import { getAssistantPath } from '@/lib/navigation'
-import { FolderGit2, Home, Bot, ChevronDown, ChevronRight } from 'lucide-react'
+import { FolderGit2, Home, Bot, ChevronDown, ChevronRight, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Sidebar, SidebarCollapseToggle } from '@/components/ui/sidebar'
 
@@ -90,6 +90,7 @@ export function DesktopSidebar() {
 
   const [agentsExpanded, setAgentsExpanded] = useState(true)
   const [projectsExpanded, setProjectsExpanded] = useState(true)
+  const [automationsExpanded, setAutomationsExpanded] = useState(true)
 
   const { data: repos } = useQuery({
     queryKey: ['repos'],
@@ -181,6 +182,22 @@ export function DesktopSidebar() {
               indent
             />
           ))}
+        </SidebarSection>
+
+        {/* Automations */}
+        <SidebarSection
+          label="Automations"
+          icon={Zap}
+          collapsed={collapsed}
+          expanded={automationsExpanded}
+          onToggle={() => setAutomationsExpanded(!automationsExpanded)}
+        >
+          <SidebarNavItem
+            label="All Automations"
+            active={location.pathname === '/automations' || location.pathname.startsWith('/repos/0/automations')}
+            onClick={() => navigate('/automations')}
+            indent
+          />
         </SidebarSection>
       </div>
 

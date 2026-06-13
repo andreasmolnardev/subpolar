@@ -1,26 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ScheduleJob, ScheduleRun } from '@subpolar/shared/types'
+import type { AutomationJob, AutomationRun } from '@subpolar/shared/types'
 
 const mocks = vi.hoisted(() => ({
   getRepoById: vi.fn(),
-  createScheduleJob: vi.fn(),
-  createScheduleRun: vi.fn(),
-  deleteScheduleJob: vi.fn(),
-  cleanupOrphanedSchedules: vi.fn(),
-  getScheduleJobById: vi.fn(),
-  getRunningScheduleRunByJob: vi.fn(),
-  getScheduleRunById: vi.fn(),
-  listEnabledScheduleJobs: vi.fn(),
-  listRunningScheduleRuns: vi.fn(),
-  listScheduleJobIdsByRepo: vi.fn(),
-  listScheduleJobsByRepo: vi.fn(),
-  listScheduleRunsByJob: vi.fn(),
-  updateScheduleJob: vi.fn(),
-  updateScheduleJobRunState: vi.fn(),
-  updateScheduleRun: vi.fn(),
-  updateScheduleRunMetadata: vi.fn(),
-  buildCreateSchedulePersistenceInput: vi.fn(),
-  buildUpdatedSchedulePersistenceInput: vi.fn(),
+  createAutomationJob: vi.fn(),
+  createAutomationRun: vi.fn(),
+  deleteAutomationJob: vi.fn(),
+  cleanupOrphanedAutomations: vi.fn(),
+  getAutomationJobById: vi.fn(),
+  getRunningAutomationRunByJob: vi.fn(),
+  getAutomationRunById: vi.fn(),
+  listEnabledAutomationJobs: vi.fn(),
+  listRunningAutomationRuns: vi.fn(),
+  listAutomationJobIdsByRepo: vi.fn(),
+  listAutomationJobsByRepo: vi.fn(),
+  listAutomationRunsByJob: vi.fn(),
+  updateAutomationJob: vi.fn(),
+  updateAutomationJobRunState: vi.fn(),
+  updateAutomationRun: vi.fn(),
+  updateAutomationRunMetadata: vi.fn(),
+  buildCreateAutomationPersistenceInput: vi.fn(),
+  buildUpdatedAutomationPersistenceInput: vi.fn(),
   computeNextRunAtForJob: vi.fn(),
 
   resolveOpenCodeModel: vi.fn(),
@@ -33,28 +33,28 @@ vi.mock('../../src/db/queries', () => ({
   getRepoById: mocks.getRepoById,
 }))
 
-vi.mock('../../src/db/schedules', () => ({
-  createScheduleJob: mocks.createScheduleJob,
-  createScheduleRun: mocks.createScheduleRun,
-  deleteScheduleJob: mocks.deleteScheduleJob,
-  cleanupOrphanedSchedules: mocks.cleanupOrphanedSchedules,
-  getScheduleJobById: mocks.getScheduleJobById,
-  getRunningScheduleRunByJob: mocks.getRunningScheduleRunByJob,
-  getScheduleRunById: mocks.getScheduleRunById,
-  listEnabledScheduleJobs: mocks.listEnabledScheduleJobs,
-  listRunningScheduleRuns: mocks.listRunningScheduleRuns,
-  listScheduleJobIdsByRepo: mocks.listScheduleJobIdsByRepo,
-  listScheduleJobsByRepo: mocks.listScheduleJobsByRepo,
-  listScheduleRunsByJob: mocks.listScheduleRunsByJob,
-  updateScheduleJob: mocks.updateScheduleJob,
-  updateScheduleJobRunState: mocks.updateScheduleJobRunState,
-  updateScheduleRun: mocks.updateScheduleRun,
-  updateScheduleRunMetadata: mocks.updateScheduleRunMetadata,
+vi.mock('../../src/db/automations', () => ({
+  createAutomationJob: mocks.createAutomationJob,
+  createAutomationRun: mocks.createAutomationRun,
+  deleteAutomationJob: mocks.deleteAutomationJob,
+  cleanupOrphanedAutomations: mocks.cleanupOrphanedAutomations,
+  getAutomationJobById: mocks.getAutomationJobById,
+  getRunningAutomationRunByJob: mocks.getRunningAutomationRunByJob,
+  getAutomationRunById: mocks.getAutomationRunById,
+  listEnabledAutomationJobs: mocks.listEnabledAutomationJobs,
+  listRunningAutomationRuns: mocks.listRunningAutomationRuns,
+  listAutomationJobIdsByRepo: mocks.listAutomationJobIdsByRepo,
+  listAutomationJobsByRepo: mocks.listAutomationJobsByRepo,
+  listAutomationRunsByJob: mocks.listAutomationRunsByJob,
+  updateAutomationJob: mocks.updateAutomationJob,
+  updateAutomationJobRunState: mocks.updateAutomationJobRunState,
+  updateAutomationRun: mocks.updateAutomationRun,
+  updateAutomationRunMetadata: mocks.updateAutomationRunMetadata,
 }))
 
-vi.mock('../../src/services/schedule-config', () => ({
-  buildCreateSchedulePersistenceInput: mocks.buildCreateSchedulePersistenceInput,
-  buildUpdatedSchedulePersistenceInput: mocks.buildUpdatedSchedulePersistenceInput,
+vi.mock('../../src/services/automation-config', () => ({
+  buildCreateAutomationPersistenceInput: mocks.buildCreateAutomationPersistenceInput,
+  buildUpdatedAutomationPersistenceInput: mocks.buildUpdatedAutomationPersistenceInput,
   computeNextRunAtForJob: mocks.computeNextRunAtForJob,
 }))
 
@@ -89,7 +89,7 @@ vi.mock('croner', () => ({
   }),
 }))
 
-import { ScheduleRunner, ScheduleService } from '../../src/services/schedules'
+import { AutomationRunner, AutomationService } from '../../src/services/automations'
 import type { ForwardRequest, OpenCodeClient } from '../../src/services/opencode/client'
 
 function jsonResponse(body: unknown, status: number = 200): Response {
@@ -127,13 +127,13 @@ const repo = {
   repoUrl: 'https://github.com/example/sample-project',
 }
 
-const job: ScheduleJob = {
+const job: AutomationJob = {
   id: 7,
   repoId: 42,
   name: 'Weekly engineering summary',
   description: 'Summarize repo health and recent changes.',
   enabled: true,
-  scheduleMode: 'interval',
+  automationMode: 'interval',
   intervalMinutes: 60,
   cronExpression: null,
   timezone: null,
@@ -147,7 +147,7 @@ const job: ScheduleJob = {
   updatedAt: Date.UTC(2026, 2, 9, 12, 0, 0),
 }
 
-const baseRun: ScheduleRun = {
+const baseRun: AutomationRun = {
   id: 5,
   jobId: 7,
   repoId: 42,
@@ -163,35 +163,35 @@ const baseRun: ScheduleRun = {
   errorText: null,
 }
 
-describe('ScheduleService', () => {
+describe('AutomationService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Reflect.get(ScheduleService, 'activeRuns').clear()
+    Reflect.get(AutomationService, 'activeRuns').clear()
 
     mocks.getRepoById.mockReturnValue(repo)
-    mocks.getScheduleJobById.mockReturnValue(job)
-    mocks.getRunningScheduleRunByJob.mockReturnValue(null)
-    mocks.createScheduleRun.mockReturnValue(baseRun)
+    mocks.getAutomationJobById.mockReturnValue(job)
+    mocks.getRunningAutomationRunByJob.mockReturnValue(null)
+    mocks.createAutomationRun.mockReturnValue(baseRun)
     mocks.resolveOpenCodeModel.mockResolvedValue({ providerID: 'openai', modelID: 'gpt-5-mini' })
     mocks.onEvent.mockReturnValue(vi.fn())
-    mocks.getScheduleRunById.mockReturnValue({
+    mocks.getAutomationRunById.mockReturnValue({
       ...baseRun,
       sessionId: 'ses-run-1',
-      sessionTitle: 'Scheduled: Weekly engineering summary',
+      sessionTitle: 'automationd: Weekly engineering summary',
       logText: 'Run started. Waiting for assistant response...',
     })
   })
 
   it('starts a run immediately and completes it after polling session messages', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runWithSession: ScheduleRun = {
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runWithSession: AutomationRun = {
       ...baseRun,
       sessionId: 'ses-run-1',
-      sessionTitle: 'Scheduled: Weekly engineering summary',
+      sessionTitle: 'automationd: Weekly engineering summary',
       logText: 'Run started. Waiting for assistant response...',
     }
 
-    mocks.updateScheduleRunMetadata.mockReturnValue(runWithSession)
+    mocks.updateAutomationRunMetadata.mockReturnValue(runWithSession)
     routeForward(({ path, method }) => {
       if (path === '/session' && method === 'POST') {
         return Promise.resolve(jsonResponse({ id: 'ses-run-1' }))
@@ -218,7 +218,7 @@ describe('ScheduleService', () => {
     expect(result).toEqual(runWithSession)
 
     await vi.waitFor(() => {
-      expect(mocks.updateScheduleRun).toHaveBeenCalledWith(
+      expect(mocks.updateAutomationRun).toHaveBeenCalledWith(
         expect.anything(),
         42,
         7,
@@ -231,7 +231,7 @@ describe('ScheduleService', () => {
       )
     })
 
-    expect(mocks.updateScheduleJobRunState).toHaveBeenCalledWith(
+    expect(mocks.updateAutomationJobRunState).toHaveBeenCalledWith(
       expect.anything(),
       42,
       7,
@@ -240,15 +240,15 @@ describe('ScheduleService', () => {
   })
 
   it('sends session and message JSON POSTs with Content-Type: application/json', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runWithSession: ScheduleRun = {
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runWithSession: AutomationRun = {
       ...baseRun,
       sessionId: 'ses-content-type',
-      sessionTitle: 'Scheduled: Weekly engineering summary',
+      sessionTitle: 'automationd: Weekly engineering summary',
       logText: 'Run started. Waiting for assistant response...',
     }
-    mocks.updateScheduleRunMetadata.mockReturnValue(runWithSession)
-    mocks.getScheduleRunById.mockReturnValue(runWithSession)
+    mocks.updateAutomationRunMetadata.mockReturnValue(runWithSession)
+    mocks.getAutomationRunById.mockReturnValue(runWithSession)
     routeForward(({ path, method }) => {
       if (path === '/session' && method === 'POST') {
         return jsonResponse({ id: 'ses-content-type' })
@@ -280,16 +280,16 @@ describe('ScheduleService', () => {
   })
 
   it('completes a run immediately when the prompt endpoint returns JSON', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runWithSession: ScheduleRun = {
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runWithSession: AutomationRun = {
       ...baseRun,
       sessionId: 'ses-run-2',
-      sessionTitle: 'Scheduled: Weekly engineering summary',
+      sessionTitle: 'automationd: Weekly engineering summary',
       logText: 'Run started. Waiting for assistant response...',
     }
 
-    mocks.updateScheduleRunMetadata.mockReturnValue(runWithSession)
-    mocks.getScheduleRunById.mockReturnValue(runWithSession)
+    mocks.updateAutomationRunMetadata.mockReturnValue(runWithSession)
+    mocks.getAutomationRunById.mockReturnValue(runWithSession)
     routeForward(({ path, method }) => {
       if (path === '/session' && method === 'POST') {
         return Promise.resolve(jsonResponse({ id: 'ses-run-2' }))
@@ -307,7 +307,7 @@ describe('ScheduleService', () => {
     await service.runJob(42, 7, 'manual')
 
     await vi.waitFor(() => {
-      expect(mocks.updateScheduleRun).toHaveBeenCalledWith(
+      expect(mocks.updateAutomationRun).toHaveBeenCalledWith(
         expect.anything(),
         42,
         7,
@@ -321,25 +321,25 @@ describe('ScheduleService', () => {
   })
 
   it('rejects a new run when the job already has a running entry', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
 
-    mocks.getRunningScheduleRunByJob.mockReturnValue({
+    mocks.getRunningAutomationRunByJob.mockReturnValue({
       ...baseRun,
       sessionId: 'ses-existing',
-      sessionTitle: 'Scheduled: Existing run',
+      sessionTitle: 'automationd: Existing run',
     })
 
     await expect(service.runJob(42, 7, 'manual')).rejects.toMatchObject({
-      message: 'Schedule is already running',
+      message: 'Automation is already running',
       status: 409,
     })
   })
 
   it('surfaces setup failures when the model cannot be resolved', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
 
     mocks.resolveOpenCodeModel.mockRejectedValueOnce(new Error('No configured models are available.'))
-    mocks.updateScheduleRun.mockReturnValue({
+    mocks.updateAutomationRun.mockReturnValue({
       ...baseRun,
       status: 'failed',
       finishedAt: Date.UTC(2026, 2, 9, 12, 6, 0),
@@ -351,7 +351,7 @@ describe('ScheduleService', () => {
       status: 500,
     })
 
-    expect(mocks.updateScheduleRun).toHaveBeenCalledWith(
+    expect(mocks.updateAutomationRun).toHaveBeenCalledWith(
       expect.anything(),
       42,
       7,
@@ -364,16 +364,16 @@ describe('ScheduleService', () => {
   })
 
   it('marks the run failed when prompt submission is rejected after session creation', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runWithSession: ScheduleRun = {
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runWithSession: AutomationRun = {
       ...baseRun,
       sessionId: 'ses-run-6',
-      sessionTitle: 'Scheduled: Weekly engineering summary',
+      sessionTitle: 'automationd: Weekly engineering summary',
       logText: 'Run started. Waiting for assistant response...',
     }
 
-    mocks.updateScheduleRunMetadata.mockReturnValue(runWithSession)
-    mocks.getScheduleRunById.mockReturnValue(runWithSession)
+    mocks.updateAutomationRunMetadata.mockReturnValue(runWithSession)
+    mocks.getAutomationRunById.mockReturnValue(runWithSession)
     routeForward(({ path, method }) => {
       if (path === '/session' && method === 'POST') {
         return Promise.resolve(jsonResponse({ id: 'ses-run-6' }))
@@ -391,7 +391,7 @@ describe('ScheduleService', () => {
     expect(result).toEqual(runWithSession)
 
     await vi.waitFor(() => {
-      expect(mocks.updateScheduleRun).toHaveBeenCalledWith(
+      expect(mocks.updateAutomationRun).toHaveBeenCalledWith(
         expect.anything(),
         42,
         7,
@@ -406,22 +406,22 @@ describe('ScheduleService', () => {
   })
 
   it('cancels an in-progress run by aborting the linked session', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runningRun: ScheduleRun = {
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runningRun: AutomationRun = {
       ...baseRun,
       sessionId: 'ses-run-3',
-      sessionTitle: 'Scheduled: Weekly engineering summary',
+      sessionTitle: 'automationd: Weekly engineering summary',
       logText: 'Run started. Waiting for assistant response...',
     }
-    const cancelledRun: ScheduleRun = {
+    const cancelledRun: AutomationRun = {
       ...runningRun,
       status: 'cancelled',
       finishedAt: Date.UTC(2026, 2, 9, 12, 10, 0),
       errorText: 'Run cancelled by user.',
     }
 
-    mocks.getScheduleRunById.mockReturnValue(runningRun)
-    mocks.updateScheduleRun.mockReturnValue(cancelledRun)
+    mocks.getAutomationRunById.mockReturnValue(runningRun)
+    mocks.updateAutomationRun.mockReturnValue(cancelledRun)
     routeForward(({ path, method }) => {
       if (path === '/session/ses-run-3/message' && method === 'GET') {
         return Promise.resolve(jsonResponse([]))
@@ -444,7 +444,7 @@ describe('ScheduleService', () => {
         directory: repo.fullPath,
       }),
     )
-    expect(mocks.updateScheduleRun).toHaveBeenCalledWith(
+    expect(mocks.updateAutomationRun).toHaveBeenCalledWith(
       expect.anything(),
       42,
       7,
@@ -454,9 +454,9 @@ describe('ScheduleService', () => {
   })
 
   it('rejects cancellation for runs that already finished', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
 
-    mocks.getScheduleRunById.mockReturnValue({
+    mocks.getAutomationRunById.mockReturnValue({
       ...baseRun,
       status: 'completed',
       finishedAt: Date.UTC(2026, 2, 9, 12, 10, 0),
@@ -464,27 +464,27 @@ describe('ScheduleService', () => {
     })
 
     await expect(service.cancelRun(42, 7, 5)).rejects.toMatchObject({
-      message: 'Only running schedule runs can be cancelled',
+      message: 'Only running automation runs can be cancelled',
       status: 409,
     })
   })
 
   it('cancels a running entry without a linked session', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runningRun: ScheduleRun = {
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runningRun: AutomationRun = {
       ...baseRun,
       sessionId: null,
       sessionTitle: null,
     }
-    const cancelledRun: ScheduleRun = {
+    const cancelledRun: AutomationRun = {
       ...runningRun,
       status: 'cancelled',
       finishedAt: Date.UTC(2026, 2, 9, 12, 10, 0),
       errorText: 'Run cancelled by user.',
     }
 
-    mocks.getScheduleRunById.mockReturnValue(runningRun)
-    mocks.updateScheduleRun.mockReturnValue(cancelledRun)
+    mocks.getAutomationRunById.mockReturnValue(runningRun)
+    mocks.updateAutomationRun.mockReturnValue(cancelledRun)
 
     const result = await service.cancelRun(42, 7, 5)
 
@@ -493,14 +493,14 @@ describe('ScheduleService', () => {
   })
 
   it('surfaces abort failures when cancellation cannot reach OpenCode', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runningRun: ScheduleRun = {
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runningRun: AutomationRun = {
       ...baseRun,
       sessionId: 'ses-run-7',
-      sessionTitle: 'Scheduled: Weekly engineering summary',
+      sessionTitle: 'automationd: Weekly engineering summary',
     }
 
-    mocks.getScheduleRunById.mockReturnValue(runningRun)
+    mocks.getAutomationRunById.mockReturnValue(runningRun)
     routeForward(({ path, method }) => {
       if (path === '/session/ses-run-7/message' && method === 'GET') {
         return Promise.resolve(jsonResponse([]))
@@ -520,16 +520,16 @@ describe('ScheduleService', () => {
   })
 
   it('marks orphaned idle runs as failed during recovery', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const orphanedRun: ScheduleRun = {
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const orphanedRun: AutomationRun = {
       ...baseRun,
-      triggerSource: 'schedule',
+      triggerSource: 'automation',
       sessionId: 'ses-run-4',
-      sessionTitle: 'Scheduled: Weekly engineering summary',
+      sessionTitle: 'automationd: Weekly engineering summary',
       responseText: null,
     }
 
-    mocks.listRunningScheduleRuns.mockReturnValue([orphanedRun])
+    mocks.listRunningAutomationRuns.mockReturnValue([orphanedRun])
     routeForward(({ path, method }) => {
       if (path === '/session/ses-run-4/message' && method === 'GET') {
         return Promise.resolve(jsonResponse([
@@ -551,7 +551,7 @@ describe('ScheduleService', () => {
 
     await service.recoverRunningRuns()
 
-    expect(mocks.updateScheduleRun).toHaveBeenCalledWith(
+    expect(mocks.updateAutomationRun).toHaveBeenCalledWith(
       expect.anything(),
       42,
       7,
@@ -565,9 +565,9 @@ describe('ScheduleService', () => {
   })
 
   it('finalizes interrupted runs without a linked session during recovery', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
 
-    mocks.listRunningScheduleRuns.mockReturnValue([
+    mocks.listRunningAutomationRuns.mockReturnValue([
       {
         ...baseRun,
         sessionId: null,
@@ -577,7 +577,7 @@ describe('ScheduleService', () => {
 
     await service.recoverRunningRuns()
 
-    expect(mocks.updateScheduleRun).toHaveBeenCalledWith(
+    expect(mocks.updateAutomationRun).toHaveBeenCalledWith(
       expect.anything(),
       42,
       7,
@@ -590,15 +590,15 @@ describe('ScheduleService', () => {
   })
 
   it('completes recoverable runs when the assistant already finished', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const completedRun: ScheduleRun = {
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const completedRun: AutomationRun = {
       ...baseRun,
-      triggerSource: 'schedule',
+      triggerSource: 'automation',
       sessionId: 'ses-run-8',
-      sessionTitle: 'Scheduled: Weekly engineering summary',
+      sessionTitle: 'automationd: Weekly engineering summary',
     }
 
-    mocks.listRunningScheduleRuns.mockReturnValue([completedRun])
+    mocks.listRunningAutomationRuns.mockReturnValue([completedRun])
     routeForward(({ path, method }) => {
       if (path === '/session/ses-run-8/message' && method === 'GET') {
         return Promise.resolve(jsonResponse([
@@ -614,7 +614,7 @@ describe('ScheduleService', () => {
 
     await service.recoverRunningRuns()
 
-    expect(mocks.updateScheduleRun).toHaveBeenCalledWith(
+    expect(mocks.updateAutomationRun).toHaveBeenCalledWith(
       expect.anything(),
       42,
       7,
@@ -627,17 +627,17 @@ describe('ScheduleService', () => {
   })
 
   it('resumes recoverable runs when the session is still active', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const resumedRun: ScheduleRun = {
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const resumedRun: AutomationRun = {
       ...baseRun,
-      triggerSource: 'schedule',
+      triggerSource: 'automation',
       sessionId: 'ses-run-9',
-      sessionTitle: 'Scheduled: Weekly engineering summary',
+      sessionTitle: 'automationd: Weekly engineering summary',
     }
     let messageRequests = 0
 
-    mocks.listRunningScheduleRuns.mockReturnValue([resumedRun])
-    mocks.getScheduleRunById.mockReturnValue(resumedRun)
+    mocks.listRunningAutomationRuns.mockReturnValue([resumedRun])
+    mocks.getAutomationRunById.mockReturnValue(resumedRun)
     routeForward(({ path, method }) => {
       if (path === '/session/ses-run-9/message' && method === 'GET') {
         messageRequests += 1
@@ -666,7 +666,7 @@ describe('ScheduleService', () => {
     await service.recoverRunningRuns()
 
     await vi.waitFor(() => {
-      expect(mocks.updateScheduleRun).toHaveBeenCalledWith(
+      expect(mocks.updateAutomationRun).toHaveBeenCalledWith(
         expect.anything(),
         42,
         7,
@@ -681,32 +681,32 @@ describe('ScheduleService', () => {
   })
 
   it('lists jobs and runs through the persistence layer', () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
     const listedRun = { ...baseRun, status: 'completed', finishedAt: Date.UTC(2026, 2, 9, 12, 10, 0) }
 
-    mocks.listScheduleJobsByRepo.mockReturnValue([job])
-    mocks.listScheduleRunsByJob.mockReturnValue([listedRun])
+    mocks.listAutomationJobsByRepo.mockReturnValue([job])
+    mocks.listAutomationRunsByJob.mockReturnValue([listedRun])
 
     expect(service.listJobs(42)).toEqual([job])
     expect(service.listRuns(42, 7, 10)).toEqual([listedRun])
-    expect(mocks.listScheduleJobsByRepo).toHaveBeenCalledWith(expect.anything(), 42)
-    expect(mocks.listScheduleRunsByJob).toHaveBeenCalledWith(expect.anything(), 42, 7, 10)
+    expect(mocks.listAutomationJobsByRepo).toHaveBeenCalledWith(expect.anything(), 42)
+    expect(mocks.listAutomationRunsByJob).toHaveBeenCalledWith(expect.anything(), 42, 7, 10)
   })
 
   it('creates and updates jobs using normalized persistence input', () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
     const createdJob = { ...job, id: 8, name: 'Daily release summary' }
     const updatedJob = { ...job, name: 'Updated release summary' }
 
-    mocks.buildCreateSchedulePersistenceInput.mockReturnValue({ name: 'Daily release summary' })
-    mocks.createScheduleJob.mockReturnValue(createdJob)
-    mocks.buildUpdatedSchedulePersistenceInput.mockReturnValue({ name: 'Updated release summary' })
-    mocks.updateScheduleJob.mockReturnValue(updatedJob)
+    mocks.buildCreateAutomationPersistenceInput.mockReturnValue({ name: 'Daily release summary' })
+    mocks.createAutomationJob.mockReturnValue(createdJob)
+    mocks.buildUpdatedAutomationPersistenceInput.mockReturnValue({ name: 'Updated release summary' })
+    mocks.updateAutomationJob.mockReturnValue(updatedJob)
 
     const createResult = service.createJob(42, {
       name: 'Daily release summary',
       enabled: true,
-      scheduleMode: 'interval',
+      automationMode: 'interval',
       intervalMinutes: 60,
       prompt: 'Summarize release readiness.',
     })
@@ -714,49 +714,49 @@ describe('ScheduleService', () => {
 
     expect(createResult).toEqual(createdJob)
     expect(updateResult).toEqual(updatedJob)
-    expect(mocks.buildCreateSchedulePersistenceInput).toHaveBeenCalled()
-    expect(mocks.buildUpdatedSchedulePersistenceInput).toHaveBeenCalledWith(job, { name: 'Updated release summary' })
+    expect(mocks.buildCreateAutomationPersistenceInput).toHaveBeenCalled()
+    expect(mocks.buildUpdatedAutomationPersistenceInput).toHaveBeenCalledWith(job, { name: 'Updated release summary' })
   })
 
   it('throws when deleting or loading missing records', () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
 
-    mocks.deleteScheduleJob.mockReturnValue(false)
-    mocks.getScheduleRunById.mockReturnValue(null)
+    mocks.deleteAutomationJob.mockReturnValue(false)
+    mocks.getAutomationRunById.mockReturnValue(null)
 
-    expect(() => service.deleteJob(42, 7)).toThrow('Schedule not found')
+    expect(() => service.deleteJob(42, 7)).toThrow('Automation not found')
     expect(() => service.getRun(42, 7, 5)).toThrow('Run not found')
   })
 
   it('prepares repo deletion by unregistering repo jobs without deleting records', () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
     const onJobChange = vi.fn()
     service.setJobChangeHandler(onJobChange)
-    mocks.listScheduleJobIdsByRepo.mockReturnValue([7, 8])
+    mocks.listAutomationJobIdsByRepo.mockReturnValue([7, 8])
 
     service.prepareRepoDelete(42)
 
-    expect(mocks.listScheduleJobIdsByRepo).toHaveBeenCalledWith(expect.anything(), 42)
+    expect(mocks.listAutomationJobIdsByRepo).toHaveBeenCalledWith(expect.anything(), 42)
     expect(onJobChange).toHaveBeenCalledWith(null, 7)
     expect(onJobChange).toHaveBeenCalledWith(null, 8)
     expect(onJobChange).toHaveBeenCalledTimes(2)
   })
 
   it('cancels by finalizing the run when the assistant already completed', async () => {
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runningRun: ScheduleRun = {
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runningRun: AutomationRun = {
       ...baseRun,
       sessionId: 'ses-run-5',
-      sessionTitle: 'Scheduled: Weekly engineering summary',
+      sessionTitle: 'automationd: Weekly engineering summary',
     }
-    const completedRun: ScheduleRun = {
+    const completedRun: AutomationRun = {
       ...runningRun,
       status: 'completed',
       finishedAt: Date.UTC(2026, 2, 9, 12, 20, 0),
       responseText: 'Completed summary',
     }
 
-    mocks.getScheduleRunById.mockReturnValueOnce(runningRun).mockReturnValueOnce(completedRun)
+    mocks.getAutomationRunById.mockReturnValueOnce(runningRun).mockReturnValueOnce(completedRun)
     routeForward(({ path, method }) => {
       if (path === '/session/ses-run-5/message' && method === 'GET') {
         return Promise.resolve(jsonResponse([
@@ -773,7 +773,7 @@ describe('ScheduleService', () => {
     const result = await service.cancelRun(42, 7, 5)
 
     expect(result).toEqual(completedRun)
-    expect(mocks.updateScheduleRun).toHaveBeenCalledWith(
+    expect(mocks.updateAutomationRun).toHaveBeenCalledWith(
       expect.anything(),
       42,
       7,
@@ -784,21 +784,21 @@ describe('ScheduleService', () => {
 
   describe('skill injection in prompt', () => {
     it('appends skill content to the prompt when skillSlugs are set', async () => {
-      const service = new ScheduleService({} as never, createOpenCodeClientStub())
-      const jobWithSkills: ScheduleJob = {
+      const service = new AutomationService({} as never, createOpenCodeClientStub())
+      const jobWithSkills: AutomationJob = {
         ...job,
         skillMetadata: { skillSlugs: ['git-release', 'code-review'], notes: undefined },
       }
-      mocks.getScheduleJobById.mockReturnValue(jobWithSkills)
+      mocks.getAutomationJobById.mockReturnValue(jobWithSkills)
 
-      const runWithSession: ScheduleRun = {
+      const runWithSession: AutomationRun = {
         ...baseRun,
         sessionId: 'ses-skills-1',
-        sessionTitle: 'Scheduled: Weekly engineering summary',
+        sessionTitle: 'automationd: Weekly engineering summary',
         logText: 'Run started. Waiting for assistant response...',
       }
-      mocks.updateScheduleRunMetadata.mockReturnValue(runWithSession)
-      mocks.getScheduleRunById.mockReturnValue(runWithSession)
+      mocks.updateAutomationRunMetadata.mockReturnValue(runWithSession)
+      mocks.getAutomationRunById.mockReturnValue(runWithSession)
 
       let capturedPromptBody: string | undefined
       routeForward(({ path, method, body }) => {
@@ -834,21 +834,21 @@ describe('ScheduleService', () => {
     })
 
     it('appends skill notes when provided', async () => {
-      const service = new ScheduleService({} as never, createOpenCodeClientStub())
-      const jobWithSkillsAndNotes: ScheduleJob = {
+      const service = new AutomationService({} as never, createOpenCodeClientStub())
+      const jobWithSkillsAndNotes: AutomationJob = {
         ...job,
         skillMetadata: { skillSlugs: ['git-release'], notes: 'Focus on changelog' },
       }
-      mocks.getScheduleJobById.mockReturnValue(jobWithSkillsAndNotes)
+      mocks.getAutomationJobById.mockReturnValue(jobWithSkillsAndNotes)
 
-      const runWithSession: ScheduleRun = {
+      const runWithSession: AutomationRun = {
         ...baseRun,
         sessionId: 'ses-skills-2',
-        sessionTitle: 'Scheduled: Weekly engineering summary',
+        sessionTitle: 'automationd: Weekly engineering summary',
         logText: 'Run started. Waiting for assistant response...',
       }
-      mocks.updateScheduleRunMetadata.mockReturnValue(runWithSession)
-      mocks.getScheduleRunById.mockReturnValue(runWithSession)
+      mocks.updateAutomationRunMetadata.mockReturnValue(runWithSession)
+      mocks.getAutomationRunById.mockReturnValue(runWithSession)
 
       let capturedPromptBody: string | undefined
       routeForward(({ path, method, body }) => {
@@ -882,21 +882,21 @@ describe('ScheduleService', () => {
     })
 
     it('does not modify the prompt when skillSlugs is empty', async () => {
-      const service = new ScheduleService({} as never, createOpenCodeClientStub())
-      const jobWithEmptySkills: ScheduleJob = {
+      const service = new AutomationService({} as never, createOpenCodeClientStub())
+      const jobWithEmptySkills: AutomationJob = {
         ...job,
         skillMetadata: { skillSlugs: [], notes: 'some notes' },
       }
-      mocks.getScheduleJobById.mockReturnValue(jobWithEmptySkills)
+      mocks.getAutomationJobById.mockReturnValue(jobWithEmptySkills)
 
-      const runWithSession: ScheduleRun = {
+      const runWithSession: AutomationRun = {
         ...baseRun,
         sessionId: 'ses-skills-3',
-        sessionTitle: 'Scheduled: Weekly engineering summary',
+        sessionTitle: 'automationd: Weekly engineering summary',
         logText: 'Run started. Waiting for assistant response...',
       }
-      mocks.updateScheduleRunMetadata.mockReturnValue(runWithSession)
-      mocks.getScheduleRunById.mockReturnValue(runWithSession)
+      mocks.updateAutomationRunMetadata.mockReturnValue(runWithSession)
+      mocks.getAutomationRunById.mockReturnValue(runWithSession)
 
       let capturedPromptBody: string | undefined
       routeForward(({ path, method, body }) => {
@@ -923,21 +923,21 @@ describe('ScheduleService', () => {
     })
 
     it('falls back to name-only injection when skill endpoint fails', async () => {
-      const service = new ScheduleService({} as never, createOpenCodeClientStub())
-      const jobWithSkills: ScheduleJob = {
+      const service = new AutomationService({} as never, createOpenCodeClientStub())
+      const jobWithSkills: AutomationJob = {
         ...job,
         skillMetadata: { skillSlugs: ['git-release'], notes: undefined },
       }
-      mocks.getScheduleJobById.mockReturnValue(jobWithSkills)
+      mocks.getAutomationJobById.mockReturnValue(jobWithSkills)
 
-      const runWithSession: ScheduleRun = {
+      const runWithSession: AutomationRun = {
         ...baseRun,
         sessionId: 'ses-skills-4',
-        sessionTitle: 'Scheduled: Weekly engineering summary',
+        sessionTitle: 'automationd: Weekly engineering summary',
         logText: 'Run started. Waiting for assistant response...',
       }
-      mocks.updateScheduleRunMetadata.mockReturnValue(runWithSession)
-      mocks.getScheduleRunById.mockReturnValue(runWithSession)
+      mocks.updateAutomationRunMetadata.mockReturnValue(runWithSession)
+      mocks.getAutomationRunById.mockReturnValue(runWithSession)
 
       let capturedPromptBody: string | undefined
       routeForward(({ path, method, body }) => {
@@ -967,21 +967,21 @@ describe('ScheduleService', () => {
     })
 
     it('falls back gracefully when a skill slug is not found in the list', async () => {
-      const service = new ScheduleService({} as never, createOpenCodeClientStub())
-      const jobWithUnknownSkill: ScheduleJob = {
+      const service = new AutomationService({} as never, createOpenCodeClientStub())
+      const jobWithUnknownSkill: AutomationJob = {
         ...job,
         skillMetadata: { skillSlugs: ['unknown-skill'], notes: undefined },
       }
-      mocks.getScheduleJobById.mockReturnValue(jobWithUnknownSkill)
+      mocks.getAutomationJobById.mockReturnValue(jobWithUnknownSkill)
 
-      const runWithSession: ScheduleRun = {
+      const runWithSession: AutomationRun = {
         ...baseRun,
         sessionId: 'ses-skills-5',
-        sessionTitle: 'Scheduled: Weekly engineering summary',
+        sessionTitle: 'automationd: Weekly engineering summary',
         logText: 'Run started. Waiting for assistant response...',
       }
-      mocks.updateScheduleRunMetadata.mockReturnValue(runWithSession)
-      mocks.getScheduleRunById.mockReturnValue(runWithSession)
+      mocks.updateAutomationRunMetadata.mockReturnValue(runWithSession)
+      mocks.getAutomationRunById.mockReturnValue(runWithSession)
 
       let capturedPromptBody: string | undefined
       routeForward(({ path, method, body }) => {
@@ -1012,21 +1012,21 @@ describe('ScheduleService', () => {
   })
 })
 
-describe('ScheduleRunner', () => {
+describe('AutomationRunner', () => {
   beforeEach(() => {
     mockCronInstances.length = 0
     mockCronStop.mockClear()
-    mocks.cleanupOrphanedSchedules.mockReturnValue({ orphanedJobs: 0, orphanedRuns: 0 })
+    mocks.cleanupOrphanedAutomations.mockReturnValue({ orphanedJobs: 0, orphanedRuns: 0 })
   })
 
   it('recovers running runs and registers all enabled jobs on start', async () => {
-    const mockJob: ScheduleJob = {
+    const mockJob: AutomationJob = {
       id: 1,
       repoId: 10,
       name: 'Test Job',
       description: null,
       enabled: true,
-      scheduleMode: 'interval',
+      automationMode: 'interval',
       intervalMinutes: 60,
       cronExpression: null,
       timezone: null,
@@ -1039,28 +1039,28 @@ describe('ScheduleRunner', () => {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
-    mocks.listRunningScheduleRuns.mockReturnValue([])
-    mocks.listEnabledScheduleJobs.mockReturnValue([mockJob])
+    mocks.listRunningAutomationRuns.mockReturnValue([])
+    mocks.listEnabledAutomationJobs.mockReturnValue([mockJob])
 
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runner = new ScheduleRunner(service)
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runner = new AutomationRunner(service)
     await runner.start()
 
-    expect(mocks.listRunningScheduleRuns).toHaveBeenCalled()
-    expect(mocks.listEnabledScheduleJobs).toHaveBeenCalled()
+    expect(mocks.listRunningAutomationRuns).toHaveBeenCalled()
+    expect(mocks.listEnabledAutomationJobs).toHaveBeenCalled()
     expect(mockCronInstances).toHaveLength(1)
     expect(mockCronInstances[0]?.pattern).toBe('0 * * * *')
     expect(mockCronInstances[0]?.options).toEqual(expect.objectContaining({ protect: true }))
   })
 
   it('registers a cron job with timezone', async () => {
-    const mockJob: ScheduleJob = {
+    const mockJob: AutomationJob = {
       id: 2,
       repoId: 10,
       name: 'Test Cron',
       description: null,
       enabled: true,
-      scheduleMode: 'cron',
+      automationMode: 'cron',
       cronExpression: '0 9 * * *',
       timezone: 'America/New_York',
       intervalMinutes: null,
@@ -1073,11 +1073,11 @@ describe('ScheduleRunner', () => {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
-    mocks.listRunningScheduleRuns.mockReturnValue([])
-    mocks.listEnabledScheduleJobs.mockReturnValue([mockJob])
+    mocks.listRunningAutomationRuns.mockReturnValue([])
+    mocks.listEnabledAutomationJobs.mockReturnValue([mockJob])
 
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runner = new ScheduleRunner(service)
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runner = new AutomationRunner(service)
     await runner.start()
 
     expect(mockCronInstances).toHaveLength(1)
@@ -1086,13 +1086,13 @@ describe('ScheduleRunner', () => {
   })
 
   it('skips disabled jobs', async () => {
-    const mockJob: ScheduleJob = {
+    const mockJob: AutomationJob = {
       id: 3,
       repoId: 10,
       name: 'Disabled Job',
       description: null,
       enabled: false,
-      scheduleMode: 'interval',
+      automationMode: 'interval',
       intervalMinutes: 60,
       cronExpression: null,
       timezone: null,
@@ -1105,11 +1105,11 @@ describe('ScheduleRunner', () => {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
-    mocks.listRunningScheduleRuns.mockReturnValue([])
-    mocks.listEnabledScheduleJobs.mockReturnValue([])
+    mocks.listRunningAutomationRuns.mockReturnValue([])
+    mocks.listEnabledAutomationJobs.mockReturnValue([])
 
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runner = new ScheduleRunner(service)
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runner = new AutomationRunner(service)
     await runner.start()
 
     runner.registerJob(mockJob)
@@ -1117,13 +1117,13 @@ describe('ScheduleRunner', () => {
   })
 
   it('stops all cron instances on stop', async () => {
-    const mockJob: ScheduleJob = {
+    const mockJob: AutomationJob = {
       id: 4,
       repoId: 10,
       name: 'Stop Test',
       description: null,
       enabled: true,
-      scheduleMode: 'interval',
+      automationMode: 'interval',
       intervalMinutes: 30,
       cronExpression: null,
       timezone: null,
@@ -1136,11 +1136,11 @@ describe('ScheduleRunner', () => {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
-    mocks.listRunningScheduleRuns.mockReturnValue([])
-    mocks.listEnabledScheduleJobs.mockReturnValue([mockJob])
+    mocks.listRunningAutomationRuns.mockReturnValue([])
+    mocks.listEnabledAutomationJobs.mockReturnValue([mockJob])
 
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runner = new ScheduleRunner(service)
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runner = new AutomationRunner(service)
     await runner.start()
 
     runner.stop()
@@ -1148,13 +1148,13 @@ describe('ScheduleRunner', () => {
   })
 
   it('unregisters and re-registers a job on update via onJobChange', async () => {
-    const mockJob: ScheduleJob = {
+    const mockJob: AutomationJob = {
       id: 5,
       repoId: 10,
       name: 'Update Test',
       description: null,
       enabled: true,
-      scheduleMode: 'interval',
+      automationMode: 'interval',
       intervalMinutes: 60,
       cronExpression: null,
       timezone: null,
@@ -1167,11 +1167,11 @@ describe('ScheduleRunner', () => {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
-    mocks.listRunningScheduleRuns.mockReturnValue([])
-    mocks.listEnabledScheduleJobs.mockReturnValue([mockJob])
+    mocks.listRunningAutomationRuns.mockReturnValue([])
+    mocks.listEnabledAutomationJobs.mockReturnValue([mockJob])
 
-    const service = new ScheduleService({} as never, createOpenCodeClientStub())
-    const runner = new ScheduleRunner(service)
+    const service = new AutomationService({} as never, createOpenCodeClientStub())
+    const runner = new AutomationRunner(service)
     await runner.start()
 
     expect(mockCronInstances).toHaveLength(1)

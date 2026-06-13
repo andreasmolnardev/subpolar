@@ -13,7 +13,7 @@ export default defineConfig({
       'test/services/assistant-mode.test.ts',
       'test/services/internal-token.test.ts',
       'test/auth/internal-token-middleware.test.ts',
-      'test/routes/internal-schedules.test.ts',
+      'test/routes/internal-automations.test.ts',
       'test/routes/internal-notifications.test.ts',
       'test/routes/internal-settings.test.ts',
       'test/routes/internal-repos.test.ts',

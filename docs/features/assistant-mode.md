@@ -1,6 +1,6 @@
 # Assistant Mode
 
-Assistant Mode gives Subpolar a dedicated AI workspace — an isolated directory (`repos/assistant/`) where a built-in assistant agent can manage scheduled jobs, send push notifications, and read or update settings via a secure internal API.
+Assistant Mode gives Subpolar a dedicated AI workspace — an isolated directory (`repos/assistant/`) where a built-in assistant agent can manage automationd jobs, send push notifications, and read or update settings via a secure internal API.
 
 ## What Is Assistant Mode?
 
@@ -20,7 +20,7 @@ Four skills are provisioned automatically when assistant mode is initialized:
 
 | Skill | What it teaches |
 |-------|----------------|
-| `schedule-management` | Create, list, update, delete, and run scheduled jobs |
+| `automation-management` | Create, list, update, delete, and run automationd jobs |
 | `notifications` | Send push notifications to registered user devices |
 | `manager-settings` | Read and patch user preferences, and reload the assistant workspace |
 | `repo-management` | List all managed repositories |

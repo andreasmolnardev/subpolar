@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { buildMoreItems, buildNavModel } from './moreDrawerItems'
 
 describe('buildMoreItems', () => {
-  it('returns Settings + Logout + All Schedules + Files for root path', () => {
+  it('returns Settings + Logout + All automations + Files for root path', () => {
     const items = buildMoreItems('/')
     expect(items).toHaveLength(4)
-    expect(items[0].key).toBe('all-schedules')
+    expect(items[0].key).toBe('all-automations')
     expect(items[1].key).toBe('files')
     expect(items[2].key).toBe('settings')
     expect(items[3].key).toBe('logout')
@@ -23,8 +23,8 @@ describe('buildMoreItems', () => {
     expect(items[3].key).toBe('reset-permissions')
     expect(items[3].dialog).toBe('resetPermissions')
     expect(items[3].danger).toBe(true)
-    expect(items[4].key).toBe('schedules')
-    expect(items[4].to).toBe('/repos/42/schedules')
+    expect(items[4].key).toBe('automations')
+    expect(items[4].to).toBe('/repos/42/automations')
     expect(items[5].key).toBe('source-control')
     expect(items[5].dialog).toBe('sourceControl')
     expect(items[6].key).toBe('settings')
@@ -40,8 +40,8 @@ describe('buildMoreItems', () => {
     expect(items[3].key).toBe('lsp')
     expect(items[3].dialog).toBe('lsp')
     expect(items[4].key).toBe('reset-permissions')
-    expect(items[5].key).toBe('schedules')
-    expect(items[5].to).toBe('/repos/42/schedules')
+    expect(items[5].key).toBe('automations')
+    expect(items[5].to).toBe('/repos/42/automations')
     expect(items[6].key).toBe('source-control')
     expect(items[7].key).toBe('settings')
     expect(items[8].key).toBe('logout')
@@ -55,21 +55,21 @@ describe('buildMoreItems', () => {
     expect(items[1].key).toBe('mcp')
     expect(items[2].key).toBe('skills')
     expect(items[3].key).toBe('reset-permissions')
-    expect(items[4].key).toBe('schedules')
+    expect(items[4].key).toBe('automations')
     expect(items[5].key).toBe('source-control')
     expect(items[6].key).toBe('settings')
     expect(items[7].key).toBe('logout')
   })
 
-  it('returns only Settings + Logout for /schedules', () => {
-    const items = buildMoreItems('/schedules')
+  it('returns only Settings + Logout for /automations', () => {
+    const items = buildMoreItems('/automations')
     expect(items).toHaveLength(2)
     expect(items[0].key).toBe('settings')
     expect(items[1].key).toBe('logout')
   })
 
-  it('returns only Settings + Logout for /repos/:id/schedules', () => {
-    const items = buildMoreItems('/repos/42/schedules')
+  it('returns only Settings + Logout for /repos/:id/automations', () => {
+    const items = buildMoreItems('/repos/42/automations')
     expect(items).toHaveLength(2)
     expect(items[0].key).toBe('settings')
     expect(items[1].key).toBe('logout')
@@ -135,18 +135,18 @@ describe('buildNavModel', () => {
     expect(model.primary[1].variant).toBe('secondary')
   })
 
-  it('returns new-schedule primary CTA for schedules routes', () => {
-    const model1 = buildNavModel('/schedules')
+  it('returns new-automation primary CTA for automations routes', () => {
+    const model1 = buildNavModel('/automations')
     expect(model1.primary).toHaveLength(2)
-    expect(model1.primary[0].key).toBe('new-schedule')
-    expect(model1.primary[0].onSelect).toBe('new-schedule')
+    expect(model1.primary[0].key).toBe('new-automation')
+    expect(model1.primary[0].onSelect).toBe('new-automation')
     expect(model1.primary[1].key).toBe('assistant')
     expect(model1.primary[1].to).toBe('/assistant')
 
-    const model2 = buildNavModel('/repos/5/schedules')
+    const model2 = buildNavModel('/repos/5/automations')
     expect(model2.primary).toHaveLength(2)
-    expect(model2.primary[0].key).toBe('new-schedule')
-    expect(model2.primary[0].onSelect).toBe('new-schedule')
+    expect(model2.primary[0].key).toBe('new-automation')
+    expect(model2.primary[0].onSelect).toBe('new-automation')
     expect(model2.primary[1].key).toBe('assistant')
     expect(model2.primary[1].to).toBe('/assistant')
   })
