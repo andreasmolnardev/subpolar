@@ -93,8 +93,8 @@ COPY --from=deps --chown=node:node /app/backend/node_modules ./backend/node_modu
 COPY --from=deps --chown=node:node /app/frontend/node_modules ./frontend/node_modules
 COPY package.json pnpm-workspace.yaml ./
 
-RUN mkdir -p /app/backend/node_modules/@opencode-manager && \
-    ln -sfn /app/shared /app/backend/node_modules/@opencode-manager/shared
+RUN mkdir -p /app/backend/node_modules/@subpolar && \
+    ln -sfn /app/shared /app/backend/node_modules/@subpolar/shared
 
 COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh

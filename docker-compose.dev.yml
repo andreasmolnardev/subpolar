@@ -1,0 +1,59 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: subpolar-dev-backend
+    ports:
+      - "5003:5003"
+      - "5551:5551"
+      - "5100:5100"
+      - "5101:5101"
+      - "5102:5102"
+      - "5103:5103"
+    environment:
+      - NODE_ENV=development
+      - AUTH_SECRET=${AUTH_SECRET:-dev-secret-change-in-production}
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./backend/src:/app/backend/src
+      - ./backend/scripts:/app/backend/scripts
+      - ./shared/src:/app/shared/src
+      - ./backend/node_modules:/app/backend/node_modules
+      - opencode-workspace:/workspace
+      - opencode-data:/app/data
+    command: ["bun", "--watch-path", "backend/src", "--watch-path", "shared/src", "--watch", "backend/src/index.ts"]
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: subpolar-dev-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+      - AUTH_SECRET=${AUTH_SECRET:-dev-secret-change-in-production}
+      - PORT=5003
+    volumes:
+      - ./frontend/src:/app/frontend/src
+      - ./frontend/public:/app/frontend/public
+      - ./frontend/index.html:/app/frontend/index.html
+      - ./frontend/vite.config.ts:/app/frontend/vite.config.ts
+      - ./frontend/tsconfig.json:/app/frontend/tsconfig.json
+      - ./frontend/tsconfig.app.json:/app/frontend/tsconfig.app.json
+      - ./frontend/components.json:/app/frontend/components.json
+      - ./shared/src:/app/shared/src
+      - ./frontend/node_modules:/app/frontend/node_modules
+    working_dir: /app/frontend
+    command: ["bun", "run", "vite", "--host", "0.0.0.0"]
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  opencode-workspace:
+    driver: local
+  opencode-data:
+    driver: local
