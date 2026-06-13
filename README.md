@@ -3,27 +3,7 @@
 </p>
 
 <p align="center">
-    <strong>Mobile-first web interface for <a href="https://opencode.ai">OpenCode</a> AI agents. Manage, control, and code from any device.</strong>
-</p>
-
-<p align="center">
-    <a href="https://github.com/chriswritescode-dev/opencode-manager/blob/main/LICENSE">
-        <img src="https://img.shields.io/github/license/chriswritescode-dev/opencode-manager?label=License" alt="License" />
-    </a>
-    <a href="https://github.com/chriswritescode-dev/opencode-manager/stargazers">
-        <img src="https://img.shields.io/github/stars/chriswritescode-dev/opencode-manager?label=Stars" alt="Stars" />
-    </a>
-    <a href="https://github.com/chriswritescode-dev/opencode-manager/releases/latest">
-        <img src="https://img.shields.io/github/v/tag/chriswritescode-dev/opencode-manager" alt="Latest Release" />
-    </a>
-    <a href="https://github.com/chriswritescode-dev/opencode-manager/pulls">
-        <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
-    </a>
-</p>
-
-<p align="center">
-  <img src="docs/images/ocmgr-main.webp" alt="Subpolar" width="600" style="border: none" />
-  <img src="docs/images/ocmgr-mobile.webp" alt="Mobile view" height="400" style="border: none; margin-left: 12px" />
+    A UI for agents focused on improving your personal life
 </p>
 
 ## Quick Start
@@ -49,6 +29,8 @@ For local development setup, see the [Development Guide](https://chriswritescode
 - **Files** — Directory browser with tree view, syntax highlighting, create/rename/delete, ZIP download
 - **Agents** — Create and manage AI agents with custom icons, descriptions, skill access, and allowed commands directly from the sidebar
 - **Automations** — Recurring repo jobs with reusable prompts, run history, linked sessions, markdown-rendered output
+-- **General Chat** using global agents
+- **Projects** - Sessions tailored to workspaces on the server
 - **MCP Servers** — Add, configure, authenticate, and manage local or remote MCP servers with OAuth support
 - **AI Configuration** — Model/provider setup, API keys, OAuth for Anthropic and GitHub Copilot, custom agent definitions
 - **Skills** — Extend agent capabilities with shareable, scoped skill definitions
