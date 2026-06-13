@@ -48,6 +48,9 @@ importers:
       jsonc-parser:
         specifier: ^3.3.1
         version: 3.3.1
+      pocketbase:
+        specifier: ^0.23.0
+        version: 0.23.0
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -3371,6 +3374,9 @@ packages:
   pluralize@8.0.0:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
     engines: {node: '>=4'}
+
+  pocketbase@0.23.0:
+    resolution: {integrity: sha512-S9b/QSKGXsRyL55m8MoXMucPTpMvpOLlOLTSduraIOzwVt8Epp0j7V53a1qW7VbF2pL7PC579DOruxJBWqBYTg==}
 
   points-on-curve@0.2.0:
     resolution: {integrity: sha512-0mYKnYYe9ZcqMCWhUjItv/oHjvgEsfKvnUTg8sAtnHr3GVy7rGkXCb6d5cSyqrWqL4k81b9CPg3urd+T7aop3A==}
@@ -7528,6 +7534,8 @@ snapshots:
       pathe: 2.0.3
 
   pluralize@8.0.0: {}
+
+  pocketbase@0.23.0: {}
 
   points-on-curve@0.2.0: {}
 

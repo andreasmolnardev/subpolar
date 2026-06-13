@@ -19,6 +19,12 @@ export const DEFAULTS = {
     HEALTH_FAILURE_THRESHOLD: 2,
   },
 
+  POCKETBASE: {
+    URL: 'http://localhost:8090',
+    EMAIL: 'admin@example.com',
+    PASSWORD: 'adminpassword',
+  },
+
   DATABASE: {
     PATH: './data/opencode.db',
   },

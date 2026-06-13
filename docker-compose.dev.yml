@@ -1,4 +1,22 @@
 services:
+  pocketbase:
+    image: ghcr.io/pocketbase/pocketbase:latest
+    container_name: subpolar-dev-pocketbase
+    ports:
+      - "8090:8090"
+    environment:
+      - POCKETBASE_EMAIL=${POCKETBASE_EMAIL:-admin@example.com}
+      - POCKETBASE_PASSWORD=${POCKETBASE_PASSWORD:-adminpassword}
+    volumes:
+      - pocketbase-data:/pb_data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
   backend:
     build:
       context: .
@@ -14,6 +32,9 @@ services:
     environment:
       - NODE_ENV=development
       - AUTH_SECRET=${AUTH_SECRET:-dev-secret-change-in-production}
+      - POCKETBASE_URL=http://pocketbase:8090
+      - POCKETBASE_EMAIL=${POCKETBASE_EMAIL:-admin@example.com}
+      - POCKETBASE_PASSWORD=${POCKETBASE_PASSWORD:-adminpassword}
     volumes:
       - ./config.json:/app/config.json:ro
       - ./backend/src:/app/backend/src
@@ -22,6 +43,9 @@ services:
       - ./backend/node_modules:/app/backend/node_modules
       - opencode-workspace:/workspace
       - opencode-data:/app/data
+    depends_on:
+      pocketbase:
+        condition: service_healthy
     command: ["bun", "--watch-path", "backend/src", "--watch-path", "shared/src", "--watch", "backend/src/index.ts"]
     restart: unless-stopped
 
@@ -37,6 +61,7 @@ services:
       - AUTH_SECRET=${AUTH_SECRET:-dev-secret-change-in-production}
       - PORT=5003
       - BACKEND_HOST=backend
+      - POCKETBASE_URL=http://pocketbase:8090
     volumes:
       - ./frontend/src:/app/frontend/src
       - ./frontend/public:/app/frontend/public
@@ -59,4 +84,6 @@ volumes:
   opencode-workspace:
     driver: local
   opencode-data:
+    driver: local
+  pocketbase-data:
     driver: local
