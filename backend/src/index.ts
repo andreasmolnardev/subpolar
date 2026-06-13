@@ -35,7 +35,6 @@ import { createAuth } from './auth'
 import { createAuthMiddleware } from './auth/middleware'
 import { createPromptTemplateRoutes } from './routes/prompt-templates'
 import { createInternalRoutes } from './routes/internal'
-import { sweepStaleUploadSessions } from './routes/internal/repo-mirror-helpers'
 import { createOpenCodeProxyRoutes } from './routes/opencode-proxy'
 import { sseAggregator } from './services/sse-aggregator'
 import { ensureDirectoryExists, writeFileContent, fileExists, readFileContent } from './services/file-operations'
@@ -258,7 +257,6 @@ try {
   await initializeApp()
 
   await cleanupExpiredCache()
-  await sweepStaleUploadSessions()
 
   await ensureDefaultConfigExists()
   await backfillOpenCodeModelStateFromFile()

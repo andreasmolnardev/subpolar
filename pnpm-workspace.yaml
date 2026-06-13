@@ -2,5 +2,4 @@ packages:
   - 'shared'
   - 'backend'
   - 'frontend'
-  - 'ocm-cli'
   - '!workspace/**'

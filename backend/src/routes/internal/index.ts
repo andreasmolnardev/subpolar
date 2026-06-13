@@ -10,7 +10,6 @@ import { createInternalNotificationRoutes } from './notifications'
 import { createInternalSettingsRoutes } from './settings'
 import { createInternalRepoRoutes } from './repos'
 import { createInternalRepoSyncRoutes } from './repo-sync'
-import { createInternalRepoMirrorRoutes as mirrorRoutes } from './repo-mirror'
 import { createInternalOpenCodeWorkspacesRoutes } from './opencode-workspaces'
 import { createInternalAssistantRoutes } from './assistant'
 
@@ -30,7 +29,6 @@ export function createInternalRoutes(
   repos.route('/', createInternalRepoRoutes(db, settingsService))
   repos.route('/:id/automations', createAutomationRoutes(automationService))
   repos.route('/', createInternalRepoSyncRoutes(db))
-  repos.route('/', mirrorRoutes(db))
   app.route('/repos', repos)
   app.route('/opencode-workspaces', createInternalOpenCodeWorkspacesRoutes(db))
   app.route('/assistant', createInternalAssistantRoutes(openCodeClient))
