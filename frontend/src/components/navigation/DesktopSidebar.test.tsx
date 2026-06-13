@@ -99,7 +99,7 @@ describe('DesktopSidebar', () => {
     expect(screen.getByText('subpolar')).toBeInTheDocument()
   })
 
-  it('renders Home, Agents & Skills, and Projects sections', () => {
+  it('renders Home, Agents, and Projects sections', () => {
     vi.spyOn(useDesktopModule, 'useDesktop').mockReturnValue(true)
     vi.spyOn(useSidebarCollapsedModule, 'useSidebarCollapsed').mockReturnValue([false, vi.fn()])
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
@@ -111,11 +111,11 @@ describe('DesktopSidebar', () => {
     render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
 
     expect(screen.getByText('Home')).toBeInTheDocument()
-    expect(screen.getByText('Agents & Skills')).toBeInTheDocument()
+    expect(screen.getByText('Agents')).toBeInTheDocument()
     expect(screen.getByText('Projects')).toBeInTheDocument()
   })
 
-  it('shows Assistant sub-item under Agents & Skills', () => {
+  it('shows Assistant sub-item under Agents', () => {
     vi.spyOn(useDesktopModule, 'useDesktop').mockReturnValue(true)
     vi.spyOn(useSidebarCollapsedModule, 'useSidebarCollapsed').mockReturnValue([false, vi.fn()])
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({

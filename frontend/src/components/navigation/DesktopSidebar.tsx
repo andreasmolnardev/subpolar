@@ -141,9 +141,9 @@ export function DesktopSidebar() {
           onClick={() => navigate('/')}
         />
 
-        {/* Agents & Skills */}
+        {/* Agents */}
         <SidebarSection
-          label="Agents & Skills"
+          label="Agents"
           icon={Bot}
           collapsed={collapsed}
           expanded={agentsExpanded}
