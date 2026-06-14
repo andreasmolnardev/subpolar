@@ -1,7 +1,7 @@
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 import type { IPCServer, IPCHandler } from './ipcServer'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../db/schema'
 import { SettingsService } from '../services/settings'
 import type { GitCredential } from '@subpolar/shared'
 import { logger } from '../utils/logger'

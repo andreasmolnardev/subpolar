@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { Hono } from 'hono'
-import { Database } from 'bun:sqlite'
+import type { Database } from '../db/schema'
 import { migrate } from '../db/migration-runner'
 import { allMigrations } from '../db/migrations'
 import { createProvidersRoutes } from './providers'

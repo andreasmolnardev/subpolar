@@ -14,7 +14,7 @@ import { FileBrowserSheet } from '@/components/file-browser/FileBrowserSheet'
 import { buildMoreItems } from './moreDrawerItems'
 import { useSwipeBack } from '@/hooks/useMobile'
 import { getRepoDisplayName } from '@/lib/utils'
-import { getPathWithReturnTo, isAssistantPath } from '@/lib/navigation'
+import { getPathWithReturnTo } from '@/lib/navigation'
 import type { components } from '@/api/opencode-types'
 
 type CommandType = components['schemas']['Command']
@@ -37,8 +37,6 @@ export function MoreDrawer({ isOpen, onClose }: MoreDrawerProps) {
   const { logout } = useAuth()
   const { data: health } = useServerHealth()
   const isSessionDetail = /^\/repos\/\d+\/sessions\/[^/]+$/.test(location.pathname)
-  const isAssistantRoute = isAssistantPath(location.pathname)
-  const isAssistantSession = isSessionDetail && searchParams.get('assistant') === '1'
   const { filterCommands } = useCommands(isSessionDetail ? OPENCODE_API_ENDPOINT : null)
   const activePromptFileBasePath = useUIState((state) => state.activePromptFileBasePath)
   const selectPromptCommand = useUIState((state) => state.selectPromptCommand)
@@ -58,9 +56,7 @@ export function MoreDrawer({ isOpen, onClose }: MoreDrawerProps) {
   })
 
   const currentBranch = repo?.currentBranch || repo?.branch
-  const repoDisplayName = isAssistantRoute || isAssistantSession
-    ? 'Assistant'
-    : repo ? getRepoDisplayName(repo.repoUrl, repo.localPath, repo.sourcePath) : null
+  const repoDisplayName = repo ? getRepoDisplayName(repo.repoUrl, repo.localPath, repo.sourcePath) : null
 
   const handleSettingsClick = () => {
     updateParams((p) => {

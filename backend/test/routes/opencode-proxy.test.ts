@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { Hono } from 'hono'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../../src/db/schema'
 import { createOpenCodeProxyRoutes } from '../../src/routes/opencode-proxy'
 import type { SettingsService } from '../../src/services/settings'
 

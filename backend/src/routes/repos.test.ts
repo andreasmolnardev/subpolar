@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test'
 import { Hono } from 'hono'
-import { Database } from 'bun:sqlite'
+import type { Database } from '../db/schema'
 import { migrate } from '../db/migration-runner'
 import { allMigrations } from '../db/migrations'
 import { createRepoRoutes } from './repos'

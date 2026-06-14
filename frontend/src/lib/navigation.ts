@@ -1,19 +1,4 @@
-export function getAssistantPath(): string {
-  return '/assistant';
-}
-
-export function getAssistantSessionListPath(): string {
-  return '/assistant?view=sessions';
-}
-
-export function isAssistantPath(pathname: string): boolean {
-  return pathname === '/assistant' || /^\/repos\/[^/]+\/assistant$/.test(pathname);
-}
-
-export function getSessionListPath(repoId: string | number, isAssistantSession: boolean, tab?: string): string {
-  if (isAssistantSession) {
-    return getAssistantSessionListPath();
-  }
+export function getSessionListPath(repoId: string | number, tab?: string): string {
   const base = `/repos/${String(repoId)}`;
   if (tab && tab !== 'repo') {
     return `${base}?repoTab=${tab}`;
@@ -46,17 +31,8 @@ export function getSwipeBackTarget(pathname: string, search = ''): string | null
   if (match) {
     const repoId = match[1];
     const params = new URLSearchParams(search);
-    const isAssistant = params.get('assistant') === '1';
     const tab = params.get('repoTab') ?? undefined;
-    return getSessionListPath(repoId, isAssistant, tab);
-  }
-
-  if (isAssistantPath(pathname)) {
-    const params = new URLSearchParams(search);
-    if (params.get('view') !== 'sessions') {
-      return getAssistantSessionListPath();
-    }
-    return '/';
+    return getSessionListPath(repoId, tab);
   }
 
   if (/^\/repos\/[^/]+$/.test(pathname)) {
@@ -67,9 +43,6 @@ export function getSwipeBackTarget(pathname: string, search = ''): string | null
     const returnTo = getReturnToPath(search, '');
     if (returnTo) return returnTo;
     const repoId = pathname.split('/')[2];
-    if (repoId === '0') {
-      return getAssistantPath();
-    }
     return `/repos/${repoId}`;
   }
 

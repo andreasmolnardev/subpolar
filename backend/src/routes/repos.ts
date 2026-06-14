@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../db/schema'
 import type { Repo } from '@subpolar/shared/types'
 import { DiscoverReposRequestSchema, AssistantModeInitRequestSchema } from '@subpolar/shared/schemas'
 import { listRepos, getRepoById, updateLastAccessed, updateRepoConfigName } from '../db/queries'

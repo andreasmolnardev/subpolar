@@ -19,8 +19,7 @@ import type { AutomationTab } from '@/hooks/useAutomationUrlState'
 
 import type { AutomationJobWithRepo, AutomationRunWithContext } from '@/api/automations'
 import { Combobox } from '@/components/ui/combobox'
-import { isAssistantRepoId } from '@/lib/automations/automation-target'
-import { getAssistantPath } from '@/lib/navigation'
+import { isWorkspaceRepoId } from '@/lib/automations/automation-target'
 
 type StatusFilter = 'all' | 'enabled' | 'disabled'
 type automationModeFilter = 'all' | 'cron' | 'interval'
@@ -278,7 +277,7 @@ export function GlobalAutomations() {
   const handleNavigateToRepo = (repoPath: string) => {
     const repoId = jobs.find((j) => j.repoPath === repoPath)?.repoId
     if (repoId === undefined) return
-    navigate(isAssistantRepoId(repoId) ? getAssistantPath() : `/repos/${repoId}`)
+    navigate(isWorkspaceRepoId(repoId) ? '/' : `/repos/${repoId}`)
   }
 
   if (isLoading) {

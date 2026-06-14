@@ -1,26 +1,26 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  getAssistantModeStatus,
-  initializeAssistantMode,
+  getWorkspaceStatus,
+  initializeWorkspace,
 } from '@/api/repos'
 import { ASSISTANT_REPO_ID } from '@subpolar/shared/utils'
-import type { AssistantModeStatus, AssistantModeInitRequest } from '@subpolar/shared/types'
+import type { WorkspaceStatus, WorkspaceInitRequest } from '@subpolar/shared/types'
 
-export function useAssistantMode(repoId?: number) {
+export function useWorkspaceMode(repoId?: number) {
   const queryClient = useQueryClient()
 
-  const statusQuery = useQuery<AssistantModeStatus>({
-    queryKey: ['assistant-mode'],
-    queryFn: () => getAssistantModeStatus(ASSISTANT_REPO_ID),
+  const statusQuery = useQuery<WorkspaceStatus>({
+    queryKey: ['workspace-mode'],
+    queryFn: () => getWorkspaceStatus(ASSISTANT_REPO_ID),
     enabled: repoId === ASSISTANT_REPO_ID,
   })
 
   const initializeMutation = useMutation({
-    mutationFn: (options?: AssistantModeInitRequest) =>
-      initializeAssistantMode(ASSISTANT_REPO_ID, options),
+    mutationFn: (options?: WorkspaceInitRequest) =>
+      initializeWorkspace(ASSISTANT_REPO_ID, options),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['assistant-mode'],
+        queryKey: ['workspace-mode'],
       })
     },
   })

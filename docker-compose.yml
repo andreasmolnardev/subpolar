@@ -1,6 +1,6 @@
 services:
   pocketbase:
-    image: ghcr.io/pocketbase/pocketbase:latest
+    build: ./pocketbase
     container_name: subpolar-pocketbase
     ports:
       - "8090:8090"
@@ -8,7 +8,8 @@ services:
       - POCKETBASE_EMAIL=${POCKETBASE_EMAIL:-admin@example.com}
       - POCKETBASE_PASSWORD=${POCKETBASE_PASSWORD:-adminpassword}
     volumes:
-      - pocketbase-data:/pb_data
+      - ./pocketbase/pb_data:/app/pb_data
+      - ./pocketbase/pb_migrations:/app/pb_migrations
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/api/health"]
@@ -54,6 +55,4 @@ volumes:
   opencode-workspace:
     driver: local
   opencode-data:
-    driver: local
-  pocketbase-data:
     driver: local

@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../db/schema'
 import { ENV } from '@subpolar/shared/config/env'
 import { createInternalTokenMiddleware } from '../auth/internal-token-middleware'
 import type { SettingsService } from '../services/settings'
@@ -43,7 +43,7 @@ export function createOpenCodeProxyRoutes(db: Database, settingsService: Setting
       }
     })
 
-    const password = settingsService.getOpenCodeServerPassword()
+    const password = await settingsService.getOpenCodeServerPassword()
     const username = ENV.OPENCODE.SERVER_USERNAME
     headers['Authorization'] = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
 

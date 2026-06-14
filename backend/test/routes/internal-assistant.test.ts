@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
-import { Database } from 'bun:sqlite'
+import type { Database } from '../../src/db/schema'
 import { createInternalRoutes } from '../../src/routes/internal'
 import { AutomationService } from '../../src/services/automations'
 import { NotificationService } from '../../src/services/notification'

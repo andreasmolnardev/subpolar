@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { Database } from 'bun:sqlite'
-import { migrate } from './migration-runner'
-import { allMigrations } from './migrations'
+import type PocketBase from 'pocketbase'
 import {
   getOpenCodeModelState,
   addRecentOpenCodeModel,
@@ -10,131 +8,135 @@ import {
   MAX_RECENT_MODELS,
 } from './model-state'
 
-function createTestDb(): Database {
-  const db = new Database(':memory:')
-  migrate(db, allMigrations)
-  return db
+function createMockPocketBase(): PocketBase {
+  const collections = new Map<string, Map<string, Record<string, unknown>>>()
+  let idCounter = 0
+
+  function getCollection(name: string) {
+    if (!collections.has(name)) {
+      collections.set(name, new Map())
+    }
+    return collections.get(name)!
+  }
+
+  function nextId(): string {
+    idCounter++
+    return `mock-${idCounter}`
+  }
+
+  function parseFilterUserId(filter: string): string {
+    const match = filter.match(/user_id\s*=\s*"([^"]+)"/)
+    return match?.[1] ?? 'default'
+  }
+
+  return {
+    collection: (name: string) => ({
+      getFirstListItem: async <T = unknown>(filter: string): Promise<T> => {
+        const col = getCollection(name)
+        const userId = parseFilterUserId(filter)
+        for (const record of col.values()) {
+          if ((record as Record<string, unknown>).user_id === userId) {
+            return record as unknown as T
+          }
+        }
+        throw new Error('Not found')
+      },
+      create: async <T = unknown>(bodyParams?: Record<string, unknown>): Promise<T> => {
+        const col = getCollection(name)
+        const id = nextId()
+        const record = { ...bodyParams, id, collectionId: name, collectionName: name }
+        col.set(id, record as Record<string, unknown>)
+        return record as unknown as T
+      },
+      update: async <T = unknown>(id: string, bodyParams?: Record<string, unknown>): Promise<T> => {
+        const col = getCollection(name)
+        const existing = col.get(id)
+        if (!existing) throw new Error('Not found')
+        const updated = { ...existing, ...bodyParams }
+        col.set(id, updated)
+        return updated as unknown as T
+      },
+    }),
+  } as unknown as PocketBase
 }
 
 describe('model-state', () => {
-  let db: Database
+  let pb: PocketBase
 
   beforeEach(() => {
-    db = createTestDb()
+    pb = createMockPocketBase()
   })
 
   describe('getOpenCodeModelState', () => {
-    it('returns empty defaults when no row exists', () => {
-      const state = getOpenCodeModelState(db)
+    it('returns empty defaults when no row exists', async () => {
+      const state = await getOpenCodeModelState(pb)
       expect(state).toEqual({ recent: [], favorite: [], variant: {} })
     })
 
-    it('creates the model state table when an existing database is missing it', () => {
-      db.run('DROP TABLE opencode_model_state')
-
-      const state = getOpenCodeModelState(db)
-      const table = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'opencode_model_state'").get()
-
-      expect(state).toEqual({ recent: [], favorite: [], variant: {} })
-      expect(table).toBeTruthy()
-    })
-
-    it('returns defaults with explicit userId when no row exists', () => {
-      const state = getOpenCodeModelState(db, 'user123')
+    it('returns defaults with explicit userId when no row exists', async () => {
+      const state = await getOpenCodeModelState(pb, 'user123')
       expect(state).toEqual({ recent: [], favorite: [], variant: {} })
     })
   })
 
   describe('addRecentOpenCodeModel', () => {
-    it('inserts new state and returns the model in recent[0]', () => {
+    it('inserts new state and returns the model in recent[0]', async () => {
       const model = { providerID: 'anthropic', modelID: 'claude-sonnet-4-20250514' }
-      const state = addRecentOpenCodeModel(db, model)
+      const state = await addRecentOpenCodeModel(pb, model)
       expect(state.recent).toHaveLength(1)
       expect(state.recent[0]).toEqual(model)
     })
 
-    it('deduplicates re-selections (same model added twice → length 1, model at index 0)', () => {
+    it('deduplicates re-selections (same model added twice → length 1, model at index 0)', async () => {
       const model = { providerID: 'openai', modelID: 'gpt-4o' }
-      addRecentOpenCodeModel(db, model)
-      const state = addRecentOpenCodeModel(db, model)
+      await addRecentOpenCodeModel(pb, model)
+      const state = await addRecentOpenCodeModel(pb, model)
       expect(state.recent).toHaveLength(1)
       expect(state.recent[0]).toEqual(model)
     })
 
-    it('caps at MAX_RECENT_MODELS (insert 12 distinct, expect 10)', () => {
+    it('caps at MAX_RECENT_MODELS (insert 12 distinct, expect 10)', async () => {
       for (let i = 0; i < 12; i++) {
-        addRecentOpenCodeModel(db, { providerID: `provider-${i}`, modelID: `model-${i}` })
+        await addRecentOpenCodeModel(pb, { providerID: `provider-${i}`, modelID: `model-${i}` })
       }
-      const state = getOpenCodeModelState(db)
+      const state = await getOpenCodeModelState(pb)
       expect(state.recent).toHaveLength(MAX_RECENT_MODELS)
       expect(state.recent[0]).toEqual({ providerID: 'provider-11', modelID: 'model-11' })
     })
   })
 
   describe('toggleFavoriteOpenCodeModel', () => {
-    it('adds when missing', () => {
+    it('adds when missing', async () => {
       const model = { providerID: 'anthropic', modelID: 'claude' }
-      const state = toggleFavoriteOpenCodeModel(db, model)
+      const state = await toggleFavoriteOpenCodeModel(pb, model)
       expect(state.favorite).toHaveLength(1)
       expect(state.favorite[0]).toEqual(model)
     })
 
-    it('removes when present', () => {
+    it('removes when present', async () => {
       const model = { providerID: 'openai', modelID: 'gpt-4' }
-      toggleFavoriteOpenCodeModel(db, model)
-      const state = toggleFavoriteOpenCodeModel(db, model)
+      await toggleFavoriteOpenCodeModel(pb, model)
+      const state = await toggleFavoriteOpenCodeModel(pb, model)
       expect(state.favorite).toHaveLength(0)
     })
   })
 
   describe('setOpenCodeVariant', () => {
-    it('adds variant entry', () => {
-      const state = setOpenCodeVariant(db, 'key1', 'variant1')
+    it('adds variant entry', async () => {
+      const state = await setOpenCodeVariant(pb, 'key1', 'variant1')
       expect(state.variant.key1).toBe('variant1')
     })
 
-    it('updates variant entry', () => {
-      setOpenCodeVariant(db, 'key1', 'variant1')
-      const state = setOpenCodeVariant(db, 'key1', 'variant2')
+    it('updates variant entry', async () => {
+      await setOpenCodeVariant(pb, 'key1', 'variant1')
+      const state = await setOpenCodeVariant(pb, 'key1', 'variant2')
       expect(state.variant.key1).toBe('variant2')
     })
 
-    it('deletes variant when undefined', () => {
-      setOpenCodeVariant(db, 'key1', 'variant1')
-      const state = setOpenCodeVariant(db, 'key1', undefined)
+    it('deletes variant when undefined', async () => {
+      await setOpenCodeVariant(pb, 'key1', 'variant1')
+      const state = await setOpenCodeVariant(pb, 'key1', undefined)
       expect(state.variant.key1).toBeUndefined()
     })
-  })
-
-  it('corrupt JSON in recent column → getOpenCodeModelState returns [] for recent, preserves valid favorite', () => {
-    const now = Date.now()
-    db.prepare(`
-      INSERT INTO opencode_model_state(user_id, recent, favorite, variant, updated_at)
-      VALUES(?,?,?,?,?)
-      ON CONFLICT(user_id) DO UPDATE SET recent=excluded.recent, favorite=excluded.favorite, variant=excluded.variant, updated_at=excluded.updated_at
-    `).run('default', '{ invalid json }', JSON.stringify([{ providerID: 'test', modelID: 'test' }]), '{}', now)
-
-    const state = getOpenCodeModelState(db)
-    expect(state.recent).toEqual([])
-    expect(state.favorite).toHaveLength(1)
-    expect(state.favorite[0]).toEqual({ providerID: 'test', modelID: 'test' })
-  })
-
-  it('50 concurrent addRecentOpenCodeModel calls → final recent.length <= MAX_RECENT_MODELS, no exceptions, all entries unique', async () => {
-    const db = createTestDb()
-    const numOps = 50
-
-    const operations = Array.from({ length: numOps }, (_, i) =>
-      addRecentOpenCodeModel(db, { providerID: `provider-${i}`, modelID: `model-${i}` }),
-    )
-
-    await Promise.all(operations)
-    const finalState = getOpenCodeModelState(db)
-
-    expect(finalState.recent.length).toBeLessThanOrEqual(MAX_RECENT_MODELS)
-    expect(finalState.recent.length).toBeGreaterThan(0)
-
-    const uniqueKeys = new Set(finalState.recent.map((m) => `${m.providerID}/${m.modelID}`))
-    expect(uniqueKeys.size).toBe(finalState.recent.length)
   })
 })

@@ -53,6 +53,9 @@ import { getModelStatePath, ModelStateSchema } from './routes/providers'
 import { readJsonSafe } from './utils/atomic-json'
 import {
   type OpenCodeModelStateRecord,
+  getOpenCodeModelState,
+  addRecentOpenCodeModel,
+  toggleFavoriteOpenCodeModel,
 } from './db/model-state'
 
 import { logger } from './utils/logger'
@@ -62,13 +65,11 @@ import {
   getConfigPath,
   getOpenCodeConfigFilePath,
   getAgentsMdPath,
-  getDatabasePath,
   ENV
 } from '@subpolar/shared/config/env'
 
 
 const { PORT, HOST } = ENV.SERVER
-const DB_PATH = getDatabasePath()
 
 const app = new Hono()
 
@@ -89,12 +90,16 @@ let db: Database | undefined
 let auth: ReturnType<typeof createAuth> | undefined
 let requireAuth: ReturnType<typeof createAuthMiddleware> | undefined
 let openCodeClient: ReturnType<typeof createOpenCodeClient> | undefined
+let automationService: AutomationService | undefined
+let automationRunnerInstance: AutomationRunner | undefined
+let notificationService: NotificationService | undefined
+let settingsService: SettingsService | undefined
 
 async function initializeApp() {
-  db = await initializeDatabase(DB_PATH)
-  auth = createAuth(db)
+  db = await initializeDatabase()
+  auth = createAuth()
   requireAuth = createAuthMiddleware(auth)
-  openCodeClient = createOpenCodeClient(() => new SettingsService(db!).getOpenCodeServerPassword())
+  openCodeClient = createOpenCodeClient(async () => new SettingsService(db!).getOpenCodeServerPassword())
 }
 
 import { DEFAULT_AGENTS_MD } from './constants'
@@ -103,28 +108,28 @@ let ipcServer: IPCServer | undefined
 const gitAuthService = new GitAuthService()
 let openCodeSupervisor: OpenCodeSupervisor | undefined
 async function ensureDefaultConfigExists(): Promise<void> {
-  const settingsService = new SettingsService(db!)
+  const ss = new SettingsService(db!)
   const workspaceConfigPath = getOpenCodeConfigFilePath()
-  
+
   if (await fileExists(workspaceConfigPath)) {
     logger.info(`Found workspace config at ${workspaceConfigPath}, syncing to database...`)
     try {
       const rawContent = await readFileContent(workspaceConfigPath)
       const parsed = parseJsonc(rawContent)
       const validation = OpenCodeConfigSchema.safeParse(parsed)
-      
+
       if (!validation.success) {
         logger.warn('Workspace config has invalid structure', validation.error)
       } else {
-        const existingDefault = settingsService.getOpenCodeConfigByName('default')
+        const existingDefault = await ss.getOpenCodeConfigByName('default')
         if (existingDefault) {
-          settingsService.updateOpenCodeConfig('default', {
+          await ss.updateOpenCodeConfig('default', {
             content: rawContent,
             isDefault: true,
           })
           logger.info('Updated database config from workspace file')
         } else {
-          settingsService.createOpenCodeConfig({
+          await ss.createOpenCodeConfig({
             name: 'default',
             content: rawContent,
             isDefault: true,
@@ -137,7 +142,7 @@ async function ensureDefaultConfigExists(): Promise<void> {
       logger.warn('Failed to read workspace config', error)
     }
   }
-  
+
   const { configSourcePath: importConfigPath } = await getOpenCodeImportStatus()
 
   if (importConfigPath) {
@@ -152,20 +157,20 @@ async function ensureDefaultConfigExists(): Promise<void> {
       logger.warn(`Failed to import OpenCode config from ${importConfigPath}`, error)
     }
   }
-  
-  const existingDbConfigs = settingsService.getOpenCodeConfigs()
+
+  const existingDbConfigs = await ss.getOpenCodeConfigs()
   if (existingDbConfigs.configs.length > 0) {
-    const defaultConfig = settingsService.getDefaultOpenCodeConfig()
+    const defaultConfig = await ss.getDefaultOpenCodeConfig()
     if (defaultConfig) {
       await writeFileContent(workspaceConfigPath, defaultConfig.rawContent)
       logger.info('Wrote existing database config to workspace file')
     }
     return
   }
-  
+
   logger.info('No existing config found, creating minimal seed config')
   const seedConfig = JSON.stringify({ $schema: 'https://opencode.ai/config.json' }, null, 2)
-  settingsService.createOpenCodeConfig({
+  await ss.createOpenCodeConfig({
     name: 'default',
     content: seedConfig,
     isDefault: true,
@@ -183,8 +188,8 @@ async function backfillOpenCodeModelStateFromFile(): Promise<void> {
       return
     }
 
-    const existingRow = db!.prepare('SELECT 1 FROM opencode_model_state WHERE user_id = ?').get('default')
-    if (existingRow) {
+    const existing = await getOpenCodeModelState(db!, 'default')
+    if (existing.recent.length > 0 || existing.favorite.length > 0) {
       return
     }
 
@@ -194,15 +199,12 @@ async function backfillOpenCodeModelStateFromFile(): Promise<void> {
       return
     }
 
-    db!.prepare(
-      'INSERT INTO opencode_model_state(user_id, recent, favorite, variant, updated_at) VALUES(?,?,?,?,?)'
-    ).run(
-      'default',
-      JSON.stringify(validated.data.recent),
-      JSON.stringify(validated.data.favorite),
-      JSON.stringify(validated.data.variant),
-      Date.now()
-    )
+    for (const model of validated.data.recent) {
+      await addRecentOpenCodeModel(db!, model, 'default')
+    }
+    for (const model of validated.data.favorite) {
+      await toggleFavoriteOpenCodeModel(db!, model, 'default')
+    }
 
     logger.info('Backfilled OpenCode model state from model.json to database')
   } catch (error) {
@@ -263,8 +265,8 @@ try {
   await ensureHomeStateImported()
   await ensureDefaultAgentsMdExists()
 
-  const settingsService = new SettingsService(db!)
-  settingsService.initializeLastKnownGoodConfig()
+  settingsService = new SettingsService(db!)
+  await settingsService.initializeLastKnownGoodConfig()
 
   openCodeSupervisor = new OpenCodeSupervisor(opencodeServerManager, settingsService, {
     userId: 'default'
@@ -282,7 +284,7 @@ try {
   await gitAuthService.initialize(ipcServer, db!)
   logger.info(`Git IPC server running at ${ipcServer.ipcHandlePath}`)
 
-  await syncAdminFromEnv(auth!, db!)
+  await syncAdminFromEnv(auth!)
 
   opencodeServerManager.setDatabase(db!)
   const openCodeStatus = await openCodeSupervisor.start()
@@ -292,10 +294,10 @@ try {
     logger.warn(`OpenCode server unavailable after startup recovery: ${openCodeStatus.lastError ?? openCodeStatus.state}`)
   }
 
-  const automationService = new AutomationService(db, openCodeClient)
-  const automationRunnerInstance = new AutomationRunner(automationService)
+  automationService = new AutomationService(db, openCodeClient)
+  automationRunnerInstance = new AutomationRunner(automationService)
 
-  const notificationService = new NotificationService(db)
+  notificationService = new NotificationService(db)
 
   if (ENV.VAPID.PUBLIC_KEY && ENV.VAPID.PRIVATE_KEY) {
     if (!ENV.VAPID.SUBJECT) {
@@ -310,36 +312,34 @@ try {
       subject: ENV.VAPID.SUBJECT || 'mailto:push@localhost',
     })
     sseAggregator.onEvent((directory, event) => {
-      notificationService.handleSSEEvent(directory, event).catch((err) => {
+      notificationService!.handleSSEEvent(directory, event).catch((err) => {
         logger.error('Push notification dispatch error:', err)
       })
     })
   }
 
   sseAggregator.setPendingActionsFetcher(openCodeClient!)
-  sseAggregator.setPasswordResolver(() => new SettingsService(db!).getOpenCodeServerPassword())
+  sseAggregator.setPasswordResolver(async () => new SettingsService(db!).getOpenCodeServerPassword())
   sseAggregator.start()
 
   void automationRunnerInstance.start()
-
-  const settingsService = new SettingsService(db!)
 
 } catch (error) {
   logger.error('Failed to initialize workspace:', error)
 }
 
 app.route('/api/auth', createAuthRoutes(auth!))
-app.route('/api/auth-info', createAuthInfoRoutes(auth!, db!))
-app.route('/api/health', createHealthRoutes(db!, openCodeSupervisor))
+app.route('/api/auth-info', createAuthInfoRoutes(auth!))
+app.route('/api/health', createHealthRoutes(openCodeSupervisor))
 
 app.route('/api/mcp-oauth-proxy', createMcpOauthProxyRoutes(openCodeClient!, requireAuth!))
-app.route('/api/internal', createInternalRoutes(db!, automationService, notificationService, settingsService, openCodeClient!))
-app.route('/api/opencode-proxy', createOpenCodeProxyRoutes(db!, settingsService))
+app.route('/api/internal', createInternalRoutes(db!, automationService!, notificationService!, settingsService!, openCodeClient!))
+app.route('/api/opencode-proxy', createOpenCodeProxyRoutes(db!, settingsService!))
 
 const protectedApi = new Hono()
 protectedApi.use('/*', requireAuth!)
 
-protectedApi.route('/repos', createRepoRoutes(db!, gitAuthService, automationService, openCodeClient!, openCodeSupervisor))
+protectedApi.route('/repos', createRepoRoutes(db!, gitAuthService, automationService!, openCodeClient!, openCodeSupervisor))
 protectedApi.route('/settings', createSettingsRoutes(db!, gitAuthService, openCodeClient!, openCodeSupervisor))
 protectedApi.route('/files', createFileRoutes())
 protectedApi.route('/providers', createProvidersRoutes(db!, openCodeClient!, openCodeSupervisor))
@@ -348,9 +348,9 @@ protectedApi.route('/tts', createTTSRoutes(db!))
 protectedApi.route('/stt', createSTTRoutes(db!))
 protectedApi.route('/sse', createSSERoutes())
 protectedApi.route('/ssh', createSSHRoutes(gitAuthService))
-protectedApi.route('/notifications', createNotificationRoutes(notificationService))
+protectedApi.route('/notifications', createNotificationRoutes(notificationService!))
 protectedApi.route('/prompt-templates', createPromptTemplateRoutes(db!))
-protectedApi.route('/automations', createAutomationRoutes(automationService))
+protectedApi.route('/automations', createAutomationRoutes(automationService!))
 
 app.route('/api', protectedApi)
 

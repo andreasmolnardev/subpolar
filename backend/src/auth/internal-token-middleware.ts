@@ -1,6 +1,6 @@
 import { createMiddleware } from 'hono/factory'
 import { timingSafeEqual } from 'node:crypto'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../db/schema'
 import { getOrCreateInternalToken } from '../services/internal-token'
 
 function extractTokenFromBasic(header: string): string | null {
@@ -24,7 +24,7 @@ export function createInternalTokenMiddleware(db: Database) {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const expected = getOrCreateInternalToken(db)
+    const expected = await getOrCreateInternalToken(db)
 
     if (header.startsWith('Bearer ')) {
       if (!tokenMatch(header.slice(7), expected)) {

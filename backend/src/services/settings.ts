@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite'
+import type PocketBase from 'pocketbase'
 import { unlinkSync, existsSync } from 'fs'
 import { getOpenCodeConfigFilePath } from '@subpolar/shared/config/env'
 import { logger } from '../utils/logger'
@@ -50,11 +50,27 @@ interface OpenCodeServerPasswordState {
   updatedAt: number
 }
 
+interface PrefsRecord {
+  id: string
+  user_id: string
+  preferences: string
+  updated_at: number
+}
+
+interface ConfigRecord {
+  id: string
+  user_id: string
+  config_name: string
+  config_content: string
+  is_default: boolean
+  created_at: number
+  updated_at: number
+}
 
 export class SettingsService {
   private static lastKnownGoodConfigContent: string | null = null
 
-  constructor(private db: Database) {}
+  constructor(private pb: PocketBase) {}
 
   private getValidationIssues(error: z.ZodError): OpenCodeConfigValidationIssue[] {
     return error.issues.map((issue) => ({
@@ -88,58 +104,56 @@ export class SettingsService {
   }
 
   initializeLastKnownGoodConfig(userId: string = 'default'): void {
-    const settings = this.getSettings(userId)
-    if (settings.preferences.lastKnownGoodConfig) {
-      SettingsService.lastKnownGoodConfigContent = settings.preferences.lastKnownGoodConfig
-      logger.info('Initialized last known good config from database')
-    }
+    this.getSettings(userId).then((settings) => {
+      if (settings.preferences.lastKnownGoodConfig) {
+        SettingsService.lastKnownGoodConfigContent = settings.preferences.lastKnownGoodConfig
+        logger.info('Initialized last known good config from database')
+      }
+    })
   }
 
-  persistLastKnownGoodConfig(userId: string = 'default'): void {
+  async persistLastKnownGoodConfig(userId: string = 'default'): Promise<void> {
     if (SettingsService.lastKnownGoodConfigContent) {
-      this.updateSettings({ lastKnownGoodConfig: SettingsService.lastKnownGoodConfigContent }, userId)
+      await this.updateSettings({ lastKnownGoodConfig: SettingsService.lastKnownGoodConfigContent }, userId)
       logger.info('Persisted last known good config to database')
     }
   }
 
-  getSettings(userId: string = 'default'): SettingsResponse {
-    const row = this.db
-      .query('SELECT preferences, updated_at FROM user_preferences WHERE user_id = ?')
-      .get(userId) as { preferences: string; updated_at: number } | undefined
+  async getSettings(userId: string = 'default'): Promise<SettingsResponse> {
+    try {
+      const record = await this.pb.collection('user_preferences').getFirstListItem(`user_id = "${userId}"`)
+      const row = record as unknown as PrefsRecord
 
-    if (!row) {
+      try {
+        const parsed = parseJsonc(row.preferences) as Record<string, unknown>
+        const validated = UserPreferencesSchema.parse({
+          ...DEFAULT_USER_PREFERENCES,
+          ...parsed,
+        })
+        return {
+          preferences: validated,
+          updatedAt: row.updated_at,
+        }
+      } catch (error) {
+        logger.error('Failed to parse user preferences, returning defaults', error)
+        return {
+          preferences: DEFAULT_USER_PREFERENCES,
+          updatedAt: row.updated_at,
+        }
+      }
+    } catch {
       return {
         preferences: DEFAULT_USER_PREFERENCES,
         updatedAt: Date.now(),
       }
     }
-
-    try {
-      const parsed = parseJsonc(row.preferences) as Record<string, unknown>
-      
-      const validated = UserPreferencesSchema.parse({
-        ...DEFAULT_USER_PREFERENCES,
-        ...parsed,
-      })
-
-      return {
-        preferences: validated,
-        updatedAt: row.updated_at,
-      }
-    } catch (error) {
-      logger.error('Failed to parse user preferences, returning defaults', error)
-      return {
-        preferences: DEFAULT_USER_PREFERENCES,
-        updatedAt: row.updated_at,
-      }
-    }
   }
 
-  updateSettings(
+  async updateSettings(
     updates: Partial<UserPreferences>,
     userId: string = 'default'
-  ): SettingsResponse {
-    const current = this.getSettings(userId)
+  ): Promise<SettingsResponse> {
+    const current = await this.getSettings(userId)
     const merged: UserPreferences = {
       ...current.preferences,
       ...updates,
@@ -148,47 +162,45 @@ export class SettingsService {
     const validated = UserPreferencesSchema.parse(merged)
     const updatedAt = Date.now()
 
-    this.db
-      .query(
-        `INSERT INTO user_preferences (user_id, preferences, updated_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(user_id) DO UPDATE SET
-           preferences = excluded.preferences,
-           updated_at = excluded.updated_at`
-      )
-      .run(userId, JSON.stringify(validated), updatedAt)
+    try {
+      const existing = await this.pb.collection('user_preferences').getFirstListItem(`user_id = "${userId}"`)
+      await this.pb.collection('user_preferences').update(existing.id, {
+        preferences: JSON.stringify(validated),
+        updated_at: updatedAt,
+      })
+    } catch {
+      await this.pb.collection('user_preferences').create({
+        user_id: userId,
+        preferences: JSON.stringify(validated),
+        updated_at: updatedAt,
+      })
+    }
 
     logger.info(`Updated preferences for user: ${userId}`)
-
-    return {
-      preferences: validated,
-      updatedAt,
-    }
+    return { preferences: validated, updatedAt }
   }
 
-  resetSettings(userId: string = 'default'): SettingsResponse {
-    this.db.query('DELETE FROM user_preferences WHERE user_id = ?').run(userId)
+  async resetSettings(userId: string = 'default'): Promise<SettingsResponse> {
+    try {
+      const existing = await this.pb.collection('user_preferences').getFirstListItem(`user_id = "${userId}"`)
+      await this.pb.collection('user_preferences').delete(existing.id)
+    } catch {
+      // ignore if not found
+    }
 
     logger.info(`Reset preferences for user: ${userId}`)
-
     return {
       preferences: DEFAULT_USER_PREFERENCES,
       updatedAt: Date.now(),
     }
   }
 
-  getOpenCodeConfigs(userId: string = 'default'): OpenCodeConfigResponseWithRaw {
-    const rows = this.db
-      .query('SELECT * FROM opencode_configs WHERE user_id = ? ORDER BY created_at DESC')
-      .all(userId) as Array<{
-        id: number
-        user_id: string
-        config_name: string
-        config_content: string
-        is_default: boolean
-        created_at: number
-        updated_at: number
-      }>
+  async getOpenCodeConfigs(userId: string = 'default'): Promise<OpenCodeConfigResponseWithRaw> {
+    const result = await this.pb.collection('opencode_configs').getFullList({
+      filter: `user_id = "${userId}"`,
+      sort: '-created_at',
+    })
+    const rows = result as unknown as ConfigRecord[]
 
     const configs: OpenCodeConfigWithRaw[] = []
     let defaultConfig: OpenCodeConfigWithRaw | null = null
@@ -197,9 +209,9 @@ export class SettingsService {
       try {
         const rawContent = row.config_content
         const parsedConfig = this.parseStoredConfig(rawContent, row.config_name)
-        
+
         const config: OpenCodeConfigWithRaw = {
-          id: row.id,
+          id: parseInt(row.id, 10),
           name: row.config_name,
           content: parsedConfig.content,
           rawContent: rawContent,
@@ -211,7 +223,7 @@ export class SettingsService {
         }
 
         configs.push(config)
-        
+
         if (config.isDefault) {
           defaultConfig = config
         }
@@ -220,19 +232,15 @@ export class SettingsService {
       }
     }
 
-    return {
-      configs,
-      defaultConfig,
-    }
+    return { configs, defaultConfig }
   }
 
-  createOpenCodeConfig(
+  async createOpenCodeConfig(
     request: CreateOpenCodeConfigRequest,
     userId: string = 'default',
     options: CreateOpenCodeConfigOptions = {}
-  ): OpenCodeConfigWithRaw {
-    // Check for existing config with the same name
-    const existing = this.getOpenCodeConfigByName(request.name, userId)
+  ): Promise<OpenCodeConfigWithRaw> {
+    const existing = await this.getOpenCodeConfigByName(request.name, userId)
     if (existing) {
       throw new Error(`Config with name '${request.name}' already exists`)
     }
@@ -240,42 +248,39 @@ export class SettingsService {
     const rawContent = typeof request.content === 'string' 
       ? request.content 
       : JSON.stringify(request.content, null, 2)
-    
+
     const parsedContent = typeof request.content === 'string'
       ? parseJsonc(request.content)
       : request.content
-    
+
     const contentValidated = OpenCodeConfigSchema.parse(parsedContent)
     const now = Date.now()
 
-    const existingCount = this.db
-      .query('SELECT COUNT(*) as count FROM opencode_configs WHERE user_id = ?')
-      .get(userId) as { count: number }
-    
-    const shouldBeDefault = request.isDefault || (!options.suppressAutoDefault && existingCount.count === 0)
+    const existingConfigs = await this.pb.collection('opencode_configs').getFullList({
+      filter: `user_id = "${userId}"`,
+    })
+    const shouldBeDefault = request.isDefault || (!options.suppressAutoDefault && existingConfigs.length === 0)
 
     if (shouldBeDefault) {
-      this.db
-        .query('UPDATE opencode_configs SET is_default = FALSE WHERE user_id = ?')
-        .run(userId)
+      const allConfigs = await this.pb.collection('opencode_configs').getFullList({
+        filter: `user_id = "${userId}" && is_default = true`,
+      })
+      for (const c of allConfigs) {
+        await this.pb.collection('opencode_configs').update(c.id, { is_default: false })
+      }
     }
 
-    const result = this.db
-      .query(
-        `INSERT INTO opencode_configs (user_id, config_name, config_content, is_default, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        userId,
-        request.name,
-        rawContent,
-        shouldBeDefault,
-        now,
-        now
-      )
+    const record = await this.pb.collection('opencode_configs').create({
+      user_id: userId,
+      config_name: request.name,
+      config_content: rawContent,
+      is_default: shouldBeDefault,
+      created_at: now,
+      updated_at: now,
+    })
 
     const config: OpenCodeConfigWithRaw = {
-      id: result.lastInsertRowid as number,
+      id: parseInt(record.id, 10),
       name: request.name,
       content: contentValidated as Record<string, unknown>,
       rawContent: rawContent,
@@ -289,28 +294,25 @@ export class SettingsService {
     return config
   }
 
-  updateOpenCodeConfig(
+  async updateOpenCodeConfig(
     configName: string,
     request: UpdateOpenCodeConfigRequest,
     userId: string = 'default'
-  ): OpenCodeConfigWithRaw | null {
-    const existing = this.db
-      .query('SELECT * FROM opencode_configs WHERE user_id = ? AND config_name = ?')
-      .get(userId, configName) as {
-        id: number
-        config_content: string
-        is_default: boolean
-        created_at: number
-      } | undefined
-
-    if (!existing) {
+  ): Promise<OpenCodeConfigWithRaw | null> {
+    let existing: ConfigRecord | null = null
+    try {
+      const record = await this.pb.collection('opencode_configs').getFirstListItem(
+        `user_id = "${userId}" && config_name = "${configName}"`
+      )
+      existing = record as unknown as ConfigRecord
+    } catch {
       return null
     }
 
     const rawContent = typeof request.content === 'string' 
       ? request.content 
       : JSON.stringify(request.content, null, 2)
-    
+
     const parsedContent = typeof request.content === 'string'
       ? parseJsonc(request.content)
       : request.content
@@ -319,27 +321,22 @@ export class SettingsService {
     const now = Date.now()
 
     if (request.isDefault) {
-      this.db
-        .query('UPDATE opencode_configs SET is_default = FALSE WHERE user_id = ?')
-        .run(userId)
+      const allDefaults = await this.pb.collection('opencode_configs').getFullList({
+        filter: `user_id = "${userId}" && is_default = true`,
+      })
+      for (const c of allDefaults) {
+        await this.pb.collection('opencode_configs').update(c.id, { is_default: false })
+      }
     }
 
-    this.db
-      .query(
-        `UPDATE opencode_configs 
-         SET config_content = ?, is_default = ?, updated_at = ?
-         WHERE user_id = ? AND config_name = ?`
-      )
-      .run(
-        rawContent,
-        request.isDefault !== undefined ? request.isDefault : existing.is_default,
-        now,
-        userId,
-        configName
-      )
+    await this.pb.collection('opencode_configs').update(existing.id, {
+      config_content: rawContent,
+      is_default: request.isDefault !== undefined ? request.isDefault : existing.is_default,
+      updated_at: now,
+    })
 
     const config: OpenCodeConfigWithRaw = {
-      id: existing.id,
+      id: parseInt(existing.id, 10),
       name: configName,
       content: contentValidated as Record<string, unknown>,
       rawContent: rawContent,
@@ -353,52 +350,50 @@ export class SettingsService {
     return config
   }
 
-  deleteOpenCodeConfig(configName: string, userId: string = 'default'): boolean {
-    const result = this.db
-      .query('DELETE FROM opencode_configs WHERE user_id = ? AND config_name = ?')
-      .run(userId, configName)
-
-    const deleted = result.changes > 0
-    if (deleted) {
+  async deleteOpenCodeConfig(configName: string, userId: string = 'default'): Promise<boolean> {
+    try {
+      const record = await this.pb.collection('opencode_configs').getFirstListItem(
+        `user_id = "${userId}" && config_name = "${configName}"`
+      )
+      await this.pb.collection('opencode_configs').delete(record.id)
       logger.info(`Deleted OpenCode config '${configName}' for user: ${userId}`)
-      this.ensureSingleConfigIsDefault(userId)
+      await this.ensureSingleConfigIsDefault(userId)
+      return true
+    } catch {
+      return false
     }
-
-    return deleted
   }
 
-  setDefaultOpenCodeConfig(configName: string, userId: string = 'default'): OpenCodeConfigWithRaw | null {
-    const existing = this.db
-      .query('SELECT * FROM opencode_configs WHERE user_id = ? AND config_name = ?')
-      .get(userId, configName) as {
-        id: number
-        config_content: string
-        created_at: number
-      } | undefined
-
-    if (!existing) {
+  async setDefaultOpenCodeConfig(configName: string, userId: string = 'default'): Promise<OpenCodeConfigWithRaw | null> {
+    let existing: ConfigRecord | null = null
+    try {
+      const record = await this.pb.collection('opencode_configs').getFirstListItem(
+        `user_id = "${userId}" && config_name = "${configName}"`
+      )
+      existing = record as unknown as ConfigRecord
+    } catch {
       return null
     }
 
-    this.db
-      .query('UPDATE opencode_configs SET is_default = FALSE WHERE user_id = ?')
-      .run(userId)
+    const allDefaults = await this.pb.collection('opencode_configs').getFullList({
+      filter: `user_id = "${userId}" && is_default = true`,
+    })
+    for (const c of allDefaults) {
+      await this.pb.collection('opencode_configs').update(c.id, { is_default: false })
+    }
 
     const now = Date.now()
-    this.db
-      .query(
-        `UPDATE opencode_configs 
-         SET is_default = TRUE, updated_at = ?
-         WHERE user_id = ? AND config_name = ?`
-      )
-      .run(now, userId, configName)
+    await this.pb.collection('opencode_configs').update(existing.id, {
+      is_default: true,
+      updated_at: now,
+    })
 
     try {
       const rawContent = existing.config_content
       const parsedConfig = this.parseStoredConfig(rawContent, configName)
 
-      const config: OpenCodeConfigWithRaw = {
-        id: existing.id,
+      return {
+        id: parseInt(existing.id, 10),
         name: configName,
         content: parsedConfig.content,
         rawContent: rawContent,
@@ -408,36 +403,24 @@ export class SettingsService {
         createdAt: existing.created_at,
         updatedAt: now,
       }
-
-      logger.info(`Set '${configName}' as default OpenCode config for user: ${userId}`)
-      return config
     } catch (error) {
       logger.error(`Failed to parse config ${configName}:`, error)
       return null
     }
   }
 
-  getDefaultOpenCodeConfig(userId: string = 'default'): OpenCodeConfigWithRaw | null {
-    const row = this.db
-      .query('SELECT * FROM opencode_configs WHERE user_id = ? AND is_default = TRUE')
-      .get(userId) as {
-        id: number
-        config_name: string
-        config_content: string
-        created_at: number
-        updated_at: number
-      } | undefined
-
-    if (!row) {
-      return null
-    }
-
+  async getDefaultOpenCodeConfig(userId: string = 'default'): Promise<OpenCodeConfigWithRaw | null> {
     try {
+      const record = await this.pb.collection('opencode_configs').getFirstListItem(
+        `user_id = "${userId}" && is_default = true`
+      )
+      const row = record as unknown as ConfigRecord
+
       const rawContent = row.config_content
       const parsedConfig = this.parseStoredConfig(rawContent, row.config_name)
 
       return {
-        id: row.id,
+        id: parseInt(row.id, 10),
         name: row.config_name,
         content: parsedConfig.content,
         rawContent: rawContent,
@@ -447,35 +430,24 @@ export class SettingsService {
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }
-    } catch (error) {
-      logger.error(`Failed to parse default config:`, error)
+    } catch {
       return null
     }
   }
 
-  getOpenCodeConfigByName(configName: string, userId: string = 'default'): OpenCodeConfigWithRaw | null {
-    const row = this.db
-      .query('SELECT * FROM opencode_configs WHERE user_id = ? AND config_name = ?')
-      .get(userId, configName) as {
-        id: number
-        config_name: string
-        config_content: string
-        is_default: boolean
-        created_at: number
-        updated_at: number
-      } | undefined
-
-    if (!row) {
-      return null
-    }
-
+  async getOpenCodeConfigByName(configName: string, userId: string = 'default'): Promise<OpenCodeConfigWithRaw | null> {
     try {
+      const record = await this.pb.collection('opencode_configs').getFirstListItem(
+        `user_id = "${userId}" && config_name = "${configName}"`
+      )
+      const row = record as unknown as ConfigRecord
+
       const rawContent = row.config_content
       const parsedConfig = this.parseStoredConfig(rawContent, configName)
 
       return {
-        id: row.id,
-        name: row.config_name,
+        id: parseInt(row.id, 10),
+        name: configName,
         content: parsedConfig.content,
         rawContent: rawContent,
         validationIssues: parsedConfig.validationIssues,
@@ -484,63 +456,57 @@ export class SettingsService {
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }
-    } catch (error) {
-      logger.error(`Failed to parse config ${configName}:`, error)
+    } catch {
       return null
     }
   }
 
-  getOpenCodeConfigContent(configName: string, userId: string = 'default'): string | null {
-    const row = this.db
-      .query('SELECT config_content FROM opencode_configs WHERE user_id = ? AND config_name = ?')
-      .get(userId, configName) as { config_content: string } | undefined
-    
-    if (!row) {
+  async getOpenCodeConfigContent(configName: string, userId: string = 'default'): Promise<string | null> {
+    try {
+      const record = await this.pb.collection('opencode_configs').getFirstListItem(
+        `user_id = "${userId}" && config_name = "${configName}"`
+      )
+      return (record as unknown as ConfigRecord).config_content
+    } catch {
       logger.error(`Config '${configName}' not found for user ${userId}`)
       return null
     }
-
-    return row.config_content
   }
 
-  ensureSingleConfigIsDefault(userId: string = 'default'): void {
-    const hasDefault = this.db
-      .query('SELECT COUNT(*) as count FROM opencode_configs WHERE user_id = ? AND is_default = TRUE')
-      .get(userId) as { count: number }
-
-    if (hasDefault.count === 0) {
-      const firstConfig = this.db
-        .query('SELECT config_name FROM opencode_configs WHERE user_id = ? ORDER BY created_at ASC LIMIT 1')
-        .get(userId) as { config_name: string } | undefined
-
-      if (firstConfig) {
-        this.db
-          .query('UPDATE opencode_configs SET is_default = TRUE WHERE user_id = ? AND config_name = ?')
-          .run(userId, firstConfig.config_name)
-        logger.info(`Auto-set '${firstConfig.config_name}' as default (only config)`)
+  async ensureSingleConfigIsDefault(userId: string = 'default'): Promise<void> {
+    const defaults = await this.pb.collection('opencode_configs').getFullList({
+      filter: `user_id = "${userId}" && is_default = true`,
+    })
+    if (defaults.length === 0) {
+      const configs = await this.pb.collection('opencode_configs').getFullList({
+        filter: `user_id = "${userId}"`,
+        sort: 'created_at',
+        limit: 1,
+      })
+      if (configs.length > 0) {
+        await this.pb.collection('opencode_configs').update(configs[0].id, { is_default: true })
+        logger.info(`Auto-set '${(configs[0] as unknown as ConfigRecord).config_name}' as default (only config)`)
       }
     }
   }
 
-  saveLastKnownGoodConfig(userId: string = 'default'): void {
-    const config = this.getDefaultOpenCodeConfig(userId)
+  async saveLastKnownGoodConfig(userId: string = 'default'): Promise<void> {
+    const config = await this.getDefaultOpenCodeConfig(userId)
     if (config) {
       SettingsService.lastKnownGoodConfigContent = config.rawContent
-      this.persistLastKnownGoodConfig(userId)
+      await this.persistLastKnownGoodConfig(userId)
       logger.info(`Saved last known good config: ${config.name}`)
     }
   }
 
-  archiveBrokenConfig(userId: string = 'default'): string | null {
-    const current = this.getDefaultOpenCodeConfig(userId)
-    if (!current) {
-      return null
-    }
+  async archiveBrokenConfig(userId: string = 'default'): Promise<string | null> {
+    const current = await this.getDefaultOpenCodeConfig(userId)
+    if (!current) return null
 
     const ts = new Date().toISOString().replace(/[:.]/g, '-')
     const backupName = `${current.name}-broken-${ts}`
     try {
-      this.createOpenCodeConfig(
+      await this.createOpenCodeConfig(
         {
           name: backupName,
           content: current.rawContent,
@@ -557,13 +523,13 @@ export class SettingsService {
     }
   }
 
-  restoreToLastKnownGoodConfig(userId: string = 'default'): { configName: string; content: string } | null {
+  async restoreToLastKnownGoodConfig(userId: string = 'default'): Promise<{ configName: string; content: string } | null> {
     if (!SettingsService.lastKnownGoodConfigContent) {
       logger.warn('No last known good config available for rollback')
       return null
     }
 
-    const configs = this.getOpenCodeConfigs(userId)
+    const configs = await this.getOpenCodeConfigs(userId)
     const defaultConfig = configs.defaultConfig
 
     if (!defaultConfig) {
@@ -578,13 +544,11 @@ export class SettingsService {
     }
   }
 
-  rollbackToLastKnownGoodHealth(userId: string = 'default'): string | null {
-    const lastGood = this.restoreToLastKnownGoodConfig(userId)
-    if (!lastGood) {
-      return null
-    }
+  async rollbackToLastKnownGoodHealth(userId: string = 'default'): Promise<string | null> {
+    const lastGood = await this.restoreToLastKnownGoodConfig(userId)
+    if (!lastGood) return null
 
-    this.updateOpenCodeConfig(lastGood.configName, { content: lastGood.content }, userId)
+    await this.updateOpenCodeConfig(lastGood.configName, { content: lastGood.content }, userId)
     return lastGood.configName
   }
 
@@ -606,59 +570,87 @@ export class SettingsService {
     }
   }
 
-  getOpenCodeServerPassword(): string {
-    const row = this.db.prepare('SELECT value FROM app_secrets WHERE key = ?').get('opencode_server_password') as { value: string } | undefined
-    if (!row) {
-      return ENV.OPENCODE.SERVER_PASSWORD
-    }
+  async getOpenCodeServerPassword(): Promise<string> {
     try {
-      return decryptSecret(row.value)
-    } catch (error) {
-      logger.error('Failed to decrypt opencode_server_password, falling back to env', error)
+      const record = await this.pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"')
+      const value = (record as unknown as { value: string }).value
+      return decryptSecret(value)
+    } catch {
       return ENV.OPENCODE.SERVER_PASSWORD
     }
   }
 
-  hasStoredOpenCodeServerPassword(): boolean {
-    const row = this.db.prepare('SELECT 1 FROM app_secrets WHERE key = ?').get('opencode_server_password')
-    return Boolean(row)
+  async hasStoredOpenCodeServerPassword(): Promise<boolean> {
+    try {
+      await this.pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"')
+      return true
+    } catch {
+      return false
+    }
   }
 
-  getStoredOpenCodeServerPasswordState(): OpenCodeServerPasswordState | null {
-    const row = this.db.prepare('SELECT value, created_at, updated_at FROM app_secrets WHERE key = ?').get('opencode_server_password') as { value: string; created_at: number; updated_at: number } | undefined
-    if (!row) {
+  async getStoredOpenCodeServerPasswordState(): Promise<OpenCodeServerPasswordState | null> {
+    try {
+      const record = await this.pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"')
+      const row = record as unknown as { value: string; created_at: number; updated_at: number }
+      return {
+        value: row.value,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }
+    } catch {
       return null
     }
-
-    return {
-      value: row.value,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }
   }
 
-  restoreOpenCodeServerPasswordState(state: OpenCodeServerPasswordState | null): void {
+  async restoreOpenCodeServerPasswordState(state: OpenCodeServerPasswordState | null): Promise<void> {
     if (!state) {
-      this.clearOpenCodeServerPassword()
+      await this.clearOpenCodeServerPassword()
       return
     }
 
-    this.db.prepare(`
-      INSERT INTO app_secrets (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value, created_at = excluded.created_at, updated_at = excluded.updated_at
-    `).run('opencode_server_password', state.value, state.createdAt, state.updatedAt)
+    try {
+      const existing = await this.pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"')
+      await this.pb.collection('app_secrets').update(existing.id, {
+        value: state.value,
+        created_at: state.createdAt,
+        updated_at: state.updatedAt,
+      })
+    } catch {
+      await this.pb.collection('app_secrets').create({
+        key: 'opencode_server_password',
+        value: state.value,
+        created_at: state.createdAt,
+        updated_at: state.updatedAt,
+      })
+    }
   }
 
-  setOpenCodeServerPassword(password: string): void {
+  async setOpenCodeServerPassword(password: string): Promise<void> {
     const now = Date.now()
     const encrypted = encryptSecret(password)
-    this.db.prepare(`
-      INSERT INTO app_secrets (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-    `).run('opencode_server_password', encrypted, now, now)
+    try {
+      const existing = await this.pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"')
+      await this.pb.collection('app_secrets').update(existing.id, {
+        value: encrypted,
+        updated_at: now,
+      })
+    } catch {
+      await this.pb.collection('app_secrets').create({
+        key: 'opencode_server_password',
+        value: encrypted,
+        created_at: now,
+        updated_at: now,
+      })
+    }
   }
 
-  clearOpenCodeServerPassword(): void {
-    this.db.prepare('DELETE FROM app_secrets WHERE key = ?').run('opencode_server_password')
+  async clearOpenCodeServerPassword(): Promise<void> {
+    try {
+      const existing = await this.pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"')
+      await this.pb.collection('app_secrets').delete(existing.id)
+    } catch {
+      // ignore
+    }
   }
 }

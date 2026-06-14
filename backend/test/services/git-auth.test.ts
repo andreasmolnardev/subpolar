@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { GitCredential } from '@subpolar/shared'
 import type { IPCServer } from '../../src/ipc/ipcServer'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../../src/db/schema'
 
 vi.mock('bun:sqlite', () => ({
   Database: vi.fn(),

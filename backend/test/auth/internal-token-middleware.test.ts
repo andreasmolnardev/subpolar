@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Hono } from 'hono'
-import { Database } from 'bun:sqlite'
+import type { Database } from '../../src/db/schema'
 import { createInternalTokenMiddleware } from '../../src/auth/internal-token-middleware'
 import { getOrCreateInternalToken } from '../../src/services/internal-token'
 import migration013 from '../../src/db/migrations/013-app-secrets'

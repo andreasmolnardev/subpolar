@@ -1,6 +1,6 @@
 services:
   pocketbase:
-    image: ghcr.io/pocketbase/pocketbase:latest
+    image: elestio/pocketbase:latest
     container_name: subpolar-dev-pocketbase
     ports:
       - "8090:8090"
@@ -8,7 +8,8 @@ services:
       - POCKETBASE_EMAIL=${POCKETBASE_EMAIL:-admin@example.com}
       - POCKETBASE_PASSWORD=${POCKETBASE_PASSWORD:-adminpassword}
     volumes:
-      - pocketbase-data:/pb_data
+      - ./pocketbase/pb_data:/pb_data
+      - ./pocketbase/migrations:/pb_migs
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/api/health"]

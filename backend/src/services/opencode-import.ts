@@ -1,7 +1,8 @@
 import os from 'os'
 import path from 'path'
 import { cp, mkdtemp, readdir, rename, rm } from 'fs/promises'
-import { Database as SQLiteDatabase, type Database } from 'bun:sqlite'
+import { Database as SQLiteDatabase } from 'bun:sqlite'
+import type { Database } from '../db/schema'
 import { OpenCodeConfigSchema } from '@subpolar/shared/schemas'
 import { getOpenCodeConfigFilePath, getWorkspacePath } from '@subpolar/shared/config/env'
 import { parse as parseJsonc } from 'jsonc-parser'
@@ -166,15 +167,15 @@ async function importOpenCodeConfigFromSource(db: Database, userId: string, sour
   }
 
   const settingsService = new SettingsService(db)
-  const existingDefault = settingsService.getOpenCodeConfigByName('default', userId)
+  const existingDefault = await settingsService.getOpenCodeConfigByName('default', userId)
 
   if (existingDefault) {
-    settingsService.updateOpenCodeConfig('default', {
+    await settingsService.updateOpenCodeConfig('default', {
       content: rawContent,
       isDefault: true,
     }, userId)
   } else {
-    settingsService.createOpenCodeConfig({
+    await settingsService.createOpenCodeConfig({
       name: 'default',
       content: rawContent,
       isDefault: true,

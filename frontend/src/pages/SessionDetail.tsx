@@ -68,7 +68,6 @@ export function SessionDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const repoId = Number(id) || 0;
-  const isAssistantSession = new URLSearchParams(location.search).get('assistant') === '1';
   const { preferences, updateSettings } = useSettings();
   const { open: openSettings } = useSettingsDialog();
   const messageContainerRef = useRef<HTMLDivElement>(null);
@@ -119,7 +118,7 @@ export function SessionDetail() {
   const opcodeUrl = OPENCODE_API_ENDPOINT;
   
   const repoDirectory = repo?.fullPath;
-  const sessionRouteSuffix = isAssistantSession ? '?assistant=1' : '';
+  const sessionRouteSuffix = '';
 
   const { isConnected, isReconnecting } = useSSE(opcodeUrl, repoDirectory, sessionId);
 
@@ -173,8 +172,7 @@ export function SessionDetail() {
   }, [lastAssistantMessage, session?.time?.compacting, sessionStatus.type])
   const hasIncompleteMessages = lastAssistantMessage ? !('completed' in lastAssistantMessage.info.time && lastAssistantMessage.info.time.completed) : false;
   const isStreamingResponse = hasIncompleteMessages && isSessionActive;
-  const assistantFileBasePath = repo?.fullPath.split('/').filter(Boolean).at(-1);
-  const workspaceBasePath = (isAssistantSession ? assistantFileBasePath : repo?.localPath) ?? repo?.localPath;
+  const workspaceBasePath = repo?.localPath;
 
   useEffect(() => {
     setActivePromptFileBasePath(repoDirectory ? workspaceBasePath ?? null : null)
@@ -298,8 +296,8 @@ export function SessionDetail() {
 
   const handleCloseSession = useCallback(() => {
     const tab = new URLSearchParams(location.search).get('repoTab') ?? undefined;
-    navigate(getSessionListPath(repoId, isAssistantSession, tab))
-  }, [navigate, repoId, isAssistantSession, location.search])
+    navigate(getSessionListPath(repoId, tab))
+  }, [navigate, repoId, location.search])
 
   const { leaderActive } = useKeyboardShortcuts({
     openSessions: () => setSessionsDialogOpen(true),
@@ -402,7 +400,7 @@ export function SessionDetail() {
     return <Navigate to="/" replace />;
   }
 
-  if (!repo && !isAssistantSession) {
+  if (!repo) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-background to-background">
         <div className="flex flex-col items-center gap-2">
@@ -413,11 +411,11 @@ export function SessionDetail() {
     );
   }
 
-  const workspaceDisplayName = isAssistantSession || !repo
-    ? 'Assistant'
-    : getRepoDisplayName(repo.repoUrl, repo.localPath, repo.sourcePath);
+  const workspaceDisplayName = repo
+    ? getRepoDisplayName(repo.repoUrl, repo.localPath, repo.sourcePath)
+    : 'Workspace';
   const tabFromUrl = new URLSearchParams(location.search).get('repoTab') ?? undefined;
-  const sessionBackPath = getSessionListPath(repoId, isAssistantSession, tabFromUrl);
+  const sessionBackPath = getSessionListPath(repoId, tabFromUrl);
 
   return (
     <div

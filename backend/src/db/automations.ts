@@ -1,4 +1,4 @@
-import type { Database } from 'bun:sqlite'
+import type PocketBase from 'pocketbase'
 import {
   AutomationJobSchema,
   AutomationRunSchema,
@@ -12,12 +12,12 @@ import {
 import { ASSISTANT_REPO_ID, ASSISTANT_REPO_NAME, ASSISTANT_REPO_PATH } from '@subpolar/shared/utils'
 import type { AutomationJobPersistenceInput } from '../services/automation-config'
 
-interface AutomationJobRow {
-  id: number
-  repo_id: number
+interface AutomationJobRecord {
+  id: string
+  repo_id: string
   name: string
   description: string | null
-  enabled: number
+  enabled: boolean
   automation_mode: AutomationMode | null
   interval_minutes: number | null
   cron_expression: string | null
@@ -32,10 +32,10 @@ interface AutomationJobRow {
   next_run_at: number | null
 }
 
-interface AutomationRunRow {
-  id: number
-  job_id: number
-  repo_id: number
+interface AutomationRunRecord {
+  id: string
+  job_id: string
+  repo_id: string
   trigger_source: string
   status: string
   started_at: number
@@ -49,10 +49,7 @@ interface AutomationRunRow {
 }
 
 function parseSkillMetadata(raw: string | null) {
-  if (!raw) {
-    return null
-  }
-
+  if (!raw) return null
   try {
     const parsed = JSON.parse(raw)
     const result = AutomationSkillMetadataSchema.safeParse(parsed)
@@ -62,10 +59,10 @@ function parseSkillMetadata(raw: string | null) {
   }
 }
 
-function rowToAutomationJob(row: AutomationJobRow): AutomationJob {
+function rowToAutomationJob(row: AutomationJobRecord): AutomationJob {
   return AutomationJobSchema.parse({
-    id: row.id,
-    repoId: row.repo_id,
+    id: parseInt(row.id, 10),
+    repoId: parseInt(row.repo_id, 10),
     name: row.name,
     description: row.description,
     enabled: Boolean(row.enabled),
@@ -84,11 +81,11 @@ function rowToAutomationJob(row: AutomationJobRow): AutomationJob {
   })
 }
 
-function rowToAutomationRun(row: AutomationRunRow): AutomationRun {
+function rowToAutomationRun(row: AutomationRunRecord): AutomationRun {
   return AutomationRunSchema.parse({
-    id: row.id,
-    jobId: row.job_id,
-    repoId: row.repo_id,
+    id: parseInt(row.id, 10),
+    jobId: parseInt(row.job_id, 10),
+    repoId: parseInt(row.repo_id, 10),
     triggerSource: row.trigger_source,
     status: row.status,
     startedAt: row.started_at,
@@ -103,139 +100,149 @@ function rowToAutomationRun(row: AutomationRunRow): AutomationRun {
 }
 
 function serializeSkillMetadata(skillMetadata: AutomationJobPersistenceInput['skillMetadata']): string | null {
-  if (!skillMetadata) {
-    return null
-  }
-
+  if (!skillMetadata) return null
   return JSON.stringify(skillMetadata)
 }
 
-export function listAutomationJobsByRepo(db: Database, repoId: number): AutomationJob[] {
-  const stmt = db.prepare('SELECT * FROM automation_jobs WHERE repo_id = ? ORDER BY created_at DESC')
-  const rows = stmt.all(repoId) as AutomationJobRow[]
-  return rows.map(rowToAutomationJob)
+function toPbId(num: number): string {
+  return String(num)
 }
 
-export function listAutomationJobIdsByRepo(db: Database, repoId: number): number[] {
-  const stmt = db.prepare('SELECT id FROM automation_jobs WHERE repo_id = ? ORDER BY created_at DESC')
-  const rows = stmt.all(repoId) as Array<{ id: number }>
-  return rows.map((row) => row.id)
+export async function listAutomationJobsByRepo(pb: PocketBase, repoId: number): Promise<AutomationJob[]> {
+  const result = await pb.collection('automation_jobs').getFullList({
+    filter: `repo_id = "${toPbId(repoId)}"`,
+    sort: '-created_at',
+  })
+  return (result as unknown as AutomationJobRecord[]).map(rowToAutomationJob)
 }
 
-export function listEnabledAutomationJobs(db: Database): AutomationJob[] {
-  const stmt = db.prepare('SELECT * FROM automation_jobs WHERE enabled = 1 ORDER BY id ASC')
-  const rows = stmt.all() as AutomationJobRow[]
-  return rows.map(rowToAutomationJob)
+export async function listAutomationJobIdsByRepo(pb: PocketBase, repoId: number): Promise<number[]> {
+  const result = await pb.collection('automation_jobs').getFullList({
+    filter: `repo_id = "${toPbId(repoId)}"`,
+    sort: '-created_at',
+    fields: 'id',
+  })
+  return (result as unknown as Array<{ id: string }>).map((r) => parseInt(r.id, 10))
 }
 
-export function getAutomationJobById(db: Database, repoId: number, jobId: number): AutomationJob | null {
-  const stmt = db.prepare('SELECT * FROM automation_jobs WHERE repo_id = ? AND id = ?')
-  const row = stmt.get(repoId, jobId) as AutomationJobRow | undefined
-  return row ? rowToAutomationJob(row) : null
+export async function listEnabledAutomationJobs(pb: PocketBase): Promise<AutomationJob[]> {
+  const result = await pb.collection('automation_jobs').getFullList({
+    filter: 'enabled = true',
+    sort: 'id',
+  })
+  return (result as unknown as AutomationJobRecord[]).map(rowToAutomationJob)
 }
 
-export function createAutomationJob(db: Database, repoId: number, input: AutomationJobPersistenceInput): AutomationJob {
-  const now = Date.now()
-  const stmt = db.prepare(`
-    INSERT INTO automation_jobs (
-      repo_id, name, description, enabled, automation_mode, interval_minutes, cron_expression, timezone, agent_slug, prompt, model, skill_metadata,
-      created_at, updated_at, last_run_at, next_run_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `)
-
-  const result = stmt.run(
-    repoId,
-    input.name,
-    input.description ?? null,
-    input.enabled ? 1 : 0,
-    input.automationMode,
-    input.intervalMinutes,
-    input.cronExpression,
-    input.timezone,
-    input.agentSlug ?? null,
-    input.prompt,
-    input.model ?? null,
-    serializeSkillMetadata(input.skillMetadata),
-    now,
-    now,
-    null,
-    input.nextRunAt,
-  )
-
-  const job = getAutomationJobById(db, repoId, Number(result.lastInsertRowid))
-  if (!job) {
-    throw new Error('Failed to load created automation job')
-  }
-  return job
-}
-
-export function updateAutomationJob(db: Database, repoId: number, jobId: number, input: AutomationJobPersistenceInput): AutomationJob | null {
-  const existing = getAutomationJobById(db, repoId, jobId)
-  if (!existing) {
+export async function getAutomationJobById(pb: PocketBase, repoId: number, jobId: number): Promise<AutomationJob | null> {
+  try {
+    const record = await pb.collection('automation_jobs').getOne(toPbId(jobId))
+    const r = record as unknown as AutomationJobRecord
+    if (parseInt(r.repo_id, 10) !== repoId) return null
+    return rowToAutomationJob(r)
+  } catch {
     return null
   }
+}
+
+export async function createAutomationJob(pb: PocketBase, repoId: number, input: AutomationJobPersistenceInput): Promise<AutomationJob> {
+  const now = Date.now()
+  const record = await pb.collection('automation_jobs').create({
+    repo_id: toPbId(repoId),
+    name: input.name,
+    description: input.description ?? null,
+    enabled: input.enabled,
+    automation_mode: input.automationMode,
+    interval_minutes: input.intervalMinutes,
+    cron_expression: input.cronExpression,
+    timezone: input.timezone,
+    agent_slug: input.agentSlug ?? null,
+    prompt: input.prompt,
+    model: input.model ?? null,
+    skill_metadata: serializeSkillMetadata(input.skillMetadata),
+    created_at: now,
+    updated_at: now,
+    last_run_at: null,
+    next_run_at: input.nextRunAt,
+  })
+  const r = record as unknown as AutomationJobRecord
+  return rowToAutomationJob(r)
+}
+
+export async function updateAutomationJob(pb: PocketBase, repoId: number, jobId: number, input: AutomationJobPersistenceInput): Promise<AutomationJob | null> {
+  const existing = await getAutomationJobById(pb, repoId, jobId)
+  if (!existing) return null
 
   const now = Date.now()
-
-  const stmt = db.prepare(`
-    UPDATE automation_jobs
-    SET name = ?, description = ?, enabled = ?, automation_mode = ?, interval_minutes = ?, cron_expression = ?, timezone = ?, agent_slug = ?, prompt = ?, model = ?, skill_metadata = ?, updated_at = ?, next_run_at = ?
-    WHERE repo_id = ? AND id = ?
-  `)
-
-  stmt.run(
-    input.name,
-    input.description,
-    input.enabled ? 1 : 0,
-    input.automationMode,
-    input.intervalMinutes,
-    input.cronExpression,
-    input.timezone,
-    input.agentSlug,
-    input.prompt,
-    input.model,
-    serializeSkillMetadata(input.skillMetadata),
-    now,
-    input.nextRunAt,
-    repoId,
-    jobId,
-  )
-
-  return getAutomationJobById(db, repoId, jobId)
+  const record = await pb.collection('automation_jobs').update(toPbId(jobId), {
+    name: input.name,
+    description: input.description,
+    enabled: input.enabled,
+    automation_mode: input.automationMode,
+    interval_minutes: input.intervalMinutes,
+    cron_expression: input.cronExpression,
+    timezone: input.timezone,
+    agent_slug: input.agentSlug,
+    prompt: input.prompt,
+    model: input.model,
+    skill_metadata: serializeSkillMetadata(input.skillMetadata),
+    updated_at: now,
+    next_run_at: input.nextRunAt,
+  })
+  const r = record as unknown as AutomationJobRecord
+  return rowToAutomationJob(r)
 }
 
-export function deleteAutomationJob(db: Database, repoId: number, jobId: number): boolean {
-  db.prepare('DELETE FROM automation_runs WHERE repo_id = ? AND job_id = ?').run(repoId, jobId)
-  const stmt = db.prepare('DELETE FROM automation_jobs WHERE repo_id = ? AND id = ?')
-  const result = stmt.run(repoId, jobId)
-  return result.changes > 0
+export async function deleteAutomationJob(pb: PocketBase, repoId: number, jobId: number): Promise<boolean> {
+  const runs = await pb.collection('automation_runs').getFullList({
+    filter: `repo_id = "${toPbId(repoId)}" && job_id = "${toPbId(jobId)}"`,
+  })
+  for (const run of runs) {
+    await pb.collection('automation_runs').delete(run.id)
+  }
+  try {
+    await pb.collection('automation_jobs').delete(toPbId(jobId))
+    return true
+  } catch {
+    return false
+  }
 }
 
-export function cleanupOrphanedAutomations(db: Database): { orphanedJobs: number; orphanedRuns: number } {
-  const runStmt = db.prepare(`
-    DELETE FROM automation_runs
-    WHERE (repo_id != ? AND repo_id NOT IN (SELECT id FROM repos))
-       OR job_id NOT IN (SELECT id FROM automation_jobs)
-  `)
-  const orphanedRuns = runStmt.run(ASSISTANT_REPO_ID).changes
+export async function cleanupOrphanedAutomations(pb: PocketBase): Promise<{ orphanedJobs: number; orphanedRuns: number }> {
+  const allRepos = await pb.collection('repos').getFullList({ fields: 'id' })
+  const repoIds = new Set((allRepos as unknown as Array<{ id: string }>).map(r => r.id))
 
-  const jobStmt = db.prepare(`
-    DELETE FROM automation_jobs
-    WHERE repo_id != ? AND repo_id NOT IN (SELECT id FROM repos)
-  `)
-  const orphanedJobs = jobStmt.run(ASSISTANT_REPO_ID).changes
+  const allJobs = await pb.collection('automation_jobs').getFullList({ fields: 'id,repo_id' })
+  let orphanedJobs = 0
+  for (const j of allJobs as unknown as Array<{ id: string; repo_id: string }>) {
+    if (j.repo_id !== toPbId(ASSISTANT_REPO_ID) && !repoIds.has(j.repo_id)) {
+      await pb.collection('automation_jobs').delete(j.id)
+      orphanedJobs++
+    }
+  }
+
+  const allRuns = await pb.collection('automation_runs').getFullList({ fields: 'id,repo_id,job_id' })
+  let orphanedRuns = 0
+  const allJobIds = new Set((await pb.collection('automation_jobs').getFullList({ fields: 'id' }) as unknown as Array<{ id: string }>).map(r => r.id))
+  for (const r of allRuns as unknown as Array<{ id: string; repo_id: string; job_id: string }>) {
+    if ((r.repo_id !== toPbId(ASSISTANT_REPO_ID) && !repoIds.has(r.repo_id)) || !allJobIds.has(r.job_id)) {
+      await pb.collection('automation_runs').delete(r.id)
+      orphanedRuns++
+    }
+  }
 
   return { orphanedJobs, orphanedRuns }
 }
 
-export function updateAutomationJobRunState(db: Database, repoId: number, jobId: number, values: { lastRunAt: number; nextRunAt?: number | null }): void {
-  const stmt = db.prepare('UPDATE automation_jobs SET last_run_at = ?, next_run_at = ?, updated_at = ? WHERE repo_id = ? AND id = ?')
-  stmt.run(values.lastRunAt, values.nextRunAt ?? null, Date.now(), repoId, jobId)
+export async function updateAutomationJobRunState(pb: PocketBase, repoId: number, jobId: number, values: { lastRunAt: number; nextRunAt?: number | null }): Promise<void> {
+  await pb.collection('automation_jobs').update(toPbId(jobId), {
+    last_run_at: values.lastRunAt,
+    next_run_at: values.nextRunAt ?? null,
+    updated_at: Date.now(),
+  })
 }
 
-export function createAutomationRun(
-  db: Database,
+export async function createAutomationRun(
+  pb: PocketBase,
   input: {
     jobId: number
     repoId: number
@@ -244,30 +251,20 @@ export function createAutomationRun(
     startedAt: number
     createdAt: number
   },
-): AutomationRun {
-  const stmt = db.prepare(`
-    INSERT INTO automation_runs (job_id, repo_id, trigger_source, status, started_at, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `)
-
-  const result = stmt.run(
-    input.jobId,
-    input.repoId,
-    input.triggerSource,
-    input.status,
-    input.startedAt,
-    input.createdAt,
-  )
-
-  const run = getAutomationRunById(db, input.repoId, input.jobId, Number(result.lastInsertRowid))
-  if (!run) {
-    throw new Error('Failed to load created automation run')
-  }
-  return run
+): Promise<AutomationRun> {
+  const record = await pb.collection('automation_runs').create({
+    job_id: toPbId(input.jobId),
+    repo_id: toPbId(input.repoId),
+    trigger_source: input.triggerSource,
+    status: input.status,
+    started_at: input.startedAt,
+    created_at: input.createdAt,
+  })
+  return rowToAutomationRun(record as unknown as AutomationRunRecord)
 }
 
-export function updateAutomationRun(
-  db: Database,
+export async function updateAutomationRun(
+  pb: PocketBase,
   repoId: number,
   jobId: number,
   runId: number,
@@ -280,31 +277,25 @@ export function updateAutomationRun(
     responseText?: string | null
     errorText?: string | null
   },
-): AutomationRun | null {
-  const stmt = db.prepare(`
-    UPDATE automation_runs
-    SET status = ?, finished_at = ?, session_id = ?, session_title = ?, log_text = ?, response_text = ?, error_text = ?
-    WHERE repo_id = ? AND job_id = ? AND id = ?
-  `)
-
-  stmt.run(
-    input.status,
-    input.finishedAt,
-    input.sessionId ?? null,
-    input.sessionTitle ?? null,
-    input.logText ?? null,
-    input.responseText ?? null,
-    input.errorText ?? null,
-    repoId,
-    jobId,
-    runId,
-  )
-
-  return getAutomationRunById(db, repoId, jobId, runId)
+): Promise<AutomationRun | null> {
+  try {
+    const record = await pb.collection('automation_runs').update(toPbId(runId), {
+      status: input.status,
+      finished_at: input.finishedAt,
+      session_id: input.sessionId ?? null,
+      session_title: input.sessionTitle ?? null,
+      log_text: input.logText ?? null,
+      response_text: input.responseText ?? null,
+      error_text: input.errorText ?? null,
+    })
+    return rowToAutomationRun(record as unknown as AutomationRunRecord)
+  } catch {
+    return null
+  }
 }
 
-export function updateAutomationRunMetadata(
-  db: Database,
+export async function updateAutomationRunMetadata(
+  pb: PocketBase,
   repoId: number,
   jobId: number,
   runId: number,
@@ -315,94 +306,71 @@ export function updateAutomationRunMetadata(
     responseText?: string | null
     errorText?: string | null
   },
-): AutomationRun | null {
-  const existing = getAutomationRunById(db, repoId, jobId, runId)
-  if (!existing) {
+): Promise<AutomationRun | null> {
+  const existing = await getAutomationRunById(pb, repoId, jobId, runId)
+  if (!existing) return null
+
+  try {
+    const record = await pb.collection('automation_runs').update(toPbId(runId), {
+      session_id: input.sessionId === undefined ? existing.sessionId : input.sessionId,
+      session_title: input.sessionTitle === undefined ? existing.sessionTitle : input.sessionTitle,
+      log_text: input.logText === undefined ? existing.logText : input.logText,
+      response_text: input.responseText === undefined ? existing.responseText : input.responseText,
+      error_text: input.errorText === undefined ? existing.errorText : input.errorText,
+    })
+    return rowToAutomationRun(record as unknown as AutomationRunRecord)
+  } catch {
     return null
   }
-
-  const stmt = db.prepare(`
-    UPDATE automation_runs
-    SET session_id = ?, session_title = ?, log_text = ?, response_text = ?, error_text = ?
-    WHERE repo_id = ? AND job_id = ? AND id = ?
-  `)
-
-  stmt.run(
-    input.sessionId === undefined ? existing.sessionId : input.sessionId,
-    input.sessionTitle === undefined ? existing.sessionTitle : input.sessionTitle,
-    input.logText === undefined ? existing.logText : input.logText,
-    input.responseText === undefined ? existing.responseText : input.responseText,
-    input.errorText === undefined ? existing.errorText : input.errorText,
-    repoId,
-    jobId,
-    runId,
-  )
-
-  return getAutomationRunById(db, repoId, jobId, runId)
 }
 
-export function getAutomationRunById(db: Database, repoId: number, jobId: number, runId: number): AutomationRun | null {
-  const stmt = db.prepare('SELECT * FROM automation_runs WHERE repo_id = ? AND job_id = ? AND id = ?')
-  const row = stmt.get(repoId, jobId, runId) as AutomationRunRow | undefined
-  return row ? rowToAutomationRun(row) : null
+export async function getAutomationRunById(pb: PocketBase, repoId: number, jobId: number, runId: number): Promise<AutomationRun | null> {
+  try {
+    const record = await pb.collection('automation_runs').getOne(toPbId(runId))
+    const r = record as unknown as AutomationRunRecord
+    if (parseInt(r.repo_id, 10) !== repoId || parseInt(r.job_id, 10) !== jobId) return null
+    return rowToAutomationRun(r)
+  } catch {
+    return null
+  }
 }
 
-export function getRunningAutomationRunByJob(db: Database, repoId: number, jobId: number): AutomationRun | null {
-  const stmt = db.prepare(`
-    SELECT * FROM automation_runs
-    WHERE repo_id = ? AND job_id = ? AND status = 'running'
-    ORDER BY started_at DESC
-    LIMIT 1
-  `)
-  const row = stmt.get(repoId, jobId) as AutomationRunRow | undefined
-  return row ? rowToAutomationRun(row) : null
+export async function getRunningAutomationRunByJob(pb: PocketBase, repoId: number, jobId: number): Promise<AutomationRun | null> {
+  try {
+    const record = await pb.collection('automation_runs').getFirstListItem(
+      `repo_id = "${toPbId(repoId)}" && job_id = "${toPbId(jobId)}" && status = "running"`,
+    )
+    return rowToAutomationRun(record as unknown as AutomationRunRecord)
+  } catch {
+    return null
+  }
 }
 
-export function listRunningAutomationRuns(db: Database, limit: number = 100): AutomationRun[] {
-  const stmt = db.prepare(`
-    SELECT * FROM automation_runs
-    WHERE status = 'running'
-    ORDER BY started_at ASC
-    LIMIT ?
-  `)
-  const rows = stmt.all(limit) as AutomationRunRow[]
-  return rows.map(rowToAutomationRun)
+export async function listRunningAutomationRuns(pb: PocketBase, limit: number = 100): Promise<AutomationRun[]> {
+  const result = await pb.collection('automation_runs').getList(1, limit, {
+    filter: 'status = "running"',
+    sort: 'started_at',
+  })
+  return (result.items as unknown as AutomationRunRecord[]).map(rowToAutomationRun)
 }
 
-export function listAutomationRunsByJob(db: Database, repoId: number, jobId: number, limit: number = 20): AutomationRun[] {
-  const stmt = db.prepare(`
-    SELECT
-      id,
-      job_id,
-      repo_id,
-      trigger_source,
-      status,
-      started_at,
-      finished_at,
-      created_at,
-      session_id,
-      session_title,
-      NULL AS log_text,
-      NULL AS response_text,
-      error_text
-    FROM automation_runs
-    WHERE repo_id = ? AND job_id = ?
-    ORDER BY started_at DESC
-    LIMIT ?
-  `)
-  const rows = stmt.all(repoId, jobId, limit) as AutomationRunRow[]
-  return rows.map(rowToAutomationRun)
+export async function listAutomationRunsByJob(pb: PocketBase, repoId: number, jobId: number, limit: number = 20): Promise<AutomationRun[]> {
+  const result = await pb.collection('automation_runs').getList(1, limit, {
+    filter: `repo_id = "${toPbId(repoId)}" && job_id = "${toPbId(jobId)}"`,
+    sort: '-started_at',
+    fields: 'id,job_id,repo_id,trigger_source,status,started_at,finished_at,created_at,session_id,session_title,error_text',
+  })
+  return (result.items as unknown as AutomationRunRecord[]).map((r) => ({
+    ...r,
+    log_text: null,
+    response_text: null,
+  })).map(rowToAutomationRun)
 }
 
 export interface AutomationJobWithRepo extends AutomationJob {
   repoName: string
   repoPath: string
   repoUrl: string
-}
-
-interface AutomationJobWithRepoRow extends AutomationJobRow {
-  repo_url: string | null
-  repo_path: string | null
 }
 
 function repoNameFromPath(repoPath: string): string {
@@ -417,42 +385,26 @@ function resolveRepoDisplay(repoId: number, repoPath: string | null): { repoName
   return { repoName: repoNameFromPath(repoPath ?? ''), repoPath: repoPath ?? '' }
 }
 
-function rowToAutomationJobWithRepo(row: AutomationJobWithRepoRow): AutomationJobWithRepo {
-  return {
-    ...rowToAutomationJob(row),
-    ...resolveRepoDisplay(row.repo_id, row.repo_path),
-    repoUrl: row.repo_url ?? '',
-  }
-}
+export async function listAllAutomationJobsWithRepos(pb: PocketBase): Promise<AutomationJobWithRepo[]> {
+  const jobs = await pb.collection('automation_jobs').getFullList({ sort: 'created_at' })
+  const repos = await pb.collection('repos').getFullList({ fields: 'id,repo_url,local_path' })
+  const repoMap = new Map((repos as unknown as Array<{ id: string; repo_url: string | null; local_path: string }>).map(r => [r.id, r]))
 
-export function listAllAutomationJobsWithRepos(db: Database): AutomationJobWithRepo[] {
-  const stmt = db.prepare(`
-    SELECT aj.*, r.repo_url, r.local_path as repo_path
-    FROM automation_jobs aj
-    LEFT JOIN repos r ON aj.repo_id = r.id
-    ORDER BY COALESCE(r.local_path, ''), aj.name
-  `)
-  const rows = stmt.all() as AutomationJobWithRepoRow[]
-  return rows.map(rowToAutomationJobWithRepo)
+  return (jobs as unknown as AutomationJobRecord[]).map((job) => {
+    const repo = repoMap.get(job.repo_id)
+    const jobObj = rowToAutomationJob(job)
+    return {
+      ...jobObj,
+      ...resolveRepoDisplay(parseInt(job.repo_id, 10), repo?.local_path ?? null),
+      repoUrl: repo?.repo_url ?? '',
+    }
+  })
 }
 
 export interface AutomationRunWithContext extends AutomationRun {
   jobName: string
   repoName: string
   repoPath: string
-}
-
-interface AutomationRunWithContextRow extends AutomationRunRow {
-  job_name: string
-  repo_path: string | null
-}
-
-function rowToAutomationRunWithContext(row: AutomationRunWithContextRow): AutomationRunWithContext {
-  return {
-    ...rowToAutomationRun(row),
-    jobName: row.job_name,
-    ...resolveRepoDisplay(row.repo_id, row.repo_path),
-  }
 }
 
 export interface ListAllRunsOptions {
@@ -464,46 +416,35 @@ export interface ListAllRunsOptions {
   triggerSource?: string
 }
 
-export function listAllAutomationRuns(db: Database, options: ListAllRunsOptions = {}): AutomationRunWithContext[] {
+export async function listAllAutomationRuns(pb: PocketBase, options: ListAllRunsOptions = {}): Promise<AutomationRunWithContext[]> {
   const { limit = 50, offset = 0, status, repoId, jobId, triggerSource } = options
-  const conditions: string[] = []
-  const params: (string | number)[] = []
+  const filters: string[] = []
 
-  if (status) {
-    conditions.push('ar.status = ?')
-    params.push(status)
-  }
-  if (repoId !== undefined) {
-    conditions.push('ar.repo_id = ?')
-    params.push(repoId)
-  }
-  if (jobId !== undefined) {
-    conditions.push('ar.job_id = ?')
-    params.push(jobId)
-  }
-  if (triggerSource) {
-    conditions.push('ar.trigger_source = ?')
-    params.push(triggerSource)
-  }
+  if (status) filters.push(`status = "${status}"`)
+  if (repoId !== undefined) filters.push(`repo_id = "${toPbId(repoId)}"`)
+  if (jobId !== undefined) filters.push(`job_id = "${toPbId(jobId)}"`)
+  if (triggerSource) filters.push(`trigger_source = "${triggerSource}"`)
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+  const filter = filters.length > 0 ? filters.join(' && ') : ''
+  const result = await pb.collection('automation_runs').getList(1, limit, {
+    filter,
+    sort: '-started_at',
+    skip: offset,
+    expand: 'job_id,repo_id',
+  })
 
-  const stmt = db.prepare(`
-    SELECT
-      ar.id, ar.job_id, ar.repo_id, ar.trigger_source, ar.status,
-      ar.started_at, ar.finished_at, ar.created_at,
-      ar.session_id, ar.session_title,
-      NULL AS log_text, NULL AS response_text, ar.error_text,
-      aj.name AS job_name, r.local_path AS repo_path
-    FROM automation_runs ar
-    JOIN automation_jobs aj ON ar.job_id = aj.id
-    LEFT JOIN repos r ON ar.repo_id = r.id
-    ${whereClause}
-    ORDER BY ar.started_at DESC
-    LIMIT ? OFFSET ?
-  `)
+  const jobs = await pb.collection('automation_jobs').getFullList({ fields: 'id,name' })
+  const repos = await pb.collection('repos').getFullList({ fields: 'id,repo_url,local_path' })
+  const jobMap = new Map((jobs as unknown as Array<{ id: string; name: string }>).map(j => [j.id, j.name]))
+  const repoMap = new Map((repos as unknown as Array<{ id: string; repo_url: string | null; local_path: string }>).map(r => [r.id, r]))
 
-  params.push(limit, offset)
-  const rows = stmt.all(...params) as AutomationRunWithContextRow[]
-  return rows.map(rowToAutomationRunWithContext)
+  return (result.items as unknown as AutomationRunRecord[]).map((run) => {
+    const runObj = rowToAutomationRun(run)
+    const repo = repoMap.get(run.repo_id)
+    return {
+      ...runObj,
+      jobName: jobMap.get(run.job_id) ?? '',
+      ...resolveRepoDisplay(parseInt(run.repo_id, 10), repo?.local_path ?? null),
+    }
+  })
 }

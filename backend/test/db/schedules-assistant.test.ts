@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { Database } from 'bun:sqlite'
+import type { Database } from '../../src/db/schema'
 import { migrate } from '../../src/db/migration-runner'
 import { allMigrations } from '../../src/db/migrations'
 import {

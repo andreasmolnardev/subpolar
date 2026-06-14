@@ -1,4 +1,4 @@
-import type { Database } from 'bun:sqlite'
+import type PocketBase from 'pocketbase'
 import {
   PromptTemplateSchema,
   type PromptTemplate,
@@ -6,8 +6,8 @@ import {
   type UpdatePromptTemplateRequest,
 } from '@subpolar/shared/schemas'
 
-interface PromptTemplateRow {
-  id: number
+interface PromptTemplateRecord {
+  id: string
   title: string
   category: string
   cadence_hint: string
@@ -19,9 +19,9 @@ interface PromptTemplateRow {
   updated_at: number
 }
 
-function rowToPromptTemplate(row: PromptTemplateRow): PromptTemplate {
+function rowToPromptTemplate(row: PromptTemplateRecord): PromptTemplate {
   return PromptTemplateSchema.parse({
-    id: row.id,
+    id: parseInt(row.id, 10),
     title: row.title,
     category: row.category,
     cadenceHint: row.cadence_hint,
@@ -34,49 +34,58 @@ function rowToPromptTemplate(row: PromptTemplateRow): PromptTemplate {
   })
 }
 
-export function listPromptTemplates(db: Database): PromptTemplate[] {
-  const rows = db.prepare('SELECT * FROM prompt_templates ORDER BY id ASC').all() as PromptTemplateRow[]
-  return rows.map(rowToPromptTemplate)
+export async function listPromptTemplates(pb: PocketBase): Promise<PromptTemplate[]> {
+  const result = await pb.collection('prompt_templates').getFullList({ sort: 'id' })
+  return (result as unknown as PromptTemplateRecord[]).map(rowToPromptTemplate)
 }
 
-export function getPromptTemplateById(db: Database, id: number): PromptTemplate | null {
-  const row = db.prepare('SELECT * FROM prompt_templates WHERE id = ?').get(id) as PromptTemplateRow | null
-  return row ? rowToPromptTemplate(row) : null
+export async function getPromptTemplateById(pb: PocketBase, id: number): Promise<PromptTemplate | null> {
+  try {
+    const record = await pb.collection('prompt_templates').getOne(String(id))
+    return rowToPromptTemplate(record as unknown as PromptTemplateRecord)
+  } catch {
+    return null
+  }
 }
 
-export function createPromptTemplate(db: Database, data: CreatePromptTemplateRequest): PromptTemplate {
+export async function createPromptTemplate(pb: PocketBase, data: CreatePromptTemplateRequest): Promise<PromptTemplate> {
   const now = Date.now()
-  const result = db.prepare(`
-    INSERT INTO prompt_templates (title, category, cadence_hint, suggested_name, suggested_description, description, prompt, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(data.title, data.category, data.cadenceHint, data.suggestedName, data.suggestedDescription, data.description, data.prompt, now, now)
-  return getPromptTemplateById(db, result.lastInsertRowid as number)!
+  const record = await pb.collection('prompt_templates').create({
+    title: data.title,
+    category: data.category,
+    cadence_hint: data.cadenceHint,
+    suggested_name: data.suggestedName,
+    suggested_description: data.suggestedDescription,
+    description: data.description,
+    prompt: data.prompt,
+    created_at: now,
+    updated_at: now,
+  })
+  return rowToPromptTemplate(record as unknown as PromptTemplateRecord)
 }
 
-export function updatePromptTemplate(db: Database, id: number, data: UpdatePromptTemplateRequest): PromptTemplate | null {
-  const existing = getPromptTemplateById(db, id)
+export async function updatePromptTemplate(pb: PocketBase, id: number, data: UpdatePromptTemplateRequest): Promise<PromptTemplate | null> {
+  const existing = await getPromptTemplateById(pb, id)
   if (!existing) return null
   const now = Date.now()
-  db.prepare(`
-    UPDATE prompt_templates SET
-      title = ?, category = ?, cadence_hint = ?, suggested_name = ?,
-      suggested_description = ?, description = ?, prompt = ?, updated_at = ?
-    WHERE id = ?
-  `).run(
-    data.title ?? existing.title,
-    data.category ?? existing.category,
-    data.cadenceHint ?? existing.cadenceHint,
-    data.suggestedName ?? existing.suggestedName,
-    data.suggestedDescription ?? existing.suggestedDescription,
-    data.description ?? existing.description,
-    data.prompt ?? existing.prompt,
-    now,
-    id,
-  )
-  return getPromptTemplateById(db, id)
+  const record = await pb.collection('prompt_templates').update(String(id), {
+    title: data.title ?? existing.title,
+    category: data.category ?? existing.category,
+    cadence_hint: data.cadenceHint ?? existing.cadenceHint,
+    suggested_name: data.suggestedName ?? existing.suggestedName,
+    suggested_description: data.suggestedDescription ?? existing.suggestedDescription,
+    description: data.description ?? existing.description,
+    prompt: data.prompt ?? existing.prompt,
+    updated_at: now,
+  })
+  return rowToPromptTemplate(record as unknown as PromptTemplateRecord)
 }
 
-export function deletePromptTemplate(db: Database, id: number): boolean {
-  const result = db.prepare('DELETE FROM prompt_templates WHERE id = ?').run(id)
-  return result.changes > 0
+export async function deletePromptTemplate(pb: PocketBase, id: number): Promise<boolean> {
+  try {
+    await pb.collection('prompt_templates').delete(String(id))
+    return true
+  } catch {
+    return false
+  }
 }

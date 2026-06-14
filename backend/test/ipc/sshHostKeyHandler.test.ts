@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../../src/db/schema'
 import * as crypto from 'crypto'
 import * as fs from 'fs/promises'
 import * as path from 'path'

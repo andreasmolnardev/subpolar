@@ -1,11 +1,15 @@
 import { betterAuth } from 'better-auth'
 import { passkey } from '@better-auth/passkey'
-import { Database } from 'bun:sqlite'
+import Database from 'better-sqlite3'
 import { ENV } from '@subpolar/shared/config/env'
 
 export type AuthInstance = ReturnType<typeof createAuth>
 
-export function createAuth(db: Database) {
+export function createAuth() {
+  const dbPath = ENV.DATABASE?.PATH || './data/auth.db'
+  const db = new Database(dbPath)
+  db.pragma('journal_mode = WAL')
+
   const socialProviders: Record<string, { clientId: string; clientSecret: string }> = {}
 
   if (ENV.AUTH.GITHUB_CLIENT_ID && ENV.AUTH.GITHUB_CLIENT_SECRET) {
@@ -57,7 +61,7 @@ export function createAuth(db: Database) {
     ],
     session: {
       expiresIn: 60 * 60 * 24 * 7,
-      updateAge: 60 * 60 * 24,
+      updateAge: 60 * 60 * 5,
       cookieCache: {
         enabled: true,
         maxAge: 60 * 5,

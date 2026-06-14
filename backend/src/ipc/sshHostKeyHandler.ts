@@ -2,7 +2,7 @@ import * as path from 'path'
 import * as fs from 'fs/promises'
 import * as crypto from 'crypto'
 import type { IPCHandler } from './ipcServer'
-import type { Database } from 'bun:sqlite'
+import type PocketBase from 'pocketbase'
 import { logger } from '../utils/logger'
 import { getWorkspacePath } from '@subpolar/shared/config/env'
 import { broadcastSSHHostKeyRequest } from '../services/sse-aggregator'
@@ -27,9 +27,9 @@ export class SSHHostKeyHandler implements IPCHandler {
   }>()
   private readonly timeoutMs: number
   private knownHostsPath: string
-  private database: Database
+  private database: PocketBase
 
-  constructor(database: Database, timeoutMs: number = 120_000) {
+  constructor(database: PocketBase, timeoutMs: number = 120_000) {
     this.database = database
     this.timeoutMs = timeoutMs
     const configDir = path.join(getWorkspacePath(), 'config')
@@ -56,7 +56,7 @@ export class SSHHostKeyHandler implements IPCHandler {
     const { host, port } = parseSSHHost(repoUrl)
     const hostPort = normalizeHostPort(host, port)
 
-    const trustedHost = this.getTrustedHost(hostPort)
+    const trustedHost = await this.getTrustedHost(hostPort)
     if (trustedHost) {
       logger.info(`Host ${hostPort} already trusted, skipping verification`)
       return true
@@ -101,7 +101,7 @@ export class SSHHostKeyHandler implements IPCHandler {
     const { host, port } = parseSSHHost(repoUrl)
     const hostPort = normalizeHostPort(host, port)
 
-    const trustedHost = this.getTrustedHost(hostPort)
+    const trustedHost = await this.getTrustedHost(hostPort)
     if (trustedHost) {
       logger.info(`Host ${hostPort} already trusted, skipping auto-accept`)
       return
@@ -109,7 +109,7 @@ export class SSHHostKeyHandler implements IPCHandler {
 
     const publicKey = await this.fetchHostPublicKey(host, port)
     await this.addToKnownHosts(hostPort, publicKey)
-    this.saveTrustedHost(hostPort, publicKey)
+    await this.saveTrustedHost(hostPort, publicKey)
     logger.info(`Auto-accepted SSH host key for ${hostPort}`)
   }
 
@@ -147,7 +147,7 @@ export class SSHHostKeyHandler implements IPCHandler {
 
     if (response.response === 'accept') {
       await this.addToKnownHosts(pending.request.host, pending.request.fingerprint)
-      this.saveTrustedHost(pending.request.host, pending.request.fingerprint)
+      await this.saveTrustedHost(pending.request.host, pending.request.fingerprint)
       logger.info(`Accepted SSH host key for ${pending.request.host}`)
     } else {
       logger.info(`Rejected SSH host key for ${pending.request.host}`)
@@ -168,14 +168,14 @@ export class SSHHostKeyHandler implements IPCHandler {
 
   private async loadFromDatabaseToKnownHosts(): Promise<void> {
     try {
-      const hosts = this.database.prepare('SELECT * FROM trusted_ssh_hosts').all() as Array<{
+      const hosts = await this.database.collection('trusted_ssh_hosts').getFullList<{
         id: number
         host: string
         key_type: string
         public_key: string
         created_at: number
         updated_at: number
-      }>
+      }>()
 
       const entries = hosts.map(h => h.public_key).join('\n')
       await fs.writeFile(this.knownHostsPath, entries + '\n', { mode: 0o600 })
@@ -185,12 +185,12 @@ export class SSHHostKeyHandler implements IPCHandler {
     }
   }
 
-  private getTrustedHost(host: string): { key_type: string; public_key: string } | null {
+  private async getTrustedHost(host: string): Promise<{ key_type: string; public_key: string } | null> {
     try {
-      const result = this.database.prepare('SELECT key_type, public_key FROM trusted_ssh_hosts WHERE host = ?').get(host) as {
+      const result = await this.database.collection('trusted_ssh_hosts').getFirstListItem<{
         key_type: string
         public_key: string
-      } | undefined
+      }>(`host = "${host}"`)
       return result || null
     } catch (error) {
       logger.error(`Failed to get trusted host ${host}:`, error)
@@ -198,19 +198,27 @@ export class SSHHostKeyHandler implements IPCHandler {
     }
   }
 
-  private saveTrustedHost(host: string, publicKey: string): void {
+  private async saveTrustedHost(host: string, publicKey: string): Promise<void> {
     try {
       const parts = publicKey.split(' ')
       const keyType = parts[1] || 'UNKNOWN'
       const now = Date.now()
-      const existing = this.getTrustedHost(host)
+      const existing = await this.getTrustedHost(host)
       if (existing) {
-        this.database.prepare('UPDATE trusted_ssh_hosts SET key_type = ?, public_key = ?, updated_at = ? WHERE host = ?')
-          .run(keyType, publicKey, now, host)
+        await this.database.collection('trusted_ssh_hosts').update(existing.id, {
+          key_type: keyType,
+          public_key: publicKey,
+          updated_at: now,
+        })
         logger.info(`Updated trusted host in database: ${host}`)
       } else {
-        this.database.prepare('INSERT INTO trusted_ssh_hosts (host, key_type, public_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
-          .run(host, keyType, publicKey, now, now)
+        await this.database.collection('trusted_ssh_hosts').create({
+          host,
+          key_type: keyType,
+          public_key: publicKey,
+          created_at: now,
+          updated_at: now,
+        })
         logger.info(`Saved new trusted host to database: ${host}`)
       }
     } catch (error) {
@@ -239,6 +247,6 @@ export class SSHHostKeyHandler implements IPCHandler {
   }
 }
 
-export function createSSHHostKeyHandler(database: Database, timeoutMs?: number): SSHHostKeyHandler {
+export function createSSHHostKeyHandler(database: PocketBase, timeoutMs?: number): SSHHostKeyHandler {
   return new SSHHostKeyHandler(database, timeoutMs)
 }

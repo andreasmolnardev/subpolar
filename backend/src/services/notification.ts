@@ -1,35 +1,46 @@
-import { Database } from "bun:sqlite";
-import webpush from "web-push";
-import { logger } from "../utils/logger";
-import type { PushSubscriptionRecord } from "../types/settings";
-import type { PushNotificationPayload } from "@subpolar/shared/types";
+import type PocketBase from 'pocketbase'
+import webpush from "web-push"
+import { logger } from "../utils/logger"
+import type { PushSubscriptionRecord } from "../types/settings"
+import type { PushNotificationPayload } from "@subpolar/shared/types"
 import {
   NotificationEventType,
   DEFAULT_NOTIFICATION_PREFERENCES,
-} from "@subpolar/shared/schemas";
+} from "@subpolar/shared/schemas"
 import {
   getPermissionLabel,
   getPermissionDetail,
   getQuestionText,
-} from "@subpolar/shared/notifications";
-import { SettingsService } from "./settings";
-import { sseAggregator, type SSEEvent } from "./sse-aggregator";
-import { getRepoByLocalPath, getRepoBySourcePath } from "../db/queries";
-import { getReposPath } from "@subpolar/shared/config/env";
-import path from "path";
+} from "@subpolar/shared/notifications"
+import { SettingsService } from "./settings"
+import { sseAggregator, type SSEEvent } from "./sse-aggregator"
+import { getRepoByLocalPath, getRepoBySourcePath } from "../db/queries"
+import { getReposPath } from "@subpolar/shared/config/env"
+import path from "path"
 
 interface VapidConfig {
-  publicKey: string;
-  privateKey: string;
-  subject: string;
+  publicKey: string
+  privateKey: string
+  subject: string
+}
+
+interface PushSubRecord {
+  id: string
+  user_id: string
+  endpoint: string
+  p256dh: string
+  auth: string
+  device_name: string | null
+  created_at: number
+  last_used_at: number | null
 }
 
 const EVENT_CONFIG: Record<
   string,
   {
-    preferencesKey: keyof typeof DEFAULT_NOTIFICATION_PREFERENCES.events;
-    titleFn: (props: Record<string, unknown>) => string;
-    bodyFn: (props: Record<string, unknown>) => string;
+    preferencesKey: keyof typeof DEFAULT_NOTIFICATION_PREFERENCES.events
+    titleFn: (props: Record<string, unknown>) => string
+    bodyFn: (props: Record<string, unknown>) => string
   }
 > = {
   [NotificationEventType.PERMISSION_ASKED]: {
@@ -49,8 +60,8 @@ const EVENT_CONFIG: Record<
     preferencesKey: "sessionError",
     titleFn: () => "Error",
     bodyFn: (props) => {
-      const error = props.error as { message?: string } | undefined;
-      return error?.message ?? "A session encountered an error";
+      const error = props.error as { message?: string } | undefined
+      return error?.message ?? "A session encountered an error"
     },
   },
   [NotificationEventType.SESSION_IDLE]: {
@@ -58,33 +69,33 @@ const EVENT_CONFIG: Record<
     titleFn: () => "Session complete",
     bodyFn: () => "Your session has finished processing",
   },
-};
+}
 
-const MAX_BODY_LENGTH = 140;
+const MAX_BODY_LENGTH = 140
 
 export function buildEventNotificationPayload(
   event: SSEEvent,
   context: {
-    repoName?: string;
-    repoId?: number;
-    sessionId?: string;
-    directory?: string;
-    url: string;
+    repoName?: string
+    repoId?: number
+    sessionId?: string
+    directory?: string
+    url: string
   }
 ): PushNotificationPayload | null {
-  const config = EVENT_CONFIG[event.type];
-  if (!config) return null;
+  const config = EVENT_CONFIG[event.type]
+  if (!config) return null
 
-  const action = config.titleFn(event.properties);
+  const action = config.titleFn(event.properties)
   const title = context.repoName
     ? `${context.repoName}: ${action}`
-    : action;
+    : action
 
-  const rawBody = config.bodyFn(event.properties);
+  const rawBody = config.bodyFn(event.properties)
   const body =
     rawBody.length > MAX_BODY_LENGTH
       ? `${rawBody.slice(0, MAX_BODY_LENGTH - 1)}…`
-      : rawBody;
+      : rawBody
 
   return {
     title,
@@ -98,183 +109,154 @@ export function buildEventNotificationPayload(
       repoName: context.repoName,
       url: context.url,
     },
-  };
+  }
+}
+
+function recordToSubscription(row: PushSubRecord): PushSubscriptionRecord {
+  return {
+    id: parseInt(row.id, 10) || 0,
+    userId: row.user_id,
+    endpoint: row.endpoint,
+    p256dh: row.p256dh,
+    auth: row.auth,
+    deviceName: row.device_name,
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at,
+  }
 }
 
 export class NotificationService {
-  private vapidConfig: VapidConfig | null = null;
-  private settingsService: SettingsService;
+  private vapidConfig: VapidConfig | null = null
+  private settingsService: SettingsService
 
-  constructor(private db: Database) {
-    this.settingsService = new SettingsService(db);
-    this.initializePushSubscriptionsTable();
-  }
-
-  private initializePushSubscriptionsTable(): void {
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS push_subscriptions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        endpoint TEXT NOT NULL UNIQUE,
-        p256dh TEXT NOT NULL,
-        auth TEXT NOT NULL,
-        device_name TEXT,
-        created_at INTEGER NOT NULL,
-        last_used_at INTEGER
-      )
-    `);
-    this.db.run(
-      "CREATE INDEX IF NOT EXISTS idx_push_sub_user ON push_subscriptions(user_id)"
-    );
-    this.db.run(
-      "CREATE UNIQUE INDEX IF NOT EXISTS idx_push_sub_endpoint ON push_subscriptions(endpoint)"
-    );
+  constructor(private pb: PocketBase) {
+    this.settingsService = new SettingsService(pb)
   }
 
   configureVapid(config: VapidConfig): void {
-    this.vapidConfig = config;
-    webpush.setVapidDetails(config.subject, config.publicKey, config.privateKey);
+    this.vapidConfig = config
+    webpush.setVapidDetails(config.subject, config.publicKey, config.privateKey)
   }
 
   getVapidPublicKey(): string | null {
-    return this.vapidConfig?.publicKey ?? null;
+    return this.vapidConfig?.publicKey ?? null
   }
 
   isConfigured(): boolean {
-    return this.vapidConfig !== null;
+    return this.vapidConfig !== null
   }
 
-  saveSubscription(
+  async saveSubscription(
     userId: string,
     endpoint: string,
     p256dh: string,
     auth: string,
     deviceName?: string
-  ): PushSubscriptionRecord {
-    const now = Date.now();
+  ): Promise<PushSubscriptionRecord> {
+    const now = Date.now()
 
-    this.db
-      .prepare(
-        `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, device_name, created_at, last_used_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(endpoint) DO UPDATE SET
-           user_id = excluded.user_id,
-           p256dh = excluded.p256dh,
-           auth = excluded.auth,
-           device_name = excluded.device_name,
-           last_used_at = excluded.last_used_at`
+    try {
+      const existing = await this.pb.collection('push_subscriptions').getFirstListItem(
+        `endpoint = "${endpoint}"`
       )
-      .run(userId, endpoint, p256dh, auth, deviceName ?? null, now, now);
-
-    const row = this.db
-      .prepare("SELECT * FROM push_subscriptions WHERE endpoint = ?")
-      .get(endpoint) as {
-      id: number;
-      user_id: string;
-      endpoint: string;
-      p256dh: string;
-      auth: string;
-      device_name: string | null;
-      created_at: number;
-      last_used_at: number | null;
-    };
-
-    return {
-      id: row.id,
-      userId: row.user_id,
-      endpoint: row.endpoint,
-      p256dh: row.p256dh,
-      auth: row.auth,
-      deviceName: row.device_name,
-      createdAt: row.created_at,
-      lastUsedAt: row.last_used_at,
-    };
-  }
-
-  removeSubscription(endpoint: string, userId?: string): boolean {
-    if (userId) {
-      const result = this.db
-        .prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?")
-        .run(endpoint, userId);
-      return result.changes > 0;
+      await this.pb.collection('push_subscriptions').update(existing.id, {
+        user_id: userId,
+        p256dh,
+        auth,
+        device_name: deviceName ?? null,
+        last_used_at: now,
+      })
+      const updated = await this.pb.collection('push_subscriptions').getOne(existing.id)
+      return recordToSubscription(updated as unknown as PushSubRecord)
+    } catch {
+      const record = await this.pb.collection('push_subscriptions').create({
+        user_id: userId,
+        endpoint,
+        p256dh,
+        auth,
+        device_name: deviceName ?? null,
+        created_at: now,
+        last_used_at: now,
+      })
+      return recordToSubscription(record as unknown as PushSubRecord)
     }
-    const result = this.db
-      .prepare("DELETE FROM push_subscriptions WHERE endpoint = ?")
-      .run(endpoint);
-    return result.changes > 0;
   }
 
-  removeSubscriptionById(id: number, userId: string): boolean {
-    const result = this.db
-      .prepare("DELETE FROM push_subscriptions WHERE id = ? AND user_id = ?")
-      .run(id, userId);
-    return result.changes > 0;
+  async removeSubscription(endpoint: string, userId?: string): Promise<boolean> {
+    try {
+      const filter = userId
+        ? `endpoint = "${endpoint}" && user_id = "${userId}"`
+        : `endpoint = "${endpoint}"`
+      const record = await this.pb.collection('push_subscriptions').getFirstListItem(filter)
+      await this.pb.collection('push_subscriptions').delete(record.id)
+      return true
+    } catch {
+      return false
+    }
   }
 
-  getSubscriptions(userId: string): PushSubscriptionRecord[] {
-    const rows = this.db
-      .prepare("SELECT * FROM push_subscriptions WHERE user_id = ? ORDER BY created_at DESC")
-      .all(userId) as Array<{
-      id: number;
-      user_id: string;
-      endpoint: string;
-      p256dh: string;
-      auth: string;
-      device_name: string | null;
-      created_at: number;
-      last_used_at: number | null;
-    }>;
-
-    return rows.map((row) => ({
-      id: row.id,
-      userId: row.user_id,
-      endpoint: row.endpoint,
-      p256dh: row.p256dh,
-      auth: row.auth,
-      deviceName: row.device_name,
-      createdAt: row.created_at,
-      lastUsedAt: row.last_used_at,
-    }));
+  async removeSubscriptionById(id: number, userId: string): Promise<boolean> {
+    try {
+      const record = await this.pb.collection('push_subscriptions').getOne(String(id))
+      const r = record as unknown as PushSubRecord
+      if (r.user_id !== userId) return false
+      await this.pb.collection('push_subscriptions').delete(record.id)
+      return true
+    } catch {
+      return false
+    }
   }
 
-  getAllUserIds(): string[] {
-    const rows = this.db
-      .prepare("SELECT DISTINCT user_id FROM push_subscriptions")
-      .all() as Array<{ user_id: string }>;
-    return rows.map((r) => r.user_id);
+  async getSubscriptions(userId: string): Promise<PushSubscriptionRecord[]> {
+    const result = await this.pb.collection('push_subscriptions').getFullList({
+      filter: `user_id = "${userId}"`,
+      sort: '-created_at',
+    })
+    return (result as unknown as PushSubRecord[]).map(recordToSubscription)
+  }
+
+  async getAllUserIds(): Promise<string[]> {
+    const result = await this.pb.collection('push_subscriptions').getFullList({
+      fields: 'user_id',
+    })
+    const seen = new Set<string>()
+    for (const r of result as unknown as Array<{ user_id: string }>) {
+      seen.add(r.user_id)
+    }
+    return Array.from(seen)
   }
 
   async handleSSEEvent(
     _directory: string,
     event: SSEEvent
   ): Promise<void> {
-    const config = EVENT_CONFIG[event.type];
-    if (!config) return;
+    const config = EVENT_CONFIG[event.type]
+    if (!config) return
 
-    const sessionId = event.properties.sessionID as string | undefined;
-    if (sessionId && sseAggregator.isSessionBeingViewed(sessionId)) return;
-    if (sessionId && sseAggregator.isSubagentSession(sessionId)) return;
+    const sessionId = event.properties.sessionID as string | undefined
+    if (sessionId && sseAggregator.isSessionBeingViewed(sessionId)) return
+    if (sessionId && sseAggregator.isSubagentSession(sessionId)) return
 
-    if (!this.isConfigured()) return;
+    if (!this.isConfigured()) return
 
-    const userIds = this.getAllUserIds();
-    if (userIds.length === 0) return;
+    const userIds = await this.getAllUserIds()
+    if (userIds.length === 0) return
 
-    let notificationUrl = "/";
-    let repoName = "";
-    let repoId: number | undefined;
+    let notificationUrl = "/"
+    let repoName = ""
+    let repoId: number | undefined
 
     if (_directory) {
-      const reposBasePath = getReposPath();
-      const localPath = path.relative(reposBasePath, _directory);
-      const repo = getRepoBySourcePath(this.db, path.resolve(_directory)) ?? getRepoByLocalPath(this.db, localPath);
+      const reposBasePath = getReposPath()
+      const localPath = path.relative(reposBasePath, _directory)
+      const repo = await (getRepoBySourcePath(this.pb, path.resolve(_directory)) ?? getRepoByLocalPath(this.pb, localPath))
 
       if (repo) {
-        repoId = repo.id;
-        repoName = path.basename(repo.localPath);
+        repoId = repo.id
+        repoName = path.basename(repo.localPath)
         notificationUrl = sessionId
           ? `/repos/${repo.id}/sessions/${sessionId}`
-          : `/repos/${repo.id}`;
+          : `/repos/${repo.id}`
       }
     }
 
@@ -284,18 +266,18 @@ export class NotificationService {
       sessionId,
       directory: _directory,
       url: notificationUrl,
-    });
-    if (!payload) return;
+    })
+    if (!payload) return
 
     for (const userId of userIds) {
-      const settings = this.settingsService.getSettings(userId);
+      const settings = await this.settingsService.getSettings(userId)
       const notifPrefs =
-        settings.preferences.notifications ?? DEFAULT_NOTIFICATION_PREFERENCES;
+        settings.preferences.notifications ?? DEFAULT_NOTIFICATION_PREFERENCES
 
-      if (!notifPrefs.enabled) continue;
-      if (!notifPrefs.events[config.preferencesKey]) continue;
+      if (!notifPrefs.enabled) continue
+      if (!notifPrefs.events[config.preferencesKey]) continue
 
-      await this.sendToUser(userId, payload);
+      await this.sendToUser(userId, payload)
     }
   }
 
@@ -305,15 +287,15 @@ export class NotificationService {
       body: "Push notifications are working correctly",
       tag: "test",
       data: { eventType: "test", url: "/" },
-    });
+    })
   }
 
   async sendToUser(
     userId: string,
     payload: PushNotificationPayload
   ): Promise<{ delivered: number; expired: number; failed: number; total: number }> {
-    const subscriptions = this.getSubscriptions(userId);
-    const expiredEndpoints: string[] = [];
+    const subscriptions = await this.getSubscriptions(userId)
+    const expiredEndpoints: string[] = []
     let delivered = 0
     let failed = 0
 
@@ -326,30 +308,35 @@ export class NotificationService {
               keys: { p256dh: sub.p256dh, auth: sub.auth },
             },
             JSON.stringify(payload)
-          );
+          )
 
-          this.db
-            .prepare(
-              "UPDATE push_subscriptions SET last_used_at = ? WHERE id = ?"
+          try {
+            const existing = await this.pb.collection('push_subscriptions').getFirstListItem(
+              `endpoint = "${sub.endpoint}"`
             )
-            .run(Date.now(), sub.id);
-          
+            await this.pb.collection('push_subscriptions').update(existing.id, {
+              last_used_at: Date.now(),
+            })
+          } catch {
+            // ignore if subscription was removed
+          }
+
           delivered++
         } catch (error) {
-          const statusCode = (error as { statusCode?: number }).statusCode;
+          const statusCode = (error as { statusCode?: number }).statusCode
 
           if (statusCode === 404 || statusCode === 410) {
-            expiredEndpoints.push(sub.endpoint);
+            expiredEndpoints.push(sub.endpoint)
           } else {
-            logger.error(`Push delivery failed for ${sub.endpoint.slice(0, 50)}:`, error);
+            logger.error(`Push delivery failed for ${sub.endpoint.slice(0, 50)}:`, error)
             failed++
           }
         }
       })
-    );
+    )
 
     for (const endpoint of expiredEndpoints) {
-      this.removeSubscription(endpoint);
+      await this.removeSubscription(endpoint)
     }
 
     return {

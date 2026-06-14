@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
-import { Database } from 'bun:sqlite'
+import type { Database } from '../../src/db/schema'
 import { migrate } from '../../src/db/migration-runner'
 import { allMigrations } from '../../src/db/migrations'
 import type { Repo } from '@subpolar/shared/types'

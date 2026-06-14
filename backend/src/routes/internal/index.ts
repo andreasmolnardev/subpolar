@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../../db/schema'
 import type { AutomationService } from '../../services/automations'
 import type { NotificationService } from '../../services/notification'
 import type { SettingsService } from '../../services/settings'

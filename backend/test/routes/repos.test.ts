@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../../src/db/schema'
 import { createStubOpenCodeClient } from '../helpers/stub-opencode-client'
 
 const mockDb = {

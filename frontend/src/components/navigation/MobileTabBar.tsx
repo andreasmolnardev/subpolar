@@ -6,7 +6,6 @@ import { useMobile } from '@/hooks/useMobile'
 import { useMobileTabBar } from '@/hooks/useMobileTabBar'
 import { useUrlParams } from '@/hooks/useUrlParams'
 import { useAutomationUrlState, type AutomationTab } from '@/hooks/useAutomationUrlState'
-import { getAssistantPath, isAssistantPath } from '@/lib/navigation'
 
 interface TabDef {
   key: string
@@ -37,10 +36,6 @@ interface MobileTabRouteState {
 }
 
 function getMobileTabRouteState(pathname: string): MobileTabRouteState {
-  if (isAssistantPath(pathname)) {
-    return { mode: 'global', isInsideRepo: false, repoId: null }
-  }
-
   const repoMatch = pathname.match(/^\/repos\/(\d+)(?:\/([^/]+))?/)
   const repoId = repoMatch?.[1] ?? null
   const repoSection = repoMatch?.[2]
@@ -72,11 +67,6 @@ function buildGlobalTabs({ pathname, openSheet, open, close, navigate, isInsideR
     }
   }
 
-  const handleAssistantClick = () => {
-    close()
-    navigate(getAssistantPath())
-  }
-
   return [
     {
       key: 'repos',
@@ -91,13 +81,6 @@ function buildGlobalTabs({ pathname, openSheet, open, close, navigate, isInsideR
       icon: FolderOpen,
       onClick: handleFilesClick,
       active: openSheet === 'files',
-    },
-    {
-      key: 'assistant',
-      label: 'Assistant',
-      icon: Bot,
-      onClick: handleAssistantClick,
-      active: isAssistantPath(pathname) && !openSheet,
     },
     {
       key: 'automations',

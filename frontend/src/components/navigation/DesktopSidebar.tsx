@@ -7,8 +7,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useUrlParams } from '@/hooks/useUrlParams'
 import { listRepos } from '@/api/repos'
 import { settingsApi } from '@/api/settings'
-import { getAssistantPath } from '@/lib/navigation'
-import { FolderGit2, Home, Bot, ChevronDown, ChevronRight, Zap, Plus } from 'lucide-react'
+import { FolderGit2, Home, Bot, ChevronDown, ChevronRight, Zap, Plus, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Sidebar, SidebarCollapseToggle } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
@@ -201,12 +200,6 @@ export function DesktopSidebar() {
           expanded={agentsExpanded}
           onToggle={() => setAgentsExpanded(!agentsExpanded)}
         >
-          <SidebarNavItem
-            label="Assistant"
-            active={isActive('/assistant')}
-            onClick={() => navigate(getAssistantPath())}
-            indent
-          />
           {agentNames.map((name) => {
             const agent = agents[name]
             const displayName = agent?.icon ? `${agent.icon} ${name}` : name
@@ -214,7 +207,7 @@ export function DesktopSidebar() {
               <SidebarNavItem
                 key={name}
                 label={displayName}
-                onClick={() => navigate(`/assistant?agent=${encodeURIComponent(name)}`)}
+                onClick={() => navigate(`/repos/0?agent=${encodeURIComponent(name)}`)}
                 indent
               />
             )
@@ -231,6 +224,22 @@ export function DesktopSidebar() {
               <span>Create Agent</span>
             </Button>
           )}
+        </SidebarSection>
+
+        {/* History */}
+        <SidebarSection
+          label="History"
+          icon={History}
+          collapsed={collapsed}
+          expanded={true}
+          onToggle={() => {}}
+        >
+          <SidebarNavItem
+            label="All Sessions"
+            active={isActive('/history')}
+            onClick={() => navigate('/history')}
+            indent
+          />
         </SidebarSection>
 
         {/* Projects */}

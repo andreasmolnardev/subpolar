@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../../src/db/schema'
 import { Hono } from 'hono'
 import { createSettingsRoutes } from '../../src/routes/settings'
 import { encryptSecret } from '../../src/utils/crypto'

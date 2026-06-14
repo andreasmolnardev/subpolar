@@ -1,6 +1,6 @@
 import os from 'os'
 import path from 'path'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../db/schema'
 import type { SkillFileInfo, SkillScope, CreateSkillRequest, UpdateSkillRequest } from '@subpolar/shared'
 import { SKILL_NAME_REGEX } from '@subpolar/shared'
 import { getWorkspacePath } from '@subpolar/shared/config/env'

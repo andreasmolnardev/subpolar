@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vitest'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../../../src/db/schema'
 import type { GitAuthService } from '../../../src/services/git-auth'
 
 vi.mock('bun:sqlite', () => ({

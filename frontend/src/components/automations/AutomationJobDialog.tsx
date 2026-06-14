@@ -18,7 +18,7 @@ import {
   type automationPreset,
 } from './automation-utils'
 import { getRepoDisplayName } from '@/lib/utils'
-import { ASSISTANT_REPO_ID, ASSISTANT_REPO_NAME } from '@subpolar/shared/utils'
+import { ASSISTANT_REPO_ID } from '@subpolar/shared/utils'
 import { Loader2 } from 'lucide-react'
 import { usePromptTemplates, useDeletePromptTemplate } from '@/hooks/usePromptTemplates'
 import { PromptTemplateDialog } from './PromptTemplateDialog'
@@ -109,10 +109,10 @@ export function AutomationJobDialog({ open, onOpenChange, job, isSaving, onSubmi
   })
 
   const repoOptions = useMemo<ComboboxOption[]>(() => {
-    const assistantOption: ComboboxOption = {
+    const workspaceOption: ComboboxOption = {
       value: ASSISTANT_REPO_ID.toString(),
-      label: ASSISTANT_REPO_NAME,
-      description: 'Built-in assistant',
+      label: 'Workspace',
+      description: 'Workspace root',
     }
     const repoEntries = repos
       .filter((repo) => repo.cloneStatus === 'ready')
@@ -121,7 +121,7 @@ export function AutomationJobDialog({ open, onOpenChange, job, isSaving, onSubmi
         label: getRepoDisplayName(repo.repoUrl, repo.localPath, repo.sourcePath),
         description: repo.localPath,
       }))
-    return [assistantOption, ...repoEntries]
+    return [workspaceOption, ...repoEntries]
   }, [repos])
 
   const modelOptions = useMemo<ComboboxOption[]>(() => {

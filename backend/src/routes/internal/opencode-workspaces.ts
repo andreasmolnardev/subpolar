@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../../db/schema'
 import { listRepos } from '../../db/queries'
 import { logger } from '../../utils/logger'
 import { getErrorMessage } from '../../utils/error-utils'

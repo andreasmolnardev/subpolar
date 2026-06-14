@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vites
 import { createRepoRoutes } from '../../src/routes/repos'
 import type { Hono } from 'hono'
 import { getRepoById } from '../../src/db/queries'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../../src/db/schema'
 import type { Repo } from '../../../shared/src/types'
 import type { GitAuthService } from '../../src/services/git-auth'
 import type { AutomationService } from '../../src/services/automations'

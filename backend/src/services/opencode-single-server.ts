@@ -19,7 +19,7 @@ import { BLOCKED_SERVER_ENV_KEYS, DEFAULT_SERVER_ENV_VARS } from '@subpolar/shar
 import { SettingsService } from './settings'
 import { getWorkspacePath, getOpenCodeConfigFilePath, ENV } from '@subpolar/shared/config/env'
 import { parseJsonc } from '@subpolar/shared/utils'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../db/schema'
 import { compareVersions } from '../utils/version-utils'
 import { patchConfigWithRecovery } from './opencode/config-recovery'
 import type { OpenCodeClient } from './opencode/client'
@@ -120,15 +120,15 @@ class OpenCodeServerManager {
   }
 
   async rebuildClient(): Promise<void> {
-    const password = this.getResolvedPassword()
+    const password = await this.getResolvedPassword()
     const { createOpenCodeClient } = await import('./opencode/client')
     this.openCodeClient = createOpenCodeClient(password)
   }
 
-  private getResolvedPassword(): string {
+  private async getResolvedPassword(): Promise<string> {
     if (this.db) {
       const settingsService = new SettingsService(this.db)
-      return settingsService.getOpenCodeServerPassword()
+      return await settingsService.getOpenCodeServerPassword()
     }
     return ENV.OPENCODE.SERVER_PASSWORD
   }
@@ -189,7 +189,7 @@ class OpenCodeServerManager {
     await this.rebuildClient()
 
     const isDevelopment = ENV.SERVER.NODE_ENV !== 'production'
-    const password = this.getResolvedPassword()
+    const password = await this.getResolvedPassword()
     const openCodeServerHost = getOpenCodeServerHost()
     const isExposed = openCodeServerHost !== '127.0.0.1' && openCodeServerHost !== 'localhost'
     if (isExposed && !password) {

@@ -1,5 +1,5 @@
 import type { IPCServer } from '../ipc/ipcServer'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../db/schema'
 import { AskpassHandler } from '../ipc/askpassHandler'
 import { SSHHostKeyHandler } from '../ipc/sshHostKeyHandler'
 import { writeTemporarySSHKey, buildSSHCommand, buildSSHCommandWithKnownHosts, cleanupSSHKey, parseSSHHost } from '../utils/ssh-key-manager'

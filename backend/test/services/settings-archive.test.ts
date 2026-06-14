@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../../src/db/schema'
 
 vi.mock('bun:sqlite', () => ({
   Database: vi.fn().mockImplementation(() => ({

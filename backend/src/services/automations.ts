@@ -1,4 +1,4 @@
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../db/schema'
 import { Cron } from 'croner'
 import {
   type CreateAutomationJobRequest,

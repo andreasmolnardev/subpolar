@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vitest'
 import { Hono } from 'hono'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../../src/db/schema'
 import type { GitAuthService } from '../../src/services/git-auth'
 import { createRepoGitRoutes } from '../../src/routes/repo-git'
 import * as db from '../../src/db/queries'

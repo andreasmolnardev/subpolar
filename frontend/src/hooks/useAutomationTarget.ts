@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { getRepo } from '@/api/repos'
-import { useAssistantMode } from '@/hooks/useAssistantMode'
-import { isAssistantRepoId, automationTargetFromAssistant, automationTargetFromRepo } from '@/lib/automations/automation-target'
+import { useWorkspaceMode } from '@/hooks/useWorkspaceMode'
+import { isWorkspaceRepoId, automationTargetFromRepo } from '@/lib/automations/automation-target'
 import type { AutomationTarget } from '@/lib/automations/automation-target'
 
 export function useAutomationTarget(repoId: number | undefined): {
@@ -9,7 +9,7 @@ export function useAutomationTarget(repoId: number | undefined): {
   isLoading: boolean
   isError: boolean
 } {
-  const assistantQuery = useAssistantMode(repoId)
+  const workspaceQuery = useWorkspaceMode(repoId)
 
   const repoQuery = useQuery({
     queryKey: ['repo', repoId],
@@ -17,11 +17,11 @@ export function useAutomationTarget(repoId: number | undefined): {
     enabled: repoId !== undefined && repoId > 0,
   })
 
-  if (isAssistantRepoId(repoId)) {
+  if (isWorkspaceRepoId(repoId)) {
     return {
-      automationTarget: assistantQuery.status ? automationTargetFromAssistant(assistantQuery.status) : undefined,
-      isLoading: assistantQuery.isLoading,
-      isError: assistantQuery.isError,
+      automationTarget: workspaceQuery.status && repoQuery.data ? automationTargetFromRepo(repoQuery.data) : undefined,
+      isLoading: repoQuery.isLoading,
+      isError: repoQuery.isError,
     }
   }
 

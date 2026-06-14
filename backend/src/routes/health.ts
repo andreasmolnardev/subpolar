@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { Database } from 'bun:sqlite'
+import { healthCheck as pbHealthCheck } from '../db/pocketbase-client'
 import { readFile } from 'fs/promises'
 import { opencodeServerManager } from '../services/opencode-single-server'
 import type { OpenCodeSupervisor } from '../services/opencode-supervisor'
@@ -67,13 +67,13 @@ const opencodeManagerVersionPromise = (async (): Promise<string | null> => {
   }
 })()
 
-export function createHealthRoutes(db: Database, openCodeSupervisor?: OpenCodeSupervisor) {
+export function createHealthRoutes(openCodeSupervisor?: OpenCodeSupervisor) {
   const app = new Hono()
 
   app.get('/', async (c) => {
     try {
       const opencodeManagerVersion = await opencodeManagerVersionPromise
-      const dbCheck = db.prepare('SELECT 1').get()
+      const dbCheck = await pbHealthCheck()
       const lifecycle = openCodeSupervisor
         ? await openCodeSupervisor.checkNow('api_probe')
         : null

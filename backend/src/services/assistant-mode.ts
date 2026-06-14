@@ -15,7 +15,7 @@ import {
 import { OpenCodeConfigSchema } from '@subpolar/shared/schemas'
 import { ASSISTANT_REPO_ID, ASSISTANT_REPO_PATH } from '@subpolar/shared/utils'
 import { getReposPath, ENV } from '@subpolar/shared/config/env'
-import type { Database } from 'bun:sqlite'
+import type { Database } from '../db/schema'
 import { getOrCreateInternalToken } from './internal-token'
 import { ensureAssistantRepo } from '../db/queries'
 

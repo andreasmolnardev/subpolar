@@ -1,6 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Plug, Sparkles, ShieldOff, CalendarClock, GitCommitHorizontal, Code2, Settings, LogOut, Plus, Bot, Folder, Clock, SquarePlus } from 'lucide-react'
-import { getAssistantPath, isAssistantPath } from '@/lib/navigation'
+import { Plug, Sparkles, ShieldOff, CalendarClock, GitCommitHorizontal, Code2, Settings, LogOut, Plus, Folder, Clock, SquarePlus, History } from 'lucide-react'
 
 export interface MoreDrawerItem {
   key: string
@@ -16,23 +15,13 @@ export interface NavPrimaryCta {
   label: string
   icon: LucideIcon
   to?: string
-  onSelect?: 'new-session' | 'new-repo' | 'new-automation'
+  onSelect?: 'new-session' | 'new-repo' | 'new-automation' | 'history'
   variant?: 'primary' | 'secondary'
 }
 
 export interface NavModel {
   primary: NavPrimaryCta[]
   items: MoreDrawerItem[]
-}
-
-function getAssistantNavItem(_pathname: string, variant: NavPrimaryCta['variant'] = 'secondary'): NavPrimaryCta {
-  return {
-    key: 'assistant',
-    label: 'Assistant',
-    icon: Bot,
-    to: getAssistantPath(),
-    variant,
-  }
 }
 
 function getBaseItems(): MoreDrawerItem[] {
@@ -55,13 +44,13 @@ export function buildNavModel(pathname: string): NavModel {
       { key: 'reset-permissions', label: 'Reset Permissions', icon: ShieldOff, dialog: 'resetPermissions', danger: true },
       { key: 'automations', label: 'automations', icon: CalendarClock, to: `/repos/${id}/automations` },
       { key: 'source-control', label: 'Source Control', icon: GitCommitHorizontal, dialog: 'sourceControl' },
+      { key: 'history', label: 'History', icon: History, to: '/history' },
       ...baseItems,
     ]
 
     return {
       primary: [
         { key: 'new-session', label: 'New Session', icon: SquarePlus, onSelect: 'new-session', variant: 'primary' },
-        getAssistantNavItem(pathname),
       ],
       items,
     }
@@ -77,35 +66,24 @@ export function buildNavModel(pathname: string): NavModel {
       { key: 'reset-permissions', label: 'Reset Permissions', icon: ShieldOff, dialog: 'resetPermissions', danger: true },
       { key: 'automations', label: 'automations', icon: CalendarClock, to: `/repos/${sessionDetailMatch[1]}/automations` },
       { key: 'source-control', label: 'Source Control', icon: GitCommitHorizontal, dialog: 'sourceControl' },
+      { key: 'history', label: 'History', icon: History, to: '/history' },
       ...baseItems,
     ]
 
     return {
       primary: [
         { key: 'new-session', label: 'New Session', icon: SquarePlus, onSelect: 'new-session', variant: 'primary' },
-        getAssistantNavItem(pathname),
       ],
       items,
     }
   }
 
-  if (isAssistantPath(pathname)) {
-    const items: MoreDrawerItem[] = [
-      { key: 'files', label: 'Files', icon: Folder, dialog: 'files' },
-      { key: 'mcp', label: 'MCP', icon: Plug, dialog: 'mcp' },
-      { key: 'skills', label: 'Skills', icon: Sparkles, dialog: 'skills' },
-      { key: 'reset-permissions', label: 'Reset Permissions', icon: ShieldOff, dialog: 'resetPermissions', danger: true },
-      { key: 'automations', label: 'automations', icon: CalendarClock, to: '/repos/0/automations' },
-      { key: 'source-control', label: 'Source Control', icon: GitCommitHorizontal, dialog: 'sourceControl' },
-      ...baseItems,
-    ]
-
+  if (pathname === '/history') {
     return {
       primary: [
         { key: 'new-session', label: 'New Session', icon: SquarePlus, onSelect: 'new-session', variant: 'primary' },
-        getAssistantNavItem(pathname, 'secondary'),
       ],
-      items,
+      items: baseItems,
     }
   }
 
@@ -113,9 +91,11 @@ export function buildNavModel(pathname: string): NavModel {
     return {
       primary: [
         { key: 'new-automation', label: 'New automation', icon: Clock, onSelect: 'new-automation', variant: 'primary' },
-        getAssistantNavItem(pathname),
       ],
-      items: baseItems,
+      items: [
+        { key: 'history', label: 'History', icon: History, to: '/history' },
+        ...baseItems,
+      ],
     }
   }
 
@@ -123,20 +103,18 @@ export function buildNavModel(pathname: string): NavModel {
     return {
       primary: [
         { key: 'new-repo', label: 'New Repo', icon: Plus, onSelect: 'new-repo', variant: 'primary' },
-        getAssistantNavItem(pathname),
       ],
       items: [
         { key: 'all-automations', label: 'All automations', icon: CalendarClock, to: '/automations' },
         { key: 'files', label: 'Files', icon: Folder, dialog: 'files' },
+        { key: 'history', label: 'History', icon: History, to: '/history' },
         ...baseItems,
       ],
     }
   }
 
   return {
-    primary: [
-      getAssistantNavItem(pathname),
-    ],
+    primary: [],
     items: baseItems,
   }
 }

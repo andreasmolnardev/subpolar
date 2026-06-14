@@ -1,12 +1,12 @@
-import type { Database } from 'bun:sqlite'
-import type { Repo, CreateRepoInput } from '../types/repo'
+import type PocketBase from 'pocketbase'
+import type { Repo } from '../types/repo'
 import { getReposPath } from '@subpolar/shared/config/env'
 import { ASSISTANT_REPO_ID, ASSISTANT_REPO_PATH } from '@subpolar/shared/utils'
 import { getErrorMessage } from '../utils/error-utils'
 import path from 'path'
 
-interface RepoRow {
-  id: number
+interface RepoRecord {
+  id: string
   repo_url?: string
   local_path: string
   source_path?: string
@@ -17,211 +17,207 @@ interface RepoRow {
   last_pulled?: number
   last_accessed_at?: number
   opencode_config_name?: string
-  is_worktree?: number
-  is_local?: number
+  is_worktree?: boolean
+  is_local?: boolean
 }
 
-function rowToRepo(row: RepoRow): Repo {
-  const fullPath = row.source_path || path.join(getReposPath(), row.local_path)
+function getNextRepoId(pb: PocketBase): Promise<number> {
+  return pb.collection('repos').getList(1, 1, {
+    sort: '-created',
+    fields: 'id',
+  }).then((result) => {
+    if (result.items.length === 0) return 1
+    const maxId = Math.max(...result.items.map((r: { id: string }) => parseInt(r.id, 10) || 0))
+    return maxId + 1
+  })
+}
+
+function recordToRepo(record: RepoRecord): Repo {
+  const fullPath = record.source_path || path.join(getReposPath(), record.local_path)
+  const numId = parseInt(record.id, 10)
 
   return {
-    id: row.id,
-    repoUrl: row.repo_url,
-    localPath: row.local_path,
+    id: isNaN(numId) ? ASSISTANT_REPO_ID : numId,
+    repoUrl: record.repo_url,
+    localPath: record.local_path,
     fullPath,
-    sourcePath: row.source_path,
-    branch: row.branch,
-    defaultBranch: row.default_branch,
-    cloneStatus: row.clone_status as Repo['cloneStatus'],
-    clonedAt: row.cloned_at,
-    lastPulled: row.last_pulled,
-    lastAccessedAt: row.last_accessed_at,
-    openCodeConfigName: row.opencode_config_name,
-    isWorktree: row.is_worktree ? Boolean(row.is_worktree) : undefined,
-    isLocal: row.is_local ? Boolean(row.is_local) : undefined,
+    sourcePath: record.source_path,
+    branch: record.branch,
+    defaultBranch: record.default_branch,
+    cloneStatus: record.clone_status as Repo['cloneStatus'],
+    clonedAt: record.cloned_at,
+    lastPulled: record.last_pulled,
+    lastAccessedAt: record.last_accessed_at,
+    openCodeConfigName: record.opencode_config_name,
+    isWorktree: record.is_worktree ?? undefined,
+    isLocal: record.is_local ?? undefined,
   }
+}
+
+function toPocketBaseId(numId: number): string {
+  return String(numId)
 }
 
 const TABLES_WITH_REPO_ID = ['automation_jobs', 'automation_runs', 'repo_settings'] as const
 type RepoIdTable = typeof TABLES_WITH_REPO_ID[number]
 
-function updateRepoIdReference(db: Database, tableName: RepoIdTable, fromRepoId: number, toRepoId: number): void {
-  db.prepare(`UPDATE ${tableName} SET repo_id = ? WHERE repo_id = ?`).run(toRepoId, fromRepoId)
+async function updateRepoIdReference(pb: PocketBase, tableName: RepoIdTable, fromRepoId: number, toRepoId: number): Promise<void> {
+  const records = await pb.collection(tableName).getFullList({
+    filter: `repo_id = "${toPocketBaseId(fromRepoId)}"`,
+  })
+  for (const record of records) {
+    await pb.collection(tableName).update(record.id, { repo_id: toPocketBaseId(toRepoId) })
+  }
 }
 
-export function getRepoById(db: Database, id: number): Repo | null {
-  const stmt = db.prepare('SELECT * FROM repos WHERE id = ?')
-  const row = stmt.get(id) as RepoRow | undefined
-  
-  return row ? rowToRepo(row) : null
+export async function getRepoById(pb: PocketBase, id: number): Promise<Repo | null> {
+  try {
+    const record = await pb.collection('repos').getOne(toPocketBaseId(id))
+    return recordToRepo(record as unknown as RepoRecord)
+  } catch {
+    return null
+  }
 }
 
-export function ensureAssistantRepo(db: Database): Repo {
+export async function ensureAssistantRepo(pb: PocketBase): Promise<Repo> {
+  const existing = await pb.collection('repos').getFirstListItem(`local_path = "${ASSISTANT_REPO_PATH}"`).catch(() => null)
   const now = Date.now()
 
-  const syncAssistantRepo = db.transaction(() => {
-    const existingAssistantPathRow = db.prepare('SELECT id FROM repos WHERE local_path = ? AND id != ?')
-      .get(ASSISTANT_REPO_PATH, ASSISTANT_REPO_ID) as { id: number } | undefined
-
-    if (existingAssistantPathRow) {
-      for (const table of TABLES_WITH_REPO_ID) {
-        updateRepoIdReference(db, table, existingAssistantPathRow.id, ASSISTANT_REPO_ID)
+  if (existing) {
+    const record = existing as unknown as RepoRecord
+    if (parseInt(record.id, 10) !== ASSISTANT_REPO_ID) {
+      const oldId = parseInt(record.id, 10)
+      if (!isNaN(oldId)) {
+        for (const table of TABLES_WITH_REPO_ID) {
+          await updateRepoIdReference(pb, table, oldId, ASSISTANT_REPO_ID)
+        }
+        await pb.collection('repos').delete(record.id)
       }
-      db.prepare('DELETE FROM repos WHERE id = ?').run(existingAssistantPathRow.id)
+      await pb.collection('repos').create({
+        id: toPocketBaseId(ASSISTANT_REPO_ID),
+        repo_url: null,
+        local_path: ASSISTANT_REPO_PATH,
+        source_path: null,
+        branch: null,
+        default_branch: 'main',
+        clone_status: 'ready',
+        cloned_at: now,
+        last_accessed_at: now,
+        is_worktree: false,
+        is_local: false,
+      })
     }
 
-    db.prepare(`
-      INSERT INTO repos (
-        id,
-        repo_url,
-        local_path,
-        source_path,
-        branch,
-        default_branch,
-        clone_status,
-        cloned_at,
-        last_accessed_at,
-        is_worktree,
-        is_local
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        repo_url = excluded.repo_url,
-        local_path = excluded.local_path,
-        source_path = excluded.source_path,
-        branch = excluded.branch,
-        default_branch = excluded.default_branch,
-        clone_status = excluded.clone_status,
-        last_accessed_at = excluded.last_accessed_at,
-        is_worktree = excluded.is_worktree,
-        is_local = excluded.is_local
-    `).run(
-      ASSISTANT_REPO_ID,
-      null,
-      ASSISTANT_REPO_PATH,
-      null,
-      null,
-      'main',
-      'ready',
-      now,
-      now,
-      0,
-      0,
-    )
-  })
-
-  syncAssistantRepo()
-
-  const repo = getRepoById(db, ASSISTANT_REPO_ID)
-  if (!repo) {
-    throw new Error('Failed to sync Assistant repository')
+    const repo = await getRepoById(pb, ASSISTANT_REPO_ID)
+    if (!repo) throw new Error('Failed to sync Assistant repository')
+    return repo
   }
 
+  await pb.collection('repos').create({
+    id: toPocketBaseId(ASSISTANT_REPO_ID),
+    repo_url: null,
+    local_path: ASSISTANT_REPO_PATH,
+    source_path: null,
+    branch: null,
+    default_branch: 'main',
+    clone_status: 'ready',
+    cloned_at: now,
+    last_accessed_at: now,
+    is_worktree: false,
+    is_local: false,
+  })
+
+  const repo = await getRepoById(pb, ASSISTANT_REPO_ID)
+  if (!repo) throw new Error('Failed to sync Assistant repository')
   return repo
 }
 
-export function createRepo(db: Database, repo: CreateRepoInput): Repo {
-  const normalizedPath = repo.localPath.trim().replace(/\/+$/, '')
-  
-  const existing = repo.isLocal 
-    ? repo.sourcePath
-      ? getRepoBySourcePath(db, repo.sourcePath) ?? getRepoByLocalPath(db, normalizedPath)
-      : getRepoByLocalPath(db, normalizedPath)
-    : getRepoByUrlAndBranch(db, repo.repoUrl, repo.branch)
-  
-  if (existing) {
-    return existing
-  }
-  
-  const stmt = db.prepare(`
-    INSERT INTO repos (repo_url, local_path, source_path, branch, default_branch, clone_status, cloned_at, last_accessed_at, is_worktree, is_local)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `)
-  
+export async function createRepo(pb: PocketBase, input: { repoUrl?: string; localPath: string; sourcePath?: string; branch?: string; defaultBranch: string; cloneStatus: string; clonedAt: number; isWorktree?: boolean; isLocal?: boolean }): Promise<Repo> {
+  const normalizedPath = input.localPath.trim().replace(/\/+$/, '')
+
+  const existing = input.isLocal
+    ? input.sourcePath
+      ? await getRepoBySourcePath(pb, input.sourcePath) ?? await getRepoByLocalPath(pb, normalizedPath)
+      : await getRepoByLocalPath(pb, normalizedPath)
+    : await getRepoByUrlAndBranch(pb, input.repoUrl!, input.branch)
+
+  if (existing) return existing
+
+  const nextId = await getNextRepoId(pb)
+
   try {
-    const result = stmt.run(
-      repo.repoUrl || null,
-      normalizedPath,
-      repo.sourcePath || null,
-      repo.branch || null,
-      repo.defaultBranch,
-      repo.cloneStatus,
-      repo.clonedAt,
-      repo.clonedAt,
-      repo.isWorktree ? 1 : 0,
-      repo.isLocal ? 1 : 0
-    )
-    
-    const newRepo = getRepoById(db, Number(result.lastInsertRowid))
-    if (!newRepo) {
-      throw new Error(`Failed to retrieve newly created repo with id ${result.lastInsertRowid}`)
-    }
-    return newRepo
+    const record = await pb.collection('repos').create({
+      id: toPocketBaseId(nextId),
+      repo_url: input.repoUrl || null,
+      local_path: normalizedPath,
+      source_path: input.sourcePath || null,
+      branch: input.branch || null,
+      default_branch: input.defaultBranch,
+      clone_status: input.cloneStatus,
+      cloned_at: input.clonedAt,
+      last_accessed_at: input.clonedAt,
+      is_worktree: input.isWorktree ?? false,
+      is_local: input.isLocal ?? false,
+    })
+    return recordToRepo(record as unknown as RepoRecord)
   } catch (error: unknown) {
     const errorMessage = getErrorMessage(error)
-    if (errorMessage.includes('UNIQUE constraint failed') || (error && typeof error === 'object' && 'code' in error && error.code === 'SQLITE_CONSTRAINT_UNIQUE')) {
-      const conflictRepo = repo.isLocal 
-        ? repo.sourcePath
-          ? getRepoBySourcePath(db, repo.sourcePath) ?? getRepoByLocalPath(db, normalizedPath)
-          : getRepoByLocalPath(db, normalizedPath)
-        : getRepoByUrlAndBranch(db, repo.repoUrl, repo.branch)
-      
-      if (conflictRepo) {
-        return conflictRepo
-      }
-      
-      const identifier = repo.isLocal ? `path '${normalizedPath}'` : `url '${repo.repoUrl}' branch '${repo.branch || 'default'}'`
-      throw new Error(`Repository with ${identifier} already exists but could not be retrieved. This may indicate database corruption.`)
+    if (errorMessage.includes('UNIQUE constraint failed')) {
+      const conflictRepo = input.isLocal
+        ? input.sourcePath
+          ? await getRepoBySourcePath(pb, input.sourcePath) ?? await getRepoByLocalPath(pb, normalizedPath)
+          : await getRepoByLocalPath(pb, normalizedPath)
+        : await getRepoByUrlAndBranch(pb, input.repoUrl!, input.branch)
+
+      if (conflictRepo) return conflictRepo
+
+      const identifier = input.isLocal ? `path '${normalizedPath}'` : `url '${input.repoUrl}' branch '${input.branch || 'default'}'`
+      throw new Error(`Repository with ${identifier} already exists but could not be retrieved.`)
     }
-    
     throw new Error(`Failed to create repository: ${errorMessage}`)
   }
 }
 
-export function getRepoByUrlAndBranch(db: Database, repoUrl: string, branch?: string): Repo | null {
-  const query = branch 
-    ? 'SELECT * FROM repos WHERE repo_url = ? AND branch = ?'
-    : 'SELECT * FROM repos WHERE repo_url = ? AND branch IS NULL'
-  
-  const stmt = db.prepare(query)
-  const row = branch 
-    ? stmt.get(repoUrl, branch) as RepoRow | undefined
-    : stmt.get(repoUrl) as RepoRow | undefined
-  
-  return row ? rowToRepo(row) : null
-}
-
-export function getRepoByLocalPath(db: Database, localPath: string): Repo | null {
-  const stmt = db.prepare('SELECT * FROM repos WHERE local_path = ?')
-  const row = stmt.get(localPath) as RepoRow | undefined
-  
-  return row ? rowToRepo(row) : null
-}
-
-export function getRepoBySourcePath(db: Database, sourcePath: string): Repo | null {
-  const stmt = db.prepare('SELECT * FROM repos WHERE source_path = ?')
-  const row = stmt.get(sourcePath) as RepoRow | undefined
-
-  return row ? rowToRepo(row) : null
-}
-
-export function listRepos(db: Database, repoOrder?: number[]): Repo[] {
-  const stmt = db.prepare('SELECT * FROM repos ORDER BY cloned_at DESC')
-  const rows = stmt.all() as RepoRow[]
-  const repos = rows.map(rowToRepo)
-
-  if (!repoOrder || repoOrder.length === 0) {
-    return repos
+export async function getRepoByUrlAndBranch(pb: PocketBase, repoUrl: string, branch?: string): Promise<Repo | null> {
+  try {
+    const filter = branch
+      ? `repo_url = "${repoUrl}" && branch = "${branch}"`
+      : `repo_url = "${repoUrl}" && branch = null`
+    const record = await pb.collection('repos').getFirstListItem(filter)
+    return recordToRepo(record as unknown as RepoRecord)
+  } catch {
+    return null
   }
+}
+
+export async function getRepoByLocalPath(pb: PocketBase, localPath: string): Promise<Repo | null> {
+  try {
+    const record = await pb.collection('repos').getFirstListItem(`local_path = "${localPath}"`)
+    return recordToRepo(record as unknown as RepoRecord)
+  } catch {
+    return null
+  }
+}
+
+export async function getRepoBySourcePath(pb: PocketBase, sourcePath: string): Promise<Repo | null> {
+  try {
+    const record = await pb.collection('repos').getFirstListItem(`source_path = "${sourcePath}"`)
+    return recordToRepo(record as unknown as RepoRecord)
+  } catch {
+    return null
+  }
+}
+
+export async function listRepos(pb: PocketBase, repoOrder?: number[]): Promise<Repo[]> {
+  const result = await pb.collection('repos').getFullList({ sort: '-cloned_at' })
+  const repos = (result as unknown as RepoRecord[]).map(recordToRepo)
+
+  if (!repoOrder || repoOrder.length === 0) return repos
 
   const orderMap = new Map(repoOrder.map((id, index) => [id, index]))
   const orderedRepos = repos
     .filter((repo) => orderMap.has(repo.id))
-    .sort((a, b) => {
-      const indexA = orderMap.get(a.id)!
-      const indexB = orderMap.get(b.id)!
-      return indexA - indexB
-    })
+    .sort((a, b) => orderMap.get(a.id)! - orderMap.get(b.id)!)
 
   const remainingRepos = repos
     .filter((repo) => !orderMap.has(repo.id))
@@ -240,54 +236,61 @@ function getRepoName(repo: Repo): string {
     : repo.sourcePath ? path.basename(repo.sourcePath) : repo.localPath
 }
 
-export function updateRepoStatus(db: Database, id: number, cloneStatus: Repo['cloneStatus']): void {
-  const stmt = db.prepare('UPDATE repos SET clone_status = ? WHERE id = ?')
-  const result = stmt.run(cloneStatus, id)
-  if (result.changes === 0) {
+export async function updateRepoStatus(pb: PocketBase, id: number, cloneStatus: Repo['cloneStatus']): Promise<void> {
+  try {
+    await pb.collection('repos').update(toPocketBaseId(id), { clone_status: cloneStatus })
+  } catch {
     throw new Error(`Repository with id ${id} not found`)
   }
 }
 
-export function updateRepoConfigName(db: Database, id: number, configName: string): void {
-  const stmt = db.prepare('UPDATE repos SET opencode_config_name = ? WHERE id = ?')
-  const result = stmt.run(configName, id)
-  if (result.changes === 0) {
+export async function updateRepoConfigName(pb: PocketBase, id: number, configName: string): Promise<void> {
+  try {
+    await pb.collection('repos').update(toPocketBaseId(id), { opencode_config_name: configName })
+  } catch {
     throw new Error(`Repository with id ${id} not found`)
   }
 }
 
-export function updateLastPulled(db: Database, id: number): void {
-  const stmt = db.prepare('UPDATE repos SET last_pulled = ? WHERE id = ?')
-  const result = stmt.run(Date.now(), id)
-  if (result.changes === 0) {
+export async function updateLastPulled(pb: PocketBase, id: number): Promise<void> {
+  try {
+    await pb.collection('repos').update(toPocketBaseId(id), { last_pulled: Date.now() })
+  } catch {
     throw new Error(`Repository with id ${id} not found`)
   }
 }
 
-export function updateLastAccessed(db: Database, id: number): void {
-  const stmt = db.prepare('UPDATE repos SET last_accessed_at = ? WHERE id = ?')
-  const result = stmt.run(Date.now(), id)
-  if (result.changes === 0) {
+export async function updateLastAccessed(pb: PocketBase, id: number): Promise<void> {
+  try {
+    await pb.collection('repos').update(toPocketBaseId(id), { last_accessed_at: Date.now() })
+  } catch {
     throw new Error(`Repository with id ${id} not found`)
   }
 }
 
-export function updateRepoBranch(db: Database, id: number, branch: string): void {
-  const stmt = db.prepare('UPDATE repos SET branch = ? WHERE id = ?')
-  const result = stmt.run(branch, id)
-  if (result.changes === 0) {
+export async function updateRepoBranch(pb: PocketBase, id: number, branch: string): Promise<void> {
+  try {
+    await pb.collection('repos').update(toPocketBaseId(id), { branch })
+  } catch {
     throw new Error(`Repository with id ${id} not found`)
   }
 }
 
-export function deleteRepo(db: Database, id: number): void {
-  if (id === ASSISTANT_REPO_ID) {
-    return
-  }
+export async function deleteRepo(pb: PocketBase, id: number): Promise<void> {
+  if (id === ASSISTANT_REPO_ID) return
+
+  const pbId = toPocketBaseId(id)
 
   for (const table of TABLES_WITH_REPO_ID) {
-    db.prepare(`DELETE FROM ${table} WHERE repo_id = ?`).run(id)
+    const records = await pb.collection(table).getFullList({ filter: `repo_id = "${pbId}"` })
+    for (const record of records) {
+      await pb.collection(table).delete(record.id)
+    }
   }
-  const stmt = db.prepare('DELETE FROM repos WHERE id = ?')
-  stmt.run(id)
+
+  try {
+    await pb.collection('repos').delete(pbId)
+  } catch {
+    // ignore if already deleted
+  }
 }
