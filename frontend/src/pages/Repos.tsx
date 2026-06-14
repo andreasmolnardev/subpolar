@@ -26,15 +26,6 @@ export function Repos() {
           <div className="flex items-center gap-1">
             <PendingActionsGroup />
           </div>
-          <Button
-            variant="outline"
-            onClick={() => navigate('/automations')}
-            size="sm"
-            className="hidden sm:flex text-foreground border-border hover:bg-accent"
-          >
-            <Zap className="w-4 h-4 mr-2" />
-            Automations
-          </Button>
           <Button onClick={() => setAddRepoOpen(true)} size="sm">
             <Plus className="w-4 h-4 mr-1" />
             Repo

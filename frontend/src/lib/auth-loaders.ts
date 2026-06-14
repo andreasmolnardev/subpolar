@@ -1,5 +1,4 @@
 import { redirect } from 'react-router-dom'
-import { pb } from './auth-client'
 
 export interface AuthConfig {
   enabledProviders: string[]
@@ -27,13 +26,14 @@ async function fetchAuthConfig(): Promise<AuthConfig> {
 }
 
 async function checkSession() {
-  if (pb.authStore.isValid) {
-    try {
-      await pb.collection('users').authRefresh()
-      return pb.authStore.isValid
-    } catch {
-      pb.authStore.clear()
+  try {
+    const response = await fetch('/api/auth/session')
+    if (response.ok) {
+      const data = await response.json()
+      return !!data.user
     }
+  } catch {
+    // Session check failed
   }
   return false
 }

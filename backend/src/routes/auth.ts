@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import PocketBase from 'pocketbase'
-import { syncAdminFromEnv, signInUser, signUpUser, signOutUser, getUserCount } from '../auth'
+import { syncAdminFromEnv, signInUser, signUpUser, signOutUser, getUserCount, updateUserPassword } from '../auth'
 import { POCKETBASE_URL } from '../db/pocketbase-client'
 import { ENV } from '@subpolar/shared/config/env'
 
@@ -42,6 +42,27 @@ export function createAuthRoutes(pb: PocketBase) {
     signOutUser(pb)
     c.header('set-cookie', 'pb_auth=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT')
     return c.json({ success: true })
+  })
+
+  app.put('/change-password', async (c) => {
+    const { currentPassword, newPassword } = await c.req.json()
+    const cookie = c.req.header('cookie') || ''
+    if (!cookie) return c.json({ message: 'Not authenticated' }, 401)
+
+    const userPb = new PocketBase(POCKETBASE_URL)
+    userPb.authStore.loadFromCookie(cookie)
+
+    if (!userPb.authStore.isValid) {
+      return c.json({ message: 'Not authenticated' }, 401)
+    }
+
+    try {
+      await updateUserPassword(pb, userPb.authStore.model?.id as string, currentPassword, newPassword)
+      return c.json({ success: true })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to change password'
+      return c.json({ message }, 400)
+    }
   })
 
   app.get('/session', async (c) => {

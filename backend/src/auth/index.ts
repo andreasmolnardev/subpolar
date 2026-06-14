@@ -46,6 +46,19 @@ export async function getUserByEmail(pb: PocketBase, email: string) {
   }
 }
 
+export async function updateUserPassword(
+  pb: PocketBase,
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+) {
+  return pb.collection('users').update(userId, {
+    password: newPassword,
+    passwordConfirm: newPassword,
+    oldPassword: currentPassword,
+  })
+}
+
 export async function syncAdminFromEnv(pb: PocketBase) {
   const adminEmail = ENV.AUTH.ADMIN_EMAIL || ''
   const adminPassword = ENV.AUTH.ADMIN_PASSWORD || ''

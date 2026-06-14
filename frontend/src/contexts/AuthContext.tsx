@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useEffect, useMemo, useState, useCallback, type ReactNode } from 'react'
-import { pb, type AuthUser } from '@/lib/auth-client'
+import { signUp, signIn, signOut, fetchSession, onAuthChange, getCurrentUser, type AuthUser } from '@/lib/auth-client'
 import { useNavigate, useLocation } from 'react-router-dom'
 
 interface AuthConfig {
@@ -30,31 +30,23 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<AuthUser | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser())
   const [isLoading, setIsLoading] = useState(true)
   const [config, setConfig] = useState<AuthConfig | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
 
   const refreshSession = useCallback(async () => {
-    if (pb.authStore.isValid) {
-      try {
-        await pb.collection('users').authRefresh()
-        setUser(pb.authStore.model)
-      } catch {
-        pb.authStore.clear()
-        setUser(null)
-      }
-    } else {
-      setUser(null)
-    }
+    const result = await fetchSession()
+    setUser(result.user)
+    return result
   }, [])
 
   useEffect(() => {
     refreshSession().finally(() => setIsLoading(false))
 
-    const unsubscribe = pb.authStore.onChange((_token, model) => {
-      setUser(model)
+    const unsubscribe = onAuthChange((newUser) => {
+      setUser(newUser)
     })
 
     const fetchConfig = async () => {
@@ -82,7 +74,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     try {
-      await pb.collection('users').authWithPassword(email, password)
+      const data = await signIn(email, password)
+      setUser(data.user)
       const from = (location.state as { from?: string })?.from || '/'
       navigate(from, { replace: true })
       return {}
@@ -93,8 +86,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const signUpWithEmail = useCallback(async (email: string, password: string, name: string) => {
     try {
-      await pb.collection('users').create({ email, password, passwordConfirm: password, name })
-      await pb.collection('users').authWithPassword(email, password)
+      const data = await signUp(email, password, name)
+      setUser(data.user)
       navigate('/', { replace: true })
       return {}
     } catch (err) {
@@ -103,7 +96,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [navigate])
 
   const logout = useCallback(async () => {
-    pb.authStore.clear()
+    await signOut()
+    setUser(null)
     window.location.href = '/login'
   }, [])
 
