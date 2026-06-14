@@ -3,6 +3,7 @@ import type PocketBase from 'pocketbase'
 import { logger } from '../utils/logger'
 import { ENV } from '@subpolar/shared/config/env'
 import { ASSISTANT_REPO_PATH } from '@subpolar/shared/utils'
+import { DEFAULT_USER_PREFERENCES } from '@subpolar/shared/schemas'
 
 export type Database = PocketBase
 
@@ -18,7 +19,7 @@ export async function initializeDatabase(): Promise<Database> {
     if (!existing) {
       await pb.collection('user_preferences').create({
         user_id: 'default',
-        preferences: '{}',
+        preferences: DEFAULT_USER_PREFERENCES,
         updated_at: Date.now(),
       })
       logger.info('Created default user preferences')

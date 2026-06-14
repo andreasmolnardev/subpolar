@@ -205,7 +205,7 @@ class OpenCodeServerManager {
     if (this.db) {
       try {
         const settingsService = new SettingsService(this.db)
-        const settings = settingsService.getSettings('default')
+        const settings = await settingsService.getSettings('default')
         gitCredentials = settings.preferences.gitCredentials || []
         const disabledDefaultEnvVars = new Set(settings.preferences.disabledDefaultServerEnvVars || [])
         const rawEnvVars = [

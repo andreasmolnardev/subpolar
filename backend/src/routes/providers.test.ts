@@ -1,35 +1,79 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { Hono } from 'hono'
-import type { Database } from '../db/schema'
-import { migrate } from '../db/migration-runner'
-import { allMigrations } from '../db/migrations'
 import { createProvidersRoutes } from './providers'
 import { join, dirname } from 'node:path'
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { createStubOpenCodeClient } from '../../test/helpers/stub-opencode-client'
+import type PocketBase from 'pocketbase'
 
-function createTestApp(db: Database): Hono {
+function createMockPocketBase(): PocketBase {
+  const collections = new Map<string, Map<string, Record<string, unknown>>>()
+  let idCounter = 0
+
+  function getCollection(name: string) {
+    if (!collections.has(name)) {
+      collections.set(name, new Map())
+    }
+    return collections.get(name)!
+  }
+
+  function nextId(): string {
+    idCounter++
+    return `mock-${idCounter}`
+  }
+
+  function parseFilterUserId(filter: string): string {
+    const match = filter.match(/user_id\s*=\s*"([^"]+)"/)
+    return match?.[1] ?? 'default'
+  }
+
+  return {
+    collection: (name: string) => ({
+      getFirstListItem: async <T = unknown>(filter: string): Promise<T> => {
+        const col = getCollection(name)
+        const userId = parseFilterUserId(filter)
+        for (const record of col.values()) {
+          if ((record as Record<string, unknown>).user_id === userId) {
+            return record as unknown as T
+          }
+        }
+        throw new Error('Not found')
+      },
+      create: async <T = unknown>(bodyParams?: Record<string, unknown>): Promise<T> => {
+        const col = getCollection(name)
+        const id = nextId()
+        const record = { ...bodyParams, id, collectionId: name, collectionName: name }
+        col.set(id, record as Record<string, unknown>)
+        return record as unknown as T
+      },
+      update: async <T = unknown>(id: string, bodyParams?: Record<string, unknown>): Promise<T> => {
+        const col = getCollection(name)
+        const existing = col.get(id)
+        if (!existing) throw new Error('Not found')
+        const updated = { ...existing, ...bodyParams }
+        col.set(id, updated)
+        return updated as unknown as T
+      },
+    }),
+  } as unknown as PocketBase
+}
+
+function createTestApp(pb: PocketBase): Hono {
   const app = new Hono()
-  app.route('/providers', createProvidersRoutes(db, createStubOpenCodeClient()))
+  app.route('/providers', createProvidersRoutes(pb, createStubOpenCodeClient()))
   return app
 }
 
-function createTestDb(): Database {
-  const db = new Database(':memory:')
-  migrate(db, allMigrations)
-  return db
-}
-
 describe('providers routes', () => {
-  let db: Database
+  let pb: PocketBase
   let app: Hono
   let tmpDir: string
   let originalWorkspacePath: string | undefined
 
   beforeEach(async () => {
-    db = createTestDb()
-    app = createTestApp(db)
+    pb = createMockPocketBase()
+    app = createTestApp(pb)
     tmpDir = await mkdtemp(join(tmpdir(), 'providers-test-'))
     originalWorkspacePath = process.env.WORKSPACE_PATH
     process.env.WORKSPACE_PATH = tmpDir

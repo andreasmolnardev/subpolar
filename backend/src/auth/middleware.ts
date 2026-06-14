@@ -1,43 +1,40 @@
-import { createMiddleware } from 'hono/factory'
-import type { AuthInstance, Session } from './index'
-import { logger } from '../utils/logger'
+import type { Context, Next } from 'hono'
+import PocketBase from 'pocketbase'
+import { POCKETBASE_URL } from '../db/pocketbase-client'
 
-export function createAuthMiddleware(auth: AuthInstance) {
-  return createMiddleware<{
-    Variables: {
-      session: Session['session']
-      user: Session['user']
-    }
-  }>(async (c, next) => {
-    const cookies = c.req.header('cookie')
-    const origin = c.req.header('origin')
-    
-    logger.debug(`Auth check - Path: ${c.req.path}, Origin: ${origin}, Has cookies: ${!!cookies}`)
-    if (cookies) {
-      const cookieNames = cookies.split(';').map(c => c.trim().split('=')[0]).join(', ')
-      logger.debug(`Cookie names: ${cookieNames}`)
-    }
-    
-    let session
-    try {
-      session = await auth.api.getSession({
-        headers: c.req.raw.headers,
-      })
-    } catch (error) {
-      logger.error('Session lookup failed', { error })
-      return c.json({ error: 'Internal Server Error' }, 500)
+export function createAuthMiddleware(pbClient?: PocketBase) {
+  return async (c: Context, next: Next) => {
+    const pb = pbClient || new PocketBase(POCKETBASE_URL)
+
+    const cookie = c.req.header('cookie') || ''
+    const authHeader = c.req.header('authorization') || ''
+
+    if (authHeader.startsWith('Bearer ')) {
+      pb.authStore.save(authHeader.slice(7), null)
+    } else if (cookie) {
+      pb.authStore.loadFromCookie(cookie)
     }
 
-    logger.debug(`Session result: ${session ? 'found' : 'not found'}`)
-
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
+    if (pb.authStore.isValid) {
+      try {
+        await pb.collection('users').authRefresh()
+        c.set('user', pb.authStore.model)
+        c.set('session', {
+          token: pb.authStore.token,
+          userId: pb.authStore.model?.id,
+        })
+      } catch {
+        pb.authStore.clear()
+        c.set('user', null)
+        c.set('session', null)
+        return c.json({ message: 'Unauthorized' }, 401)
+      }
+    } else {
+      c.set('user', null)
+      c.set('session', null)
+      return c.json({ message: 'Unauthorized' }, 401)
     }
 
-    c.set('session', session.session as Session['session'])
-    c.set('user', session.user as Session['user'])
     await next()
-  })
+  }
 }
-
-

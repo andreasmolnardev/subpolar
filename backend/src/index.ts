@@ -30,8 +30,8 @@ import { createSSERoutes } from './routes/sse'
 import { createSSHRoutes } from './routes/ssh'
 import { createNotificationRoutes } from './routes/notifications'
 import { createMcpOauthProxyRoutes } from './routes/mcp-oauth-proxy'
-import { createAuthRoutes, createAuthInfoRoutes, syncAdminFromEnv } from './routes/auth'
-import { createAuth } from './auth'
+import { syncAdminFromEnv } from './auth'
+import { createAuthRoutes, createAuthInfoRoutes } from './routes/auth'
 import { createAuthMiddleware } from './auth/middleware'
 import { createPromptTemplateRoutes } from './routes/prompt-templates'
 import { createInternalRoutes } from './routes/internal'
@@ -87,7 +87,6 @@ app.use('/*', cors({
 
 // Initialize database (now async to support PocketBase)
 let db: Database | undefined
-let auth: ReturnType<typeof createAuth> | undefined
 let requireAuth: ReturnType<typeof createAuthMiddleware> | undefined
 let openCodeClient: ReturnType<typeof createOpenCodeClient> | undefined
 let automationService: AutomationService | undefined
@@ -97,8 +96,7 @@ let settingsService: SettingsService | undefined
 
 async function initializeApp() {
   db = await initializeDatabase()
-  auth = createAuth()
-  requireAuth = createAuthMiddleware(auth)
+  requireAuth = createAuthMiddleware()
   openCodeClient = createOpenCodeClient(async () => new SettingsService(db!).getOpenCodeServerPassword())
 }
 
@@ -243,13 +241,6 @@ async function ensureDefaultAgentsMdExists(): Promise<void> {
 }
 
 try {
-  if (ENV.SERVER.NODE_ENV === 'production' && !ENV.AUTH.SECRET) {
-    logger.error('AUTH_SECRET is required in production mode')
-    logger.error('Generate one with: openssl rand -base64 32')
-    logger.error('Set it as environment variable: AUTH_SECRET=your-secret')
-    process.exit(1)
-  }
-
   await ensureDirectoryExists(getWorkspacePath())
   await ensureDirectoryExists(getReposPath())
   await ensureDirectoryExists(getConfigPath())
@@ -275,7 +266,7 @@ try {
   await migrateGlobalSkills()
 
   await installAssistantWorkspace({
-    db,
+    db: db!,
     apiBaseUrl: `http://localhost:${PORT}/api/internal`,
   })
   logger.info('Assistant workspace installed')
@@ -284,7 +275,7 @@ try {
   await gitAuthService.initialize(ipcServer, db!)
   logger.info(`Git IPC server running at ${ipcServer.ipcHandlePath}`)
 
-  await syncAdminFromEnv(auth!)
+  await syncAdminFromEnv(db!)
 
   opencodeServerManager.setDatabase(db!)
   const openCodeStatus = await openCodeSupervisor.start()
@@ -294,10 +285,10 @@ try {
     logger.warn(`OpenCode server unavailable after startup recovery: ${openCodeStatus.lastError ?? openCodeStatus.state}`)
   }
 
-  automationService = new AutomationService(db, openCodeClient)
+  automationService = new AutomationService(db!, openCodeClient!)
   automationRunnerInstance = new AutomationRunner(automationService)
 
-  notificationService = new NotificationService(db)
+  notificationService = new NotificationService(db!)
 
   if (ENV.VAPID.PUBLIC_KEY && ENV.VAPID.PRIVATE_KEY) {
     if (!ENV.VAPID.SUBJECT) {
@@ -328,8 +319,8 @@ try {
   logger.error('Failed to initialize workspace:', error)
 }
 
-app.route('/api/auth', createAuthRoutes(auth!))
-app.route('/api/auth-info', createAuthInfoRoutes(auth!))
+app.route('/api/auth', createAuthRoutes(db!))
+app.route('/api/auth-info', createAuthInfoRoutes(db!))
 app.route('/api/health', createHealthRoutes(openCodeSupervisor))
 
 app.route('/api/mcp-oauth-proxy', createMcpOauthProxyRoutes(openCodeClient!, requireAuth!))
@@ -354,20 +345,20 @@ protectedApi.route('/automations', createAutomationRoutes(automationService!))
 
 app.route('/api', protectedApi)
 
-app.post('/api/opencode/mcp/:name/auth', requireAuth, async (c) => {
+app.post('/api/opencode/mcp/:name/auth', requireAuth!, async (c) => {
   const serverName = c.req.param('name')
   const directory = c.req.query('directory')
-  return openCodeClient.startMcpAuth(serverName, directory)
+  return openCodeClient!.startMcpAuth(serverName, directory!)
 })
 
-app.post('/api/opencode/mcp/:name/auth/authenticate', requireAuth, async (c) => {
+app.post('/api/opencode/mcp/:name/auth/authenticate', requireAuth!, async (c) => {
   const serverName = c.req.param('name')
   const directory = c.req.query('directory')
-  return openCodeClient.authenticateMcp(serverName, directory)
+  return openCodeClient!.authenticateMcp(serverName, directory!)
 })
 
-app.all('/api/opencode/*', requireAuth, async (c) => {
-  return openCodeClient.forwardRaw(c.req.raw)
+app.all('/api/opencode/*', requireAuth!, async (c) => {
+  return openCodeClient!.forwardRaw(c.req.raw)
 })
 
 const isProduction = ENV.SERVER.NODE_ENV === 'production'

@@ -98,7 +98,7 @@ export class GitAuthService {
     this.setSSHPort(port && port !== '22' ? port : null)
 
     const settingsService = new SettingsService(database)
-    const settings = settingsService.getSettings('default')
+    const settings = await settingsService.getSettings('default')
     const gitCredentials = (settings.preferences.gitCredentials || []) as GitCredential[]
     const sshCredentials = getSSHCredentialsForHost(gitCredentials, sshHost)
 

@@ -6,9 +6,9 @@ import type { UserPreferences } from '@subpolar/shared/types'
 export function createInternalSettingsRoutes(settingsService: SettingsService) {
   const app = new Hono()
 
-  app.get('/', (c) => {
+  app.get('/', async (c) => {
     const userId = c.req.query('userId') ?? 'default'
-    const settings = settingsService.getSettings(userId)
+    const settings = await settingsService.getSettings(userId)
     return c.json(settings)
   })
 
@@ -28,7 +28,7 @@ export function createInternalSettingsRoutes(settingsService: SettingsService) {
     }
 
     const patch = parsed.data
-    const currentPrefs = settingsService.getSettings(userId).preferences
+    const currentPrefs = (await settingsService.getSettings(userId)).preferences
     const updates: Partial<UserPreferences> = {}
     for (const key of Object.keys(patch)) {
       if (key !== 'tts' && key !== 'stt') {
@@ -48,7 +48,7 @@ export function createInternalSettingsRoutes(settingsService: SettingsService) {
       updates.stt = { ...currentPrefs.stt, ...patch.stt }
     }
 
-    const updated = settingsService.updateSettings(updates as Partial<UserPreferences>, userId)
+    const updated = await settingsService.updateSettings(updates as Partial<UserPreferences>, userId)
     return c.json(updated)
   })
 

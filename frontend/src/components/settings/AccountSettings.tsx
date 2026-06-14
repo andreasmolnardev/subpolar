@@ -1,90 +1,26 @@
 import { useState } from 'react'
-import { Edit2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { DeleteDialog } from '@/components/ui/delete-dialog'
-import { Loader2, User, KeyRound, LogOut, Plus, Trash2, AlertCircle, CheckCircle, Lock } from 'lucide-react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { passkey, changePassword } from '@/lib/auth-client'
-
-interface Passkey {
-  id: string
-  name?: string
-  credentialID: string
-  createdAt: string
-  deviceType: string
-}
+import { Loader2, User, Lock, LogOut, AlertCircle, CheckCircle, Edit2 } from 'lucide-react'
+import { useMutation } from '@tanstack/react-query'
+import { changePassword } from '@/lib/auth-client'
 
 export function AccountSettings() {
-  const { user, addPasskey, logout } = useAuth()
-  const queryClient = useQueryClient()
-  const [passkeyName, setPasskeyName] = useState('')
+  const { user, logout } = useAuth()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
-  const [deletePasskeyId, setDeletePasskeyId] = useState<string | null>(null)
-
-  const { data: passkeys, isLoading: passkeysLoading } = useQuery({
-    queryKey: ['passkeys'],
-    queryFn: async () => {
-      const response = await fetch('/api/auth/passkey/list-user-passkeys', {
-        credentials: 'include',
-      })
-      if (!response.ok) return []
-      return response.json() as Promise<Passkey[]>
-    },
-    enabled: !!user,
-  })
-
-  const addPasskeyMutation = useMutation({
-    mutationFn: async (name: string) => {
-      return addPasskey(name || undefined)
-    },
-    onSuccess: (result) => {
-      if (result.error) {
-        setError(result.error)
-      } else {
-        setSuccess('Passkey added successfully')
-        setPasskeyName('')
-        queryClient.invalidateQueries({ queryKey: ['passkeys'] })
-      }
-    },
-    onError: (err) => {
-      setError(err instanceof Error ? err.message : 'Failed to add passkey')
-    },
-  })
-
-  const deletePasskeyMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await passkey.deletePasskey({ id })
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to delete passkey')
-      }
-      return response.data
-    },
-    onSuccess: () => {
-      setSuccess('Passkey deleted successfully')
-      queryClient.invalidateQueries({ queryKey: ['passkeys'] })
-    },
-    onError: (err) => {
-      setError(err instanceof Error ? err.message : 'Failed to delete passkey')
-    },
-  })
 
   const changePasswordMutation = useMutation({
     mutationFn: async ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) => {
-      const response = await changePassword({ currentPassword, newPassword, revokeOtherSessions: true })
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to change password')
-      }
-      return response.data
+      await changePassword(currentPassword, newPassword)
     },
     onSuccess: () => {
       setSuccess('Password changed successfully')
@@ -96,29 +32,6 @@ export function AccountSettings() {
       setError(err instanceof Error ? err.message : 'Failed to change password')
     },
   })
-
-  const handleAddPasskey = async () => {
-    setError(null)
-    setSuccess(null)
-    addPasskeyMutation.mutate(passkeyName)
-  }
-
-  const handleDeletePasskey = (id: string) => {
-    setError(null)
-    setSuccess(null)
-    setDeletePasskeyId(id)
-  }
-
-  const handleDeleteConfirm = () => {
-    if (deletePasskeyId) {
-      deletePasskeyMutation.mutate(deletePasskeyId)
-      setDeletePasskeyId(null)
-    }
-  }
-
-  const handleDeleteCancel = () => {
-    setDeletePasskeyId(null)
-  }
 
   const handleChangePassword = () => {
     setError(null)
@@ -174,11 +87,11 @@ export function AccountSettings() {
               <div className="space-y-3 sm:space-y-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs sm:text-sm">Name</Label>
-                  <Input value={user.name} disabled className="h-9 sm:h-10 md:text-sm" />
+                  <Input value={user.name as string} disabled className="h-9 sm:h-10 md:text-sm" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs sm:text-sm">Email</Label>
-                  <Input value={user.email} disabled className="h-9 sm:h-10 md:text-sm" />
+                  <Input value={user.email as string} disabled className="h-9 sm:h-10 md:text-sm" />
                 </div>
                 <Button variant="outline" onClick={() => setEditingProfile(false)} className="h-9 sm:h-10">
                   Done
@@ -188,11 +101,11 @@ export function AccountSettings() {
               <div className="space-y-2 sm:space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
                   <span className="text-xs sm:text-sm text-muted-foreground sm:w-20">Name</span>
-                  <span className="text-sm font-medium truncate">{user.name}</span>
+                  <span className="text-sm font-medium truncate">{user.name as string}</span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
                   <span className="text-xs sm:text-sm text-muted-foreground sm:w-20">Email</span>
-                  <span className="text-sm truncate">{user.email}</span>
+                  <span className="text-sm truncate">{user.email as string}</span>
                 </div>
               </div>
             )}
@@ -270,77 +183,6 @@ export function AccountSettings() {
 
       <Card className="border-0 shadow-none">
         <CardHeader className="pb-2 sm:pb-4">
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <KeyRound className="h-4 w-4 sm:h-5 sm:w-5" />
-            Passkeys
-          </CardTitle>
-          <CardDescription className="text-xs sm:text-sm">Manage passkeys for passwordless sign-in</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 sm:space-y-4">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Input
-              placeholder="Passkey name (optional)"
-              value={passkeyName}
-              onChange={(e) => setPasskeyName(e.target.value)}
-              className="h-9 sm:h-10 md:text-sm"
-            />
-            <Button 
-              onClick={handleAddPasskey} 
-              disabled={addPasskeyMutation.isPending}
-              className="h-9 sm:h-10 whitespace-nowrap"
-            >
-              {addPasskeyMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="mr-2 h-4 w-4" />
-              )}
-              Add Passkey
-            </Button>
-          </div>
-
-          {passkeysLoading ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : passkeys && passkeys.length > 0 ? (
-            <div className="space-y-2">
-              {passkeys.map((pk) => (
-                <div
-                  key={pk.id}
-                  className="flex items-center justify-between p-2.5 sm:p-3 bg-muted rounded-lg"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm truncate">{pk.name || 'Unnamed Passkey'}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {pk.deviceType} - {new Date(pk.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 ml-2 flex-shrink-0"
-                    onClick={() => handleDeletePasskey(pk.id)}
-                    disabled={deletePasskeyMutation.isPending}
-                  >
-                    {deletePasskeyMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    )}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs sm:text-sm text-muted-foreground text-center py-3">
-              No passkeys registered. Add one for passwordless sign-in.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-0 shadow-none">
-        <CardHeader className="pb-2 sm:pb-4">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg text-destructive">
             <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
             Sign Out
@@ -354,16 +196,6 @@ export function AccountSettings() {
           </Button>
         </CardContent>
       </Card>
-
-      <DeleteDialog
-        open={deletePasskeyId !== null}
-        onOpenChange={(open) => !open && setDeletePasskeyId(null)}
-        onConfirm={handleDeleteConfirm}
-        onCancel={handleDeleteCancel}
-        title="Delete Passkey"
-        description="Are you sure you want to delete this passkey? This action cannot be undone."
-        isDeleting={deletePasskeyMutation.isPending}
-      />
     </div>
   )
 }

@@ -1,17 +1,47 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as automationsDb from '../../src/db/automations'
+import type PocketBase from 'pocketbase'
 
-const mockDb = {
-  prepare: vi.fn(),
-} as any
-
-function makeJobRow(overrides: Record<string, unknown> = {}) {
+function createMockPocketBase(): PocketBase {
+  const cols: Record<string, Map<string, Record<string, unknown>>> = {}
   return {
-    id: 7,
-    repo_id: 42,
+    collection: (name: string) => {
+      if (!cols[name]) cols[name] = new Map()
+      const col = cols[name]
+      return {
+        getOne: vi.fn(async <T = unknown>(id: string): Promise<T> => col.get(id) as unknown as T),
+        getFirstListItem: vi.fn(async <T = unknown>(): Promise<T> => { throw new Error('Not found') }),
+        getFullList: vi.fn(async <T = unknown>(): Promise<T[]> => Array.from(col.values()) as unknown as T[]),
+        getList: vi.fn(async <T = unknown>(): Promise<{ items: T[]; totalItems: number }> => {
+          const items = Array.from(col.values())
+          return { items: items as unknown as T[], totalItems: items.length }
+        }),
+        create: vi.fn(async <T = unknown>(data: Record<string, unknown>): Promise<T> => {
+          const id = (data?.id as string) || String(col.size + 1)
+          const record = { ...data, id }
+          col.set(id, record)
+          return record as unknown as T
+        }),
+        update: vi.fn(async <T = unknown>(id: string, data: Record<string, unknown>): Promise<T> => {
+          const existing = col.get(id)
+          if (!existing) throw new Error('Not found')
+          const updated = { ...existing, ...data }
+          col.set(id, updated)
+          return updated as unknown as T
+        }),
+        delete: vi.fn(async (id: string): Promise<boolean> => col.delete(id)),
+      }
+    },
+    health: { check: vi.fn(async () => ({ code: 200 })) },
+  } as unknown as PocketBase
+}
+
+function makeJobRecord(overrides: Record<string, unknown> = {}) {
+  return {
+    repo_id: '42',
     name: 'Weekly engineering summary',
     description: 'Summarize repo health and recent changes.',
-    enabled: 1,
+    enabled: true,
     automation_mode: 'cron',
     interval_minutes: null,
     cron_expression: '0 9 * * 1',
@@ -28,11 +58,10 @@ function makeJobRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function makeRunRow(overrides: Record<string, unknown> = {}) {
+function makeRunRecord(overrides: Record<string, unknown> = {}) {
   return {
-    id: 5,
-    job_id: 7,
-    repo_id: 42,
+    job_id: '7',
+    repo_id: '42',
     trigger_source: 'manual',
     status: 'running',
     started_at: Date.UTC(2026, 2, 9, 12, 0, 0),
@@ -48,19 +77,17 @@ function makeRunRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('automation database queries', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  it('lists automation jobs and parses persisted metadata', async () => {
+    const pb = createMockPocketBase()
+    const getFullListMock = pb.collection('automation_jobs').getFullList as ReturnType<typeof vi.fn>
+    getFullListMock.mockResolvedValue([{ id: '7', ...makeJobRecord() }])
 
-  it('lists automation jobs and parses persisted metadata', () => {
-    const stmt = {
-      all: vi.fn().mockReturnValue([makeJobRow()]),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
+    const jobs = await automationsDb.listAutomationJobsByRepo(pb, 42)
 
-    const jobs = automationsDb.listAutomationJobsByRepo(mockDb, 42)
-
-    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM automation_jobs WHERE repo_id = ? ORDER BY created_at DESC')
+    expect(getFullListMock).toHaveBeenCalledWith({
+      filter: 'repo_id = "42"',
+      sort: '-created_at',
+    })
     expect(jobs[0]).toMatchObject({
       id: 7,
       repoId: 42,
@@ -72,30 +99,22 @@ describe('automation database queries', () => {
     })
   })
 
-  it('lists automation job ids without loading full job rows', () => {
-    const stmt = {
-      all: vi.fn().mockReturnValue([{ id: 7 }, { id: 8 }]),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('lists automation job ids without loading full job rows', async () => {
+    const pb = createMockPocketBase()
+    const getFullListMock = pb.collection('automation_jobs').getFullList as ReturnType<typeof vi.fn>
+    getFullListMock.mockResolvedValue([{ id: '7' }, { id: '8' }])
 
-    const jobIds = automationsDb.listAutomationJobIdsByRepo(mockDb, 42)
+    const jobIds = await automationsDb.listAutomationJobIdsByRepo(pb, 42)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT id FROM automation_jobs WHERE repo_id = ? ORDER BY created_at DESC')
-    expect(stmt.all).toHaveBeenCalledWith(42)
     expect(jobIds).toEqual([7, 8])
   })
 
-  it('creates a automation job and reloads the inserted row', () => {
-    const insertStmt = {
-      run: vi.fn().mockReturnValue({ lastInsertRowid: 7 }),
-    }
-    const selectStmt = {
-      get: vi.fn().mockReturnValue(makeJobRow()),
-    }
+  it('creates a automation job and reloads the inserted row', async () => {
+    const pb = createMockPocketBase()
+    const createMock = pb.collection('automation_jobs').create as ReturnType<typeof vi.fn>
+    createMock.mockResolvedValue({ id: '7', ...makeJobRecord() })
 
-    mockDb.prepare.mockReturnValueOnce(insertStmt).mockReturnValueOnce(selectStmt)
-
-    const job = automationsDb.createAutomationJob(mockDb, 42, {
+    const job = await automationsDb.createAutomationJob(pb, 42, {
       name: 'Weekly engineering summary',
       description: 'Summarize repo health and recent changes.',
       enabled: true,
@@ -110,44 +129,36 @@ describe('automation database queries', () => {
       nextRunAt: Date.UTC(2026, 2, 9, 13, 0, 0),
     })
 
-    expect(insertStmt.run).toHaveBeenCalledWith(
-      42,
-      'Weekly engineering summary',
-      'Summarize repo health and recent changes.',
-      1,
-      'cron',
-      null,
-      '0 9 * * 1',
-      'UTC',
-      'planner',
-      'Generate a weekly summary.',
-      'openai/gpt-5-mini',
-      JSON.stringify({ skillSlugs: ['planning'], notes: 'Optional notes' }),
-      expect.any(Number),
-      expect.any(Number),
-      null,
-      Date.UTC(2026, 2, 9, 13, 0, 0),
-    )
+    expect(createMock).toHaveBeenCalledWith({
+      repo_id: '42',
+      name: 'Weekly engineering summary',
+      description: 'Summarize repo health and recent changes.',
+      enabled: true,
+      automation_mode: 'cron',
+      interval_minutes: null,
+      cron_expression: '0 9 * * 1',
+      timezone: 'UTC',
+      agent_slug: 'planner',
+      prompt: 'Generate a weekly summary.',
+      model: 'openai/gpt-5-mini',
+      skill_metadata: JSON.stringify({ skillSlugs: ['planning'], notes: 'Optional notes' }),
+      created_at: expect.any(Number),
+      updated_at: expect.any(Number),
+      last_run_at: null,
+      next_run_at: Date.UTC(2026, 2, 9, 13, 0, 0),
+    })
     expect(job.id).toBe(7)
   })
 
-  it('updates a automation job when it exists', () => {
-    const existingStmt = {
-      get: vi.fn().mockReturnValue(makeJobRow({ name: 'Existing summary' })),
-    }
-    const updateStmt = {
-      run: vi.fn(),
-    }
-    const reloadStmt = {
-      get: vi.fn().mockReturnValue(makeJobRow({ name: 'Updated summary', enabled: 0, skill_metadata: null })),
-    }
+  it('updates a automation job when it exists', async () => {
+    const pb = createMockPocketBase()
+    const getOneMock = pb.collection('automation_jobs').getOne as ReturnType<typeof vi.fn>
+    const updateMock = pb.collection('automation_jobs').update as ReturnType<typeof vi.fn>
 
-    mockDb.prepare
-      .mockReturnValueOnce(existingStmt)
-      .mockReturnValueOnce(updateStmt)
-      .mockReturnValueOnce(reloadStmt)
+    getOneMock.mockResolvedValueOnce({ id: '7', ...makeJobRecord({ name: 'Existing summary' }) })
+    updateMock.mockResolvedValueOnce({ id: '7', ...makeJobRecord({ name: 'Updated summary', enabled: false, skill_metadata: null }) })
 
-    const job = automationsDb.updateAutomationJob(mockDb, 42, 7, {
+    const job = await automationsDb.updateAutomationJob(pb, 42, 7, {
       name: 'Updated summary',
       description: null,
       enabled: false,
@@ -162,23 +173,21 @@ describe('automation database queries', () => {
       nextRunAt: null,
     })
 
-    expect(updateStmt.run).toHaveBeenCalledWith(
-      'Updated summary',
-      null,
-      0,
-      'interval',
-      90,
-      null,
-      null,
-      null,
-      'Run a new summary.',
-      null,
-      null,
-      expect.any(Number),
-      null,
-      42,
-      7,
-    )
+    expect(updateMock).toHaveBeenCalledWith('7', {
+      name: 'Updated summary',
+      description: null,
+      enabled: false,
+      automation_mode: 'interval',
+      interval_minutes: 90,
+      cron_expression: null,
+      timezone: null,
+      agent_slug: null,
+      prompt: 'Run a new summary.',
+      model: null,
+      skill_metadata: null,
+      updated_at: expect.any(Number),
+      next_run_at: null,
+    })
     expect(job).toMatchObject({
       name: 'Updated summary',
       enabled: false,
@@ -186,85 +195,67 @@ describe('automation database queries', () => {
     })
   })
 
-  it('deletes automation runs before deleting a automation job', () => {
-    const deleteRunsStmt = {
-      run: vi.fn().mockReturnValue({ changes: 2 }),
-    }
-    const deleteJobStmt = {
-      run: vi.fn().mockReturnValue({ changes: 1 }),
-    }
+  it('deletes automation runs before deleting a automation job', async () => {
+    const pb = createMockPocketBase()
+    const getFullListMock = pb.collection('automation_runs').getFullList as ReturnType<typeof vi.fn>
+    const deleteRunsMock = pb.collection('automation_runs').delete as ReturnType<typeof vi.fn>
+    const deleteJobMock = pb.collection('automation_jobs').delete as ReturnType<typeof vi.fn>
 
-    mockDb.prepare
-      .mockReturnValueOnce(deleteRunsStmt)
-      .mockReturnValueOnce(deleteJobStmt)
+    getFullListMock.mockResolvedValue([{ id: 'run1' }, { id: 'run2' }])
+    deleteJobMock.mockResolvedValue(true)
 
-    const deleted = automationsDb.deleteAutomationJob(mockDb, 42, 7)
+    const deleted = await automationsDb.deleteAutomationJob(pb, 42, 7)
 
-    expect(mockDb.prepare).toHaveBeenNthCalledWith(1, 'DELETE FROM automation_runs WHERE repo_id = ? AND job_id = ?')
-    expect(deleteRunsStmt.run).toHaveBeenCalledWith(42, 7)
-    expect(mockDb.prepare).toHaveBeenNthCalledWith(2, 'DELETE FROM automation_jobs WHERE repo_id = ? AND id = ?')
-    expect(deleteJobStmt.run).toHaveBeenCalledWith(42, 7)
+    expect(getFullListMock).toHaveBeenCalledWith({
+      filter: 'repo_id = "42" && job_id = "7"',
+    })
+    expect(deleteRunsMock).toHaveBeenCalledWith('run1')
+    expect(deleteRunsMock).toHaveBeenCalledWith('run2')
+    expect(deleteJobMock).toHaveBeenCalledWith('7')
     expect(deleted).toBe(true)
   })
 
-  it('returns null when updating metadata for a missing run', () => {
-    const selectStmt = {
-      get: vi.fn().mockReturnValue(undefined),
-    }
-    mockDb.prepare.mockReturnValue(selectStmt)
+  it('returns null when updating metadata for a missing run', async () => {
+    const pb = createMockPocketBase()
+    const getOneMock = pb.collection('automation_runs').getOne as ReturnType<typeof vi.fn>
+    getOneMock.mockRejectedValue(new Error('Not found'))
 
-    const run = automationsDb.updateAutomationRunMetadata(mockDb, 42, 7, 5, {
+    const run = await automationsDb.updateAutomationRunMetadata(pb, 42, 7, 5, {
       sessionTitle: 'Updated title',
     })
 
     expect(run).toBeNull()
   })
 
-  it('updates automation run metadata while preserving omitted fields', () => {
-    const existingRun = makeRunRow({ response_text: 'Existing response', error_text: 'Existing error' })
-    const existingStmt = {
-      get: vi.fn().mockReturnValue(existingRun),
-    }
-    const updateStmt = {
-      run: vi.fn(),
-    }
-    const reloadStmt = {
-      get: vi.fn().mockReturnValue(makeRunRow({ session_title: 'Updated title', response_text: 'Existing response', error_text: 'Existing error' })),
-    }
+  it('updates automation run metadata while preserving omitted fields', async () => {
+    const pb = createMockPocketBase()
+    const getOneMock = pb.collection('automation_runs').getOne as ReturnType<typeof vi.fn>
+    const updateMock = pb.collection('automation_runs').update as ReturnType<typeof vi.fn>
 
-    mockDb.prepare
-      .mockReturnValueOnce(existingStmt)
-      .mockReturnValueOnce(updateStmt)
-      .mockReturnValueOnce(reloadStmt)
+    const existingRun = makeRunRecord({ response_text: 'Existing response', error_text: 'Existing error' })
+    getOneMock.mockResolvedValueOnce({ id: '5', ...existingRun })
+    updateMock.mockResolvedValueOnce({ id: '5', ...makeRunRecord({ session_title: 'Updated title', response_text: 'Existing response', error_text: 'Existing error' }) })
 
-    const run = automationsDb.updateAutomationRunMetadata(mockDb, 42, 7, 5, {
+    const run = await automationsDb.updateAutomationRunMetadata(pb, 42, 7, 5, {
       sessionTitle: 'Updated title',
     })
 
-    expect(updateStmt.run).toHaveBeenCalledWith(
-      'ses-1',
-      'Updated title',
-      'Run started. Waiting for assistant response...',
-      'Existing response',
-      'Existing error',
-      42,
-      7,
-      5,
-    )
+    expect(updateMock).toHaveBeenCalledWith('5', {
+      session_id: 'ses-1',
+      session_title: 'Updated title',
+      log_text: 'Run started. Waiting for assistant response...',
+      response_text: 'Existing response',
+      error_text: 'Existing error',
+    })
     expect(run?.sessionTitle).toBe('Updated title')
   })
 
-  it('creates and reloads a automation run', () => {
-    const insertStmt = {
-      run: vi.fn().mockReturnValue({ lastInsertRowid: 5 }),
-    }
-    const selectStmt = {
-      get: vi.fn().mockReturnValue(makeRunRow()),
-    }
+  it('creates and reloads a automation run', async () => {
+    const pb = createMockPocketBase()
+    const createMock = pb.collection('automation_runs').create as ReturnType<typeof vi.fn>
+    createMock.mockResolvedValue({ id: '5', ...makeRunRecord() })
 
-    mockDb.prepare.mockReturnValueOnce(insertStmt).mockReturnValueOnce(selectStmt)
-
-    const run = automationsDb.createAutomationRun(mockDb, {
+    const run = await automationsDb.createAutomationRun(pb, {
       jobId: 7,
       repoId: 42,
       triggerSource: 'manual',
@@ -273,38 +264,55 @@ describe('automation database queries', () => {
       createdAt: Date.UTC(2026, 2, 9, 12, 0, 0),
     })
 
-    expect(insertStmt.run).toHaveBeenCalledWith(7, 42, 'manual', 'running', expect.any(Number), expect.any(Number))
+    expect(createMock).toHaveBeenCalledWith({
+      job_id: '7',
+      repo_id: '42',
+      trigger_source: 'manual',
+      status: 'running',
+      started_at: expect.any(Number),
+      created_at: expect.any(Number),
+    })
     expect(run.id).toBe(5)
   })
 
-  it('lists active runs and maps persisted fields', () => {
-    const stmt = {
-      all: vi.fn().mockReturnValue([
-        makeRunRow({ id: 5 }),
-        makeRunRow({ id: 6, status: 'failed', error_text: 'Model unavailable' }),
-      ]),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('lists active runs and maps persisted fields', async () => {
+    const pb = createMockPocketBase()
+    const getListMock = pb.collection('automation_runs').getList as ReturnType<typeof vi.fn>
+    getListMock.mockResolvedValue({
+      items: [
+        { id: '5', ...makeRunRecord({ id: '5' }) },
+        { id: '6', ...makeRunRecord({ id: '6', status: 'failed', error_text: 'Model unavailable' }) },
+      ],
+      totalItems: 2,
+    })
 
-    const runs = automationsDb.listRunningAutomationRuns(mockDb, 10)
+    const runs = await automationsDb.listRunningAutomationRuns(pb, 10)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('WHERE status = \'running\''))
+    expect(getListMock).toHaveBeenCalledWith(1, 10, {
+      filter: 'status = "running"',
+      sort: 'started_at',
+    })
     expect(runs).toHaveLength(2)
     expect(runs[1]).toMatchObject({ id: 6, status: 'failed', errorText: 'Model unavailable' })
   })
 
-  it('lists run summaries without loading large log or response blobs', () => {
-    const stmt = {
-      all: vi.fn().mockReturnValue([
-        makeRunRow({ log_text: null, response_text: null, error_text: 'Run failed' }),
-      ]),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('lists run summaries without loading large log or response blobs', async () => {
+    const pb = createMockPocketBase()
+    const getListMock = pb.collection('automation_runs').getList as ReturnType<typeof vi.fn>
+    getListMock.mockResolvedValue({
+      items: [
+        { id: '5', ...makeRunRecord({ log_text: null, response_text: null, error_text: 'Run failed' }) },
+      ],
+      totalItems: 1,
+    })
 
-    const runs = automationsDb.listAutomationRunsByJob(mockDb, 42, 7, 5)
+    const runs = await automationsDb.listAutomationRunsByJob(pb, 42, 7, 5)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('NULL AS log_text'))
-    expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('NULL AS response_text'))
+    expect(getListMock).toHaveBeenCalledWith(1, 5, {
+      filter: 'repo_id = "42" && job_id = "7"',
+      sort: '-started_at',
+      fields: 'id,job_id,repo_id,trigger_source,status,started_at,finished_at,created_at,session_id,session_title,error_text',
+    })
     expect(runs[0]).toMatchObject({
       id: 5,
       logText: null,
@@ -313,106 +321,100 @@ describe('automation database queries', () => {
     })
   })
 
-  it('returns the running run for a job when present', () => {
-    const stmt = {
-      get: vi.fn().mockReturnValue(makeRunRow({ id: 8 })),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('returns the running run for a job when present', async () => {
+    const pb = createMockPocketBase()
+    const getFirstListItemMock = pb.collection('automation_runs').getFirstListItem as ReturnType<typeof vi.fn>
+    getFirstListItemMock.mockResolvedValue({ id: '8', ...makeRunRecord({ id: '8' }) })
 
-    const run = automationsDb.getRunningAutomationRunByJob(mockDb, 42, 7)
+    const run = await automationsDb.getRunningAutomationRunByJob(pb, 42, 7)
 
     expect(run).toMatchObject({ id: 8, sessionId: 'ses-1' })
   })
 
-  it('lists enabled automation jobs ordered by id', () => {
-    const jobRow = makeJobRow()
-    const stmt = {
-      all: vi.fn().mockReturnValue([jobRow]),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('lists enabled automation jobs ordered by id', async () => {
+    const pb = createMockPocketBase()
+    const getFullListMock = pb.collection('automation_jobs').getFullList as ReturnType<typeof vi.fn>
+    getFullListMock.mockResolvedValue([{ id: '7', ...makeJobRecord() }])
 
-    const jobs = automationsDb.listEnabledAutomationJobs(mockDb)
+    const jobs = await automationsDb.listEnabledAutomationJobs(pb)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM automation_jobs WHERE enabled = 1 ORDER BY id ASC')
-    expect(stmt.all).toHaveBeenCalledWith()
+    expect(getFullListMock).toHaveBeenCalledWith({
+      filter: 'enabled = true',
+      sort: 'id',
+    })
     expect(jobs).toHaveLength(1)
     expect(jobs.at(0)?.enabled).toBe(true)
   })
 
-  it('gets a automation job by id when found', () => {
-    const jobRow = makeJobRow()
-    const stmt = {
-      get: vi.fn().mockReturnValue(jobRow),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('gets a automation job by id when found', async () => {
+    const pb = createMockPocketBase()
+    const getOneMock = pb.collection('automation_jobs').getOne as ReturnType<typeof vi.fn>
+    getOneMock.mockResolvedValue({ id: '7', ...makeJobRecord() })
 
-    const job = automationsDb.getAutomationJobById(mockDb, 42, 7)
+    const job = await automationsDb.getAutomationJobById(pb, 42, 7)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM automation_jobs WHERE repo_id = ? AND id = ?')
-    expect(stmt.get).toHaveBeenCalledWith(42, 7)
+    expect(getOneMock).toHaveBeenCalledWith('7')
     expect(job).toMatchObject({ id: 7, repoId: 42, name: 'Weekly engineering summary' })
   })
 
-  it('returns null when automation job is not found', () => {
-    const stmt = {
-      get: vi.fn().mockReturnValue(undefined),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('returns null when automation job is not found', async () => {
+    const pb = createMockPocketBase()
+    const getOneMock = pb.collection('automation_jobs').getOne as ReturnType<typeof vi.fn>
+    getOneMock.mockRejectedValue(new Error('Not found'))
 
-    const job = automationsDb.getAutomationJobById(mockDb, 42, 7)
-
+    const job = await automationsDb.getAutomationJobById(pb, 42, 7)
     expect(job).toBeNull()
   })
 
-  it('deletes a automation job successfully', () => {
-    const stmt = {
-      run: vi.fn().mockReturnValue({ changes: 1 }),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('deletes a automation job successfully', async () => {
+    const pb = createMockPocketBase()
+    const getFullListMock = pb.collection('automation_runs').getFullList as ReturnType<typeof vi.fn>
+    const deleteMock = pb.collection('automation_jobs').delete as ReturnType<typeof vi.fn>
 
-    const result = automationsDb.deleteAutomationJob(mockDb, 42, 7)
+    getFullListMock.mockResolvedValue([])
+    deleteMock.mockResolvedValue(true)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('DELETE FROM automation_jobs WHERE repo_id = ? AND id = ?')
-    expect(stmt.run).toHaveBeenCalledWith(42, 7)
+    const result = await automationsDb.deleteAutomationJob(pb, 42, 7)
+
+    expect(deleteMock).toHaveBeenCalledWith('7')
     expect(result).toBe(true)
   })
 
-  it('returns false when deleting a non-existent automation job', () => {
-    const stmt = {
-      run: vi.fn().mockReturnValue({ changes: 0 }),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('returns false when deleting a non-existent automation job', async () => {
+    const pb = createMockPocketBase()
+    const getFullListMock = pb.collection('automation_runs').getFullList as ReturnType<typeof vi.fn>
+    const deleteMock = pb.collection('automation_jobs').delete as ReturnType<typeof vi.fn>
 
-    const result = automationsDb.deleteAutomationJob(mockDb, 42, 7)
+    getFullListMock.mockResolvedValue([])
+    deleteMock.mockRejectedValue(new Error('Not found'))
 
+    const result = await automationsDb.deleteAutomationJob(pb, 42, 7)
     expect(result).toBe(false)
   })
 
-  it('updates the run state of a automation job', () => {
+  it('updates the run state of a automation job', async () => {
+    const pb = createMockPocketBase()
+    const updateMock = pb.collection('automation_jobs').update as ReturnType<typeof vi.fn>
+    updateMock.mockResolvedValue({})
+
     const lastRunAt = Date.now()
     const nextRunAt = Date.now() + 3600000
-    const stmt = {
-      run: vi.fn(),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
 
-    automationsDb.updateAutomationJobRunState(mockDb, 42, 7, { lastRunAt, nextRunAt })
+    await automationsDb.updateAutomationJobRunState(pb, 42, 7, { lastRunAt, nextRunAt })
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('UPDATE automation_jobs SET last_run_at = ?, next_run_at = ?, updated_at = ? WHERE repo_id = ? AND id = ?')
-    expect(stmt.run).toHaveBeenCalledWith(lastRunAt, nextRunAt, expect.any(Number), 42, 7)
+    expect(updateMock).toHaveBeenCalledWith('7', {
+      last_run_at: lastRunAt,
+      next_run_at: nextRunAt,
+      updated_at: expect.any(Number),
+    })
   })
 
-  it('updates a automation run and reloads the result', () => {
-    const updateStmt = {
-      run: vi.fn(),
-    }
-    const selectStmt = {
-      get: vi.fn().mockReturnValue(makeRunRow({ status: 'completed', response_text: 'Completed' })),
-    }
+  it('updates a automation run and reloads the result', async () => {
+    const pb = createMockPocketBase()
+    const updateMock = pb.collection('automation_runs').update as ReturnType<typeof vi.fn>
+    updateMock.mockResolvedValue({ id: '5', ...makeRunRecord({ status: 'completed', response_text: 'Completed' }) })
 
-    mockDb.prepare.mockReturnValueOnce(updateStmt).mockReturnValueOnce(selectStmt)
-
-    const run = automationsDb.updateAutomationRun(mockDb, 42, 7, 5, {
+    const run = await automationsDb.updateAutomationRun(pb, 42, 7, 5, {
       status: 'completed',
       finishedAt: Date.now(),
       sessionId: 'ses-1',
@@ -422,58 +424,53 @@ describe('automation database queries', () => {
       errorText: null,
     })
 
-    expect(updateStmt.run).toHaveBeenCalledWith(
-      'completed',
-      expect.any(Number),
-      'ses-1',
-      'Updated title',
-      'Log output',
-      'Completed',
-      null,
-      42,
-      7,
-      5,
-    )
+    expect(updateMock).toHaveBeenCalledWith('5', {
+      status: 'completed',
+      finished_at: expect.any(Number),
+      session_id: 'ses-1',
+      session_title: 'Updated title',
+      log_text: 'Log output',
+      response_text: 'Completed',
+      error_text: null,
+    })
     expect(run).toMatchObject({ status: 'completed', responseText: 'Completed' })
   })
 
-  it('gets a automation run by id when found', () => {
-    const runRow = makeRunRow()
-    const stmt = {
-      get: vi.fn().mockReturnValue(runRow),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('gets a automation run by id when found', async () => {
+    const pb = createMockPocketBase()
+    const getOneMock = pb.collection('automation_runs').getOne as ReturnType<typeof vi.fn>
+    getOneMock.mockResolvedValue({ id: '5', ...makeRunRecord() })
 
-    const run = automationsDb.getAutomationRunById(mockDb, 42, 7, 5)
+    const run = await automationsDb.getAutomationRunById(pb, 42, 7, 5)
 
-    expect(mockDb.prepare).toHaveBeenCalledWith('SELECT * FROM automation_runs WHERE repo_id = ? AND job_id = ? AND id = ?')
-    expect(stmt.get).toHaveBeenCalledWith(42, 7, 5)
+    expect(getOneMock).toHaveBeenCalledWith('5')
     expect(run).toMatchObject({ id: 5, jobId: 7, repoId: 42, status: 'running' })
   })
 
-  it('returns null when automation run is not found', () => {
-    const stmt = {
-      get: vi.fn().mockReturnValue(undefined),
-    }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('returns null when automation run is not found', async () => {
+    const pb = createMockPocketBase()
+    const getOneMock = pb.collection('automation_runs').getOne as ReturnType<typeof vi.fn>
+    getOneMock.mockRejectedValue(new Error('Not found'))
 
-    const run = automationsDb.getAutomationRunById(mockDb, 42, 7, 5)
-
+    const run = await automationsDb.getAutomationRunById(pb, 42, 7, 5)
     expect(run).toBeNull()
   })
 
-  it('lists all runs with context and no filters', () => {
-    const row = {
-      ...makeRunRow(),
-      job_name: 'Weekly summary',
-      repo_path: '/home/user/my-repo',
-    }
-    const stmt = { all: vi.fn().mockReturnValue([row]) }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('lists all runs with context and no filters', async () => {
+    const pb = createMockPocketBase()
+    const getListMock = pb.collection('automation_runs').getList as ReturnType<typeof vi.fn>
+    const getFullListJobsMock = pb.collection('automation_jobs').getFullList as ReturnType<typeof vi.fn>
+    const getFullListReposMock = pb.collection('repos').getFullList as ReturnType<typeof vi.fn>
 
-    const result = automationsDb.listAllAutomationRuns(mockDb, {})
+    getListMock.mockResolvedValue({
+      items: [{ id: '5', ...makeRunRecord(), job_name: 'Weekly summary', repo_path: '/home/user/my-repo' }],
+      totalItems: 1,
+    })
+    getFullListJobsMock.mockResolvedValue([{ id: '7', name: 'Weekly summary' }])
+    getFullListReposMock.mockResolvedValue([{ id: '42', repo_url: '', local_path: '/home/user/my-repo' }])
 
-    expect(stmt.all).toHaveBeenCalledWith(50, 0)
+    const result = await automationsDb.listAllAutomationRuns(pb, {})
+
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({
       id: 5,
@@ -483,65 +480,126 @@ describe('automation database queries', () => {
     })
   })
 
-  it('applies status filter', () => {
-    const stmt = { all: vi.fn().mockReturnValue([]) }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('applies status filter', async () => {
+    const pb = createMockPocketBase()
+    const getListMock = pb.collection('automation_runs').getList as ReturnType<typeof vi.fn>
+    const getFullListJobsMock = pb.collection('automation_jobs').getFullList as ReturnType<typeof vi.fn>
+    const getFullListReposMock = pb.collection('repos').getFullList as ReturnType<typeof vi.fn>
 
-    automationsDb.listAllAutomationRuns(mockDb, { status: 'completed' })
+    getListMock.mockResolvedValue({ items: [], totalItems: 0 })
+    getFullListJobsMock.mockResolvedValue([])
+    getFullListReposMock.mockResolvedValue([])
 
-    expect(stmt.all).toHaveBeenCalledWith('completed', 50, 0)
-    expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('sr.status = ?'))
+    await automationsDb.listAllAutomationRuns(pb, { status: 'completed' })
+
+    expect(getListMock).toHaveBeenCalledWith(1, 50, {
+      filter: 'status = "completed"',
+      sort: '-started_at',
+      skip: 0,
+      expand: 'job_id,repo_id',
+    })
   })
 
-  it('applies repoId filter', () => {
-    const stmt = { all: vi.fn().mockReturnValue([]) }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('applies repoId filter', async () => {
+    const pb = createMockPocketBase()
+    const getListMock = pb.collection('automation_runs').getList as ReturnType<typeof vi.fn>
+    const getFullListJobsMock = pb.collection('automation_jobs').getFullList as ReturnType<typeof vi.fn>
+    const getFullListReposMock = pb.collection('repos').getFullList as ReturnType<typeof vi.fn>
 
-    automationsDb.listAllAutomationRuns(mockDb, { repoId: 42 })
+    getListMock.mockResolvedValue({ items: [], totalItems: 0 })
+    getFullListJobsMock.mockResolvedValue([])
+    getFullListReposMock.mockResolvedValue([])
 
-    expect(stmt.all).toHaveBeenCalledWith(42, 50, 0)
-    expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('sr.repo_id = ?'))
+    await automationsDb.listAllAutomationRuns(pb, { repoId: 42 })
+
+    expect(getListMock).toHaveBeenCalledWith(1, 50, {
+      filter: 'repo_id = "42"',
+      sort: '-started_at',
+      skip: 0,
+      expand: 'job_id,repo_id',
+    })
   })
 
-  it('applies jobId filter', () => {
-    const stmt = { all: vi.fn().mockReturnValue([]) }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('applies jobId filter', async () => {
+    const pb = createMockPocketBase()
+    const getListMock = pb.collection('automation_runs').getList as ReturnType<typeof vi.fn>
+    const getFullListJobsMock = pb.collection('automation_jobs').getFullList as ReturnType<typeof vi.fn>
+    const getFullListReposMock = pb.collection('repos').getFullList as ReturnType<typeof vi.fn>
 
-    automationsDb.listAllAutomationRuns(mockDb, { jobId: 7 })
+    getListMock.mockResolvedValue({ items: [], totalItems: 0 })
+    getFullListJobsMock.mockResolvedValue([])
+    getFullListReposMock.mockResolvedValue([])
 
-    expect(stmt.all).toHaveBeenCalledWith(7, 50, 0)
+    await automationsDb.listAllAutomationRuns(pb, { jobId: 7 })
+
+    expect(getListMock).toHaveBeenCalledWith(1, 50, {
+      filter: 'job_id = "7"',
+      sort: '-started_at',
+      skip: 0,
+      expand: 'job_id,repo_id',
+    })
   })
 
-  it('applies triggerSource filter', () => {
-    const stmt = { all: vi.fn().mockReturnValue([]) }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('applies triggerSource filter', async () => {
+    const pb = createMockPocketBase()
+    const getListMock = pb.collection('automation_runs').getList as ReturnType<typeof vi.fn>
+    const getFullListJobsMock = pb.collection('automation_jobs').getFullList as ReturnType<typeof vi.fn>
+    const getFullListReposMock = pb.collection('repos').getFullList as ReturnType<typeof vi.fn>
 
-    automationsDb.listAllAutomationRuns(mockDb, { triggerSource: 'manual' })
+    getListMock.mockResolvedValue({ items: [], totalItems: 0 })
+    getFullListJobsMock.mockResolvedValue([])
+    getFullListReposMock.mockResolvedValue([])
 
-    expect(stmt.all).toHaveBeenCalledWith('manual', 50, 0)
+    await automationsDb.listAllAutomationRuns(pb, { triggerSource: 'manual' })
+
+    expect(getListMock).toHaveBeenCalledWith(1, 50, {
+      filter: 'trigger_source = "manual"',
+      sort: '-started_at',
+      skip: 0,
+      expand: 'job_id,repo_id',
+    })
   })
 
-  it('applies limit and offset', () => {
-    const stmt = { all: vi.fn().mockReturnValue([]) }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('applies limit and offset', async () => {
+    const pb = createMockPocketBase()
+    const getListMock = pb.collection('automation_runs').getList as ReturnType<typeof vi.fn>
+    const getFullListJobsMock = pb.collection('automation_jobs').getFullList as ReturnType<typeof vi.fn>
+    const getFullListReposMock = pb.collection('repos').getFullList as ReturnType<typeof vi.fn>
 
-    automationsDb.listAllAutomationRuns(mockDb, { limit: 10, offset: 20 })
+    getListMock.mockResolvedValue({ items: [], totalItems: 0 })
+    getFullListJobsMock.mockResolvedValue([])
+    getFullListReposMock.mockResolvedValue([])
 
-    expect(stmt.all).toHaveBeenCalledWith(10, 20)
+    await automationsDb.listAllAutomationRuns(pb, { limit: 10, offset: 20 })
+
+    expect(getListMock).toHaveBeenCalledWith(1, 10, {
+      filter: '',
+      sort: '-started_at',
+      skip: 20,
+      expand: 'job_id,repo_id',
+    })
   })
 
-  it('returns NULL for log_text and response_text', () => {
-    const row = {
-      ...makeRunRow({ log_text: 'should be null', response_text: 'should be null' }),
-      job_name: 'Test job',
-      repo_path: '/test',
-    }
-    const stmt = { all: vi.fn().mockReturnValue([row]) }
-    mockDb.prepare.mockReturnValue(stmt)
+  it('returns NULL for log_text and response_text', async () => {
+    const pb = createMockPocketBase()
+    const getListMock = pb.collection('automation_runs').getList as ReturnType<typeof vi.fn>
+    const getFullListJobsMock = pb.collection('automation_jobs').getFullList as ReturnType<typeof vi.fn>
+    const getFullListReposMock = pb.collection('repos').getFullList as ReturnType<typeof vi.fn>
 
-    automationsDb.listAllAutomationRuns(mockDb, {})
+    getListMock.mockResolvedValue({
+      items: [{ id: '5', ...makeRunRecord({ log_text: 'should be null', response_text: 'should be null' }), job_name: 'Test job', repo_path: '/test' }],
+      totalItems: 1,
+    })
+    getFullListJobsMock.mockResolvedValue([])
+    getFullListReposMock.mockResolvedValue([])
 
-    expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('NULL AS log_text'))
-    expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('NULL AS response_text'))
+    await automationsDb.listAllAutomationRuns(pb, {})
+
+    expect(getListMock).toHaveBeenCalledWith(1, 50, {
+      filter: '',
+      sort: '-started_at',
+      skip: 0,
+      expand: 'job_id,repo_id',
+    })
   })
 })

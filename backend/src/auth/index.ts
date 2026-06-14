@@ -1,110 +1,64 @@
-import { betterAuth } from 'better-auth'
-import { passkey } from '@better-auth/passkey'
-import Database from 'better-sqlite3'
+import PocketBase from 'pocketbase'
+import { logger } from '../utils/logger'
 import { ENV } from '@subpolar/shared/config/env'
 
-export type AuthInstance = ReturnType<typeof createAuth>
-
-export function createAuth() {
-  const dbPath = ENV.DATABASE?.PATH || './data/auth.db'
-  const db = new Database(dbPath)
-  db.pragma('journal_mode = WAL')
-
-  const socialProviders: Record<string, { clientId: string; clientSecret: string }> = {}
-
-  if (ENV.AUTH.GITHUB_CLIENT_ID && ENV.AUTH.GITHUB_CLIENT_SECRET) {
-    socialProviders.github = {
-      clientId: ENV.AUTH.GITHUB_CLIENT_ID,
-      clientSecret: ENV.AUTH.GITHUB_CLIENT_SECRET,
-    }
-  }
-
-  if (ENV.AUTH.GOOGLE_CLIENT_ID && ENV.AUTH.GOOGLE_CLIENT_SECRET) {
-    socialProviders.google = {
-      clientId: ENV.AUTH.GOOGLE_CLIENT_ID,
-      clientSecret: ENV.AUTH.GOOGLE_CLIENT_SECRET,
-    }
-  }
-
-  if (ENV.AUTH.DISCORD_CLIENT_ID && ENV.AUTH.DISCORD_CLIENT_SECRET) {
-    socialProviders.discord = {
-      clientId: ENV.AUTH.DISCORD_CLIENT_ID,
-      clientSecret: ENV.AUTH.DISCORD_CLIENT_SECRET,
-    }
-  }
-
-  const baseURL = ENV.AUTH.TRUSTED_ORIGINS.split(',')[0]?.trim() || `http://localhost:${ENV.SERVER.PORT}`
-  
-  const auth = betterAuth({
-    baseURL,
-    basePath: '/api/auth',
-    database: db,
-    secret: ENV.AUTH.SECRET,
-    trustedOrigins: ENV.AUTH.TRUSTED_ORIGINS.split(',').map((o: string) => o.trim()),
-    emailAndPassword: {
-      enabled: true,
-      minPasswordLength: 8,
-      maxPasswordLength: 128,
-      autoSignIn: true,
-    },
-    socialProviders: Object.keys(socialProviders).length > 0 ? socialProviders : undefined,
-    plugins: [
-      passkey({
-        rpID: ENV.AUTH.PASSKEY_RP_ID,
-        rpName: ENV.AUTH.PASSKEY_RP_NAME,
-        origin: ENV.AUTH.PASSKEY_ORIGIN,
-        authenticatorSelection: {
-          residentKey: 'required',
-          userVerification: 'preferred',
-        },
-      }),
-    ],
-    session: {
-      expiresIn: 60 * 60 * 24 * 7,
-      updateAge: 60 * 60 * 5,
-      cookieCache: {
-        enabled: true,
-        maxAge: 60 * 5,
-      },
-    },
-    user: {
-      additionalFields: {
-        role: {
-          type: 'string',
-          required: false,
-          defaultValue: 'user',
-          input: false,
-        },
-      },
-    },
-    advanced: {
-      cookiePrefix: 'opencode',
-      useSecureCookies: ENV.AUTH.SECURE_COOKIES,
-    },
+export async function signUpUser(pb: PocketBase, email: string, password: string, name: string) {
+  return pb.collection('users').create({
+    email,
+    password,
+    passwordConfirm: password,
+    name,
   })
-
-  return auth
 }
 
-export type Session = {
-  session: {
-    id: string
-    userId: string
-    token: string
-    expiresAt: Date
-    createdAt: Date
-    updatedAt: Date
-    ipAddress?: string | null
-    userAgent?: string | null
+export async function signInUser(pb: PocketBase, email: string, password: string) {
+  return pb.collection('users').authWithPassword(email, password)
+}
+
+export async function getSession(pb: PocketBase) {
+  if (!pb.authStore.isValid) return null
+  try {
+    await pb.collection('users').authRefresh()
+    return {
+      user: pb.authStore.model,
+      token: pb.authStore.token,
+    }
+  } catch {
+    pb.authStore.clear()
+    return null
   }
-  user: {
-    id: string
-    name: string
-    email: string
-    emailVerified: boolean
-    image?: string | null
-    createdAt: Date
-    updatedAt: Date
-    role?: string
+}
+
+export async function signOutUser(pb: PocketBase) {
+  pb.authStore.clear()
+}
+
+export async function getUserCount(pb: PocketBase) {
+  const result = await pb.collection('users').getList(1, 1, { fields: 'id' })
+  return result.totalItems
+}
+
+export async function getUserByEmail(pb: PocketBase, email: string) {
+  try {
+    return await pb.collection('users').getFirstListItem(`email="${email}"`)
+  } catch {
+    return null
+  }
+}
+
+export async function syncAdminFromEnv(pb: PocketBase) {
+  const adminEmail = ENV.AUTH.ADMIN_EMAIL || ''
+  const adminPassword = ENV.AUTH.ADMIN_PASSWORD || ''
+
+  if (!adminEmail || !adminPassword) return
+
+  const existing = await getUserByEmail(pb, adminEmail)
+  if (existing) return
+
+  try {
+    await signUpUser(pb, adminEmail, adminPassword, 'Admin')
+    logger.info('Created admin user from env')
+  } catch (err) {
+    logger.error('Failed to create admin user:', err)
   }
 }

@@ -8,10 +8,10 @@ import { getErrorMessage } from '../../utils/error-utils'
 export function createInternalRepoRoutes(db: Database, settingsService: SettingsService) {
   const app = new Hono()
 
-  app.get('/', (c) => {
+  app.get('/', async (c) => {
     try {
-      const settings = settingsService.getSettings()
-      const repos = listRepos(db, settings.preferences.repoOrder)
+      const settings = await settingsService.getSettings()
+      const repos = await listRepos(db, settings.preferences.repoOrder)
       return c.json({ repos })
     } catch (error) {
       logger.error('Failed to list internal repos:', error)

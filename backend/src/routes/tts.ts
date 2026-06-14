@@ -241,9 +241,9 @@ export function createTTSRoutes(db: Database) {
       const userId = c.req.query('userId') || 'default'
       
       const settingsService = new SettingsService(db)
-      const settings = settingsService.getSettings(userId)
+      const settings = await settingsService.getSettings(userId)
       const ttsConfig = settings.preferences.tts
-      
+
       if (!ttsConfig?.enabled) {
         return c.json({ error: 'TTS is not enabled' }, 400)
       }
@@ -350,7 +350,7 @@ export function createTTSRoutes(db: Database) {
       const forceRefresh = c.req.query('refresh') === 'true'
       
       const settingsService = new SettingsService(db)
-      const settings = settingsService.getSettings(userId)
+      const settings = await settingsService.getSettings(userId)
       const ttsConfig = settings.preferences.tts
       
       if (!ttsConfig?.apiKey || !ttsConfig?.endpoint) {
@@ -403,13 +403,13 @@ export function createTTSRoutes(db: Database) {
       const forceRefresh = c.req.query('refresh') === 'true'
       
       const settingsService = new SettingsService(db)
-      const settings = settingsService.getSettings(userId)
+      const settings = await settingsService.getSettings(userId)
       const ttsConfig = settings.preferences.tts
-      
+
       if (!ttsConfig?.apiKey || !ttsConfig?.endpoint) {
         return c.json({ error: 'TTS not configured' }, 400)
       }
-      
+
       const cacheKey = generateDiscoveryCacheKey(ttsConfig.endpoint, ttsConfig.apiKey, 'voices')
       
       // Check cache first (unless force refresh)
@@ -448,7 +448,7 @@ export function createTTSRoutes(db: Database) {
   app.get('/status', async (c) => {
     const userId = c.req.query('userId') || 'default'
     const settingsService = new SettingsService(db)
-    const settings = settingsService.getSettings(userId)
+    const settings = await settingsService.getSettings(userId)
     const ttsConfig = settings.preferences.tts
     const cacheStats = await getCacheStats()
     

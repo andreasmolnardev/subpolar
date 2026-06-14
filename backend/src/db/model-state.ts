@@ -1,5 +1,4 @@
 import type PocketBase from 'pocketbase'
-import { logger } from '../utils/logger'
 
 export interface ModelSelectionRecord {
   providerID: string
@@ -19,19 +18,10 @@ const EMPTY_STATE: OpenCodeModelStateRecord = { recent: [], favorite: [], varian
 interface ModelStateRecord {
   id: string
   user_id: string
-  recent: string
-  favorite: string
-  variant: string
+  recent: unknown
+  favorite: unknown
+  variant: unknown
   updated_at: number
-}
-
-function parseJsonSafe<T>(json: string, fallback: T): T {
-  try {
-    return JSON.parse(json) as T
-  } catch (error) {
-    logger.warn(`Failed to parse JSON: ${error instanceof Error ? error.message : String(error)}`)
-    return fallback
-  }
 }
 
 async function ensureRecordExists(pb: PocketBase, userId: string): Promise<void> {
@@ -40,21 +30,29 @@ async function ensureRecordExists(pb: PocketBase, userId: string): Promise<void>
   } catch {
     await pb.collection('opencode_model_state').create({
       user_id: userId,
-      recent: '[]',
-      favorite: '[]',
-      variant: '{}',
+      recent: [],
+      favorite: [],
+      variant: {},
       updated_at: Date.now(),
     })
   }
+}
+
+function jsonField<T>(value: unknown, fallback: T): T {
+  if (value === null || value === undefined) return fallback
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) as T } catch { return fallback }
+  }
+  return value as T
 }
 
 export async function getOpenCodeModelState(pb: PocketBase, userId = 'default'): Promise<OpenCodeModelStateRecord> {
   try {
     const record = await pb.collection('opencode_model_state').getFirstListItem(`user_id = "${userId}"`)
     const row = record as unknown as ModelStateRecord
-    const recent = parseJsonSafe<ModelSelectionRecord[]>(row.recent, [])
-    const favorite = parseJsonSafe<ModelSelectionRecord[]>(row.favorite, [])
-    const variant = parseJsonSafe<Record<string, string | undefined>>(row.variant, {})
+    const recent = jsonField<ModelSelectionRecord[]>(row.recent, [])
+    const favorite = jsonField<ModelSelectionRecord[]>(row.favorite, [])
+    const variant = jsonField<Record<string, string | undefined>>(row.variant, {})
     return { recent, favorite, variant }
   } catch {
     return EMPTY_STATE
@@ -74,7 +72,7 @@ export async function addRecentOpenCodeModel(
 
   const record = await pb.collection('opencode_model_state').getFirstListItem(`user_id = "${userId}"`)
   await pb.collection('opencode_model_state').update(record.id, {
-    recent: JSON.stringify(sliced),
+    recent: sliced,
     updated_at: now,
   })
 
@@ -95,7 +93,7 @@ export async function removeRecentOpenCodeModel(
   try {
     const record = await pb.collection('opencode_model_state').getFirstListItem(`user_id = "${userId}"`)
     await pb.collection('opencode_model_state').update(record.id, {
-      recent: JSON.stringify(updated),
+      recent: updated,
       updated_at: now,
     })
   } catch {
@@ -122,7 +120,7 @@ export async function toggleFavoriteOpenCodeModel(
 
   const record = await pb.collection('opencode_model_state').getFirstListItem(`user_id = "${userId}"`)
   await pb.collection('opencode_model_state').update(record.id, {
-    favorite: JSON.stringify(updated),
+    favorite: updated,
     updated_at: now,
   })
 
@@ -147,7 +145,7 @@ export async function setOpenCodeVariant(
 
   const record = await pb.collection('opencode_model_state').getFirstListItem(`user_id = "${userId}"`)
   await pb.collection('opencode_model_state').update(record.id, {
-    variant: JSON.stringify(updatedVariants),
+    variant: updatedVariants,
     updated_at: now,
   })
 

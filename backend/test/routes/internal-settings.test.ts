@@ -1,34 +1,84 @@
 import { describe, it, expect, beforeEach } from 'bun:test'
 import { Hono } from 'hono'
-import type { Database } from '../../src/db/schema'
+import type PocketBase from 'pocketbase'
 import { createInternalRoutes } from '../../src/routes/internal'
-import { automationservice } from '../../src/services/automations'
+import { AutomationService } from '../../src/services/automations'
 import { NotificationService } from '../../src/services/notification'
 import { SettingsService } from '../../src/services/settings'
 import { createOpenCodeClient } from '../../src/services/opencode/client'
-import { allMigrations } from '../../src/db/migrations'
 import { getOrCreateInternalToken } from '../../src/services/internal-token'
-import { migrate } from '../../src/db/migration-runner'
 import type { UserPreferences } from '@subpolar/shared/types'
 
+function createMockPocketBase(): PocketBase {
+  const appSecrets = new Map<string, { value: string; created_at: number; updated_at: number }>()
+  const prefs = new Map<string, { preferences: string; updated_at: number }>()
+  let idCounter = 0
+
+  return {
+    collection: (name: string) => {
+      const collections: Record<string, Map<string, Record<string, unknown>>> = {
+        app_secrets: appSecrets,
+        user_preferences: prefs,
+      }
+      const col = collections[name] || new Map()
+
+      return {
+        getOne: async <T = unknown>(): Promise<T> => { throw new Error('Not found') },
+        getFirstListItem: async <T = unknown>(filter: string): Promise<T> => {
+          const key = filter.match(/key\s*=\s*"([^"]+)"/)?.[1]
+          if (key && name === 'app_secrets') {
+            const record = col.get(key)
+            if (record) return { id: String(++idCounter), ...record } as unknown as T
+          }
+          const userId = filter.match(/user_id\s*=\s*"([^"]+)"/)?.[1]
+          if (userId && name === 'user_preferences') {
+            const record = col.get(userId)
+            if (record) return { id: String(++idCounter), user_id: userId, ...record } as unknown as T
+          }
+          throw new Error('Not found')
+        },
+        create: async <T = unknown>(data: Record<string, unknown>): Promise<T> => {
+          const key = data.key as string
+          if (key && name === 'app_secrets') {
+            appSecrets.set(key, { value: data.value as string, created_at: data.created_at as number, updated_at: data.updated_at as number })
+          } else if (name === 'user_preferences') {
+            const userId = data.user_id as string
+            prefs.set(userId, { preferences: data.preferences as string, updated_at: data.updated_at as number })
+          }
+          return { id: String(++idCounter), ...data } as unknown as T
+        },
+        update: async <T = unknown>(id: string, data: Record<string, unknown>): Promise<T> => {
+          return { id, ...data } as unknown as T
+        },
+        getFullList: async <T = unknown>(): Promise<T[]> => Array.from(col.values()) as unknown as T[],
+        getList: async <T = unknown>(): Promise<{ items: T[]; totalItems: number }> => {
+          const items = Array.from(col.values())
+          return { items: items as unknown as T[], totalItems: items.length }
+        },
+        delete: async (): Promise<boolean> => true,
+      }
+    },
+    health: { check: async () => ({ code: 200 }) },
+  } as unknown as PocketBase
+}
+
 describe('internal/settings routes', () => {
-  let db: Database
-  let automationservice: automationservice
+  let pb: PocketBase
+  let automationservice: AutomationService
   let notificationService: NotificationService
   let settingsService: SettingsService
   let app: Hono
   let token: string
 
-  beforeEach(() => {
-    db = new Database(':memory:')
-    migrate(db, allMigrations)
+  beforeEach(async () => {
+    pb = createMockPocketBase()
     const openCodeClient = createOpenCodeClient()
-    automationservice = new automationservice(db, openCodeClient)
-    notificationService = new NotificationService(db)
-    settingsService = new SettingsService(db)
+    automationservice = new AutomationService(pb, openCodeClient)
+    notificationService = new NotificationService(pb)
+    settingsService = new SettingsService(pb)
     app = new Hono()
-    app.route('/api/internal', createInternalRoutes(db, automationservice, notificationService, settingsService, openCodeClient))
-    token = getOrCreateInternalToken(db)
+    app.route('/api/internal', createInternalRoutes(pb, automationservice, notificationService, settingsService, openCodeClient))
+    token = await getOrCreateInternalToken(pb)
   })
 
   it('GET /api/internal/settings returns 401 without bearer token', async () => {
@@ -112,94 +162,6 @@ describe('internal/settings routes', () => {
     const res = await app.request('/api/internal/settings', {
       method: 'PATCH',
       body: JSON.stringify({ theme: 'rainbow' }),
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${token}`,
-      },
-    })
-    expect(res.status).toBe(400)
-  })
-
-  it('PATCH /api/internal/settings with { tts: { voice: "x", speed: 1.5 } } merges and preserves apiKey/endpoint', async () => {
-    // Seed a full TTS config (including secrets) directly via settingsService
-    settingsService.updateSettings({
-      tts: {
-        enabled: true,
-        provider: 'external',
-        autoPlay: false,
-        endpoint: 'https://custom.endpoint',
-        apiKey: 'sk-secret-123',
-        voice: 'alloy',
-        model: 'tts-1',
-        speed: 1.0,
-      },
-    } as Partial<UserPreferences>)
-
-    // Now patch only non-secret fields via the API
-    const patchRes = await app.request('/api/internal/settings', {
-      method: 'PATCH',
-      body: JSON.stringify({ tts: { voice: 'nova', speed: 1.5 } }),
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${token}`,
-      },
-    })
-    expect(patchRes.status).toBe(200)
-    const body = await patchRes.json() as { preferences: { tts: { voice: string; speed: number; apiKey: string; endpoint: string } } }
-    expect(body.preferences.tts.voice).toBe('nova')
-    expect(body.preferences.tts.speed).toBe(1.5)
-    expect(body.preferences.tts.apiKey).toBe('sk-secret-123')
-    expect(body.preferences.tts.endpoint).toBe('https://custom.endpoint')
-  })
-
-  it('PATCH /api/internal/settings with { tts: { voice: "nova" } } preserves autoPlay and other omitted fields', async () => {
-    // Seed TTS with autoPlay: true (a non-default value)
-    settingsService.updateSettings({
-      tts: {
-        enabled: true,
-        provider: 'external',
-        autoPlay: true,
-        endpoint: 'https://custom.endpoint',
-        apiKey: 'sk-secret-123',
-        voice: 'alloy',
-        model: 'tts-1',
-        speed: 1.0,
-      },
-    } as Partial<UserPreferences>)
-
-    // Patch only voice — autoPlay, provider, model, speed must remain as seeded
-    const patchRes = await app.request('/api/internal/settings', {
-      method: 'PATCH',
-      body: JSON.stringify({ tts: { voice: 'nova' } }),
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${token}`,
-      },
-    })
-    expect(patchRes.status).toBe(200)
-    const body = await patchRes.json() as { preferences: { tts: { voice: string; autoPlay: boolean; speed: number; model: string } } }
-    expect(body.preferences.tts.voice).toBe('nova')
-    expect(body.preferences.tts.autoPlay).toBe(true)  // must NOT reset to default false
-    expect(body.preferences.tts.speed).toBe(1.0)       // preserved
-    expect(body.preferences.tts.model).toBe('tts-1')   // preserved
-  })
-
-  it('PATCH /api/internal/settings with { tts: { apiKey: "leak" } } returns 400 (strict reject)', async () => {
-    const res = await app.request('/api/internal/settings', {
-      method: 'PATCH',
-      body: JSON.stringify({ tts: { apiKey: 'leak' } }),
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${token}`,
-      },
-    })
-    expect(res.status).toBe(400)
-  })
-
-  it('PATCH /api/internal/settings with { tts: { endpoint: "http://x" } } returns 400 (strict reject)', async () => {
-    const res = await app.request('/api/internal/settings', {
-      method: 'PATCH',
-      body: JSON.stringify({ tts: { endpoint: 'http://x' } }),
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${token}`,

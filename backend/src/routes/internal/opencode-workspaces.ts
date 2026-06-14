@@ -8,9 +8,9 @@ import path from 'path'
 export function createInternalOpenCodeWorkspacesRoutes(db: Database) {
   const app = new Hono()
 
-  app.get('/', (c) => {
+  app.get('/', async (c) => {
     try {
-      const repos = listRepos(db)
+      const repos = await listRepos(db)
       const workspaces = repos
         .filter((repo) => repo.cloneStatus === 'ready')
         .map((repo) => ({

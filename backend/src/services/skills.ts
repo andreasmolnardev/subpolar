@@ -87,7 +87,7 @@ function validateSkillName(name: string): void {
   }
 }
 
-function getSkillFilePath(db: Database, scope: SkillScope, name: string, repoId?: number): string {
+async function getSkillFilePath(db: Database, scope: SkillScope, name: string, repoId?: number): Promise<string> {
   validateSkillName(name)
   if (scope === 'global') {
     return path.join(getGlobalSkillsPath(), name, 'SKILL.md')
@@ -95,7 +95,7 @@ function getSkillFilePath(db: Database, scope: SkillScope, name: string, repoId?
   if (!repoId) {
     throw new Error('repoId is required for project-scoped skills')
   }
-  const repo = getRepoById(db, repoId)
+  const repo = await getRepoById(db, repoId)
   if (!repo) {
     throw new Error(`Repository with id ${repoId} not found`)
   }
@@ -170,7 +170,7 @@ export async function listManagedSkills(
   directory?: string,
 ): Promise<SkillFileInfo[]> {
   const globalPrefix = getGlobalSkillsPath()
-  const allRepos = listRepos(db)
+  const allRepos = await listRepos(db)
 
   const seenLocations = new Set<string>()
   const result: SkillFileInfo[] = []
@@ -238,7 +238,7 @@ export async function createSkill(
 ): Promise<SkillFileInfo> {
   const { name, description, body, scope, repoId } = input
 
-  const skillPath = getSkillFilePath(db, scope, name, repoId)
+  const skillPath = await getSkillFilePath(db, scope, name, repoId)
   const exists = await fileExists(skillPath)
 
   if (exists) {
@@ -249,7 +249,7 @@ export async function createSkill(
   await writeFileContent(skillPath, buildSkillFileContent(name, description, body))
   logger.info(`Created skill "${name}" at ${skillPath}`)
 
-  const repo = repoId ? getRepoById(db, repoId) : null
+  const repo = repoId ? await getRepoById(db, repoId) : null
 
   return {
     name,
@@ -270,7 +270,7 @@ export async function updateSkill(
   input: UpdateSkillRequest,
   repoId?: number,
 ): Promise<SkillFileInfo> {
-  const skillPath = getSkillFilePath(db, scope, name, repoId)
+  const skillPath = await getSkillFilePath(db, scope, name, repoId)
   const exists = await fileExists(skillPath)
 
   if (!exists) {
@@ -302,7 +302,7 @@ export async function deleteSkill(
   scope: SkillScope,
   repoId?: number,
 ): Promise<void> {
-  const skillPath = getSkillFilePath(db, scope, name, repoId)
+  const skillPath = await getSkillFilePath(db, scope, name, repoId)
   const exists = await fileExists(skillPath)
 
   if (!exists) {

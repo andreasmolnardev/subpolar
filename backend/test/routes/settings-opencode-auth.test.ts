@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import type { Database } from '../../src/db/schema'
+import type PocketBase from 'pocketbase'
 import { Hono } from 'hono'
 import { createSettingsRoutes } from '../../src/routes/settings'
 import { encryptSecret } from '../../src/utils/crypto'
@@ -7,10 +7,6 @@ import { ENV } from '@subpolar/shared/config/env'
 import { opencodeServerManager } from '../../src/services/opencode-single-server'
 import type { OpenCodeClient } from '../../src/services/opencode/client'
 import type { GitAuthService } from '../../src/services/git-auth'
-
-vi.mock('bun:sqlite', () => ({
-  Database: class Database {},
-}))
 
 vi.mock('../../src/services/opencode-single-server', () => ({
   opencodeServerManager: {
@@ -28,26 +24,75 @@ vi.mock('../../src/services/opencode-single-server', () => ({
 }))
 
 describe('OpenCode Server Auth Routes', () => {
-  let db: Database
+  let pb: PocketBase
   let app: Hono
   let originalPassword: string
   const mockRestart = opencodeServerManager.restart as ReturnType<typeof vi.fn>
+  const appSecrets = new Map<string, { value: string; created_at: number; updated_at: number }>()
+  let idCounter = 0
 
   beforeEach(() => {
     originalPassword = ENV.OPENCODE.SERVER_PASSWORD
     setEnvPassword('')
     vi.clearAllMocks()
+    appSecrets.clear()
 
-    db = createTestDb()
+    pb = {
+      collection: (name: string) => {
+        const col = name === 'app_secrets' ? appSecrets : new Map<string, Record<string, unknown>>()
+        return {
+          getOne: vi.fn(async <T = unknown>(id: string): Promise<T> => {
+            const record = col.get(id)
+            if (!record) throw new Error('Not found')
+            return record as unknown as T
+          }),
+          getFirstListItem: vi.fn(async <T = unknown>(filter: string): Promise<T> => {
+            const key = filter.match(/key\s*=\s*"([^"]+)"/)?.[1]
+            if (key) {
+              const record = col.get(key)
+              if (record) return { id: String(++idCounter), ...record } as unknown as T
+            }
+            throw new Error('Not found')
+          }),
+          getFullList: vi.fn(async <T = unknown>(): Promise<T[]> => Array.from(col.values()) as unknown as T[]),
+          getList: vi.fn(async <T = unknown>(): Promise<{ items: T[]; totalItems: number }> => {
+            const items = Array.from(col.values())
+            return { items: items as unknown as T[], totalItems: items.length }
+          }),
+          create: vi.fn(async <T = unknown>(data: Record<string, unknown>): Promise<T> => {
+            if (name === 'app_secrets') {
+              const key = data.key as string
+              appSecrets.set(key, {
+                value: data.value as string,
+                created_at: data.created_at as number,
+                updated_at: data.updated_at as number,
+              })
+            }
+            return { id: String(++idCounter), ...data } as unknown as T
+          }),
+          update: vi.fn(async <T = unknown>(id: string, data: Record<string, unknown>): Promise<T> => {
+            return { id, ...data } as unknown as T
+          }),
+          delete: vi.fn(async (id: string): Promise<boolean> => {
+            for (const [key, val] of appSecrets) {
+              if ((val as Record<string, unknown>).key === id || key === id) {
+                appSecrets.delete(key)
+              }
+            }
+            return true
+          }),
+        }
+      },
+      health: { check: vi.fn(async () => ({ code: 200 })) },
+    } as unknown as PocketBase
 
     const mockGitAuthService = {} as GitAuthService
     const mockOpenCodeClient = {} as OpenCodeClient
-    const routes = createSettingsRoutes(db, mockGitAuthService, mockOpenCodeClient)
+    const routes = createSettingsRoutes(pb, mockGitAuthService, mockOpenCodeClient)
     app = new Hono().route('/api/settings', routes)
   })
 
   afterEach(() => {
-    db.close()
     setEnvPassword(originalPassword)
   })
 
@@ -100,9 +145,9 @@ describe('OpenCode Server Auth Routes', () => {
       expect(await response.json()).toEqual({ isSet: true, source: 'db' })
       expect(mockRestart).toHaveBeenCalledOnce()
 
-      const row = db.prepare('SELECT value FROM app_secrets WHERE key = ?').get('opencode_server_password') as { value: string } | undefined
+      const row = await pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"') as { value: string }
       expect(row).toBeDefined()
-      expect(row?.value).not.toBe('testpassword123')
+      expect(row.value).not.toBe('testpassword123')
     })
 
     it('clears stored password and returns none source without env fallback', async () => {
@@ -117,7 +162,9 @@ describe('OpenCode Server Auth Routes', () => {
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({ isSet: false, source: 'none' })
       expect(mockRestart).toHaveBeenCalledOnce()
-      expect(db.prepare('SELECT 1 FROM app_secrets WHERE key = ?').get('opencode_server_password')).toBeUndefined()
+
+      const exists = await pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"').catch(() => null)
+      expect(exists).toBeNull()
     })
 
     it('clears stored password and returns env source when env fallback exists', async () => {
@@ -158,7 +205,9 @@ describe('OpenCode Server Auth Routes', () => {
 
       expect(response.status).toBe(500)
       expect(mockRestart).toHaveBeenCalledTimes(2)
-      expect(db.prepare('SELECT 1 FROM app_secrets WHERE key = ?').get('opencode_server_password')).toBeUndefined()
+
+      const exists = await pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"').catch(() => null)
+      expect(exists).toBeNull()
 
       const statusResponse = await app.request('/api/settings/opencode-server-auth')
       expect(await statusResponse.json()).toEqual({ isSet: true, source: 'env' })
@@ -166,7 +215,7 @@ describe('OpenCode Server Auth Routes', () => {
 
     it('restores previous stored password when restart fails after clearing it', async () => {
       insertPassword('testpassword123')
-      const previous = db.prepare('SELECT value FROM app_secrets WHERE key = ?').get('opencode_server_password') as { value: string }
+      const previous = await pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"') as { value: string }
       mockRestart.mockRejectedValueOnce(new Error('restart failed'))
 
       const response = await app.request('/api/settings/opencode-server-auth', {
@@ -178,7 +227,7 @@ describe('OpenCode Server Auth Routes', () => {
       expect(response.status).toBe(500)
       expect(mockRestart).toHaveBeenCalledTimes(2)
 
-      const restored = db.prepare('SELECT value FROM app_secrets WHERE key = ?').get('opencode_server_password') as { value: string } | undefined
+      const restored = await pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"').catch(() => null) as { value: string } | null
       expect(restored?.value).toBe(previous.value)
     })
   })
@@ -186,10 +235,11 @@ describe('OpenCode Server Auth Routes', () => {
   function insertPassword(password: string) {
     const encrypted = encryptSecret(password)
     const now = Date.now()
-    db.prepare(`
-      INSERT INTO app_secrets (key, value, created_at, updated_at)
-      VALUES (?, ?, ?, ?)
-    `).run('opencode_server_password', encrypted, now, now)
+    appSecrets.set('opencode_server_password', {
+      value: encrypted,
+      created_at: now,
+      updated_at: now,
+    })
   }
 
   function setEnvPassword(password: string) {
@@ -198,41 +248,5 @@ describe('OpenCode Server Auth Routes', () => {
       configurable: true,
       writable: true,
     })
-  }
-
-  function createTestDb(): Database {
-    const secrets = new Map<string, { value: string; created_at: number; updated_at: number }>()
-
-    return {
-      exec: vi.fn(),
-      close: vi.fn(),
-      prepare: vi.fn((sql: string) => ({
-        get: (key: string) => {
-          if (sql.includes('SELECT value')) {
-            const secret = secrets.get(key)
-            return secret === undefined ? undefined : secret
-          }
-          if (sql.includes('SELECT 1 FROM app_secrets')) {
-            return secrets.has(key) ? { 1: 1 } : undefined
-          }
-          return undefined
-        },
-        run: (key: string, value?: string, createdAt?: number, updatedAt?: number) => {
-          if (sql.includes('INSERT INTO app_secrets') && value !== undefined) {
-            const existing = secrets.get(key)
-            secrets.set(key, {
-              value,
-              created_at: createdAt ?? existing?.created_at ?? Date.now(),
-              updated_at: updatedAt ?? Date.now(),
-            })
-          }
-          if (sql.includes('DELETE FROM app_secrets')) {
-            secrets.delete(key)
-          }
-          return { changes: 1 }
-        },
-        all: vi.fn(() => []),
-      })),
-    } as unknown as Database
   }
 })

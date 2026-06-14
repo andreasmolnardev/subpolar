@@ -32,8 +32,8 @@ async function restartOpenCode(openCodeSupervisor?: OpenCodeSupervisor): Promise
   await opencodeServerManager.restart()
 }
 
-function resolveRepo(database: Database, id: number): Repo | null {
-  return getRepoById(database, id) ?? (id === ASSISTANT_REPO_ID ? buildAssistantRepo() : null)
+async function resolveRepo(database: Database, id: number): Promise<Repo | null> {
+  return await getRepoById(database, id) ?? (id === ASSISTANT_REPO_ID ? buildAssistantRepo() : null)
 }
 
 export function createRepoRoutes(
@@ -78,7 +78,7 @@ export function createRepoRoutes(
       
       if (openCodeConfigName) {
         const settingsService = new SettingsService(database)
-        const configContent = settingsService.getOpenCodeConfigContent(openCodeConfigName)
+        const configContent = await settingsService.getOpenCodeConfigContent(openCodeConfigName)
         
         if (configContent) {
           const openCodeConfigPath = getOpenCodeConfigFilePath()
@@ -121,8 +121,8 @@ export function createRepoRoutes(
 app.get('/', async (c) => {
     try {
       const settingsService = new SettingsService(database)
-      const settings = settingsService.getSettings()
-      const repos = listRepos(database, settings.preferences.repoOrder)
+      const settings = await settingsService.getSettings()
+      const repos = await listRepos(database, settings.preferences.repoOrder)
 
       const reposWithCurrentBranch = await Promise.all(
         repos.map(async (repo) => {
@@ -162,7 +162,7 @@ app.get('/', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
 
-      const repo: Repo | null = resolveRepo(database, id)
+      const repo: Repo | null = await resolveRepo(database, id)
 
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)
@@ -197,7 +197,7 @@ app.get('/', async (c) => {
   app.post('/:id/access', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
-      const repo = getRepoById(database, id)
+      const repo = await getRepoById(database, id)
       
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)
@@ -217,7 +217,7 @@ app.get('/', async (c) => {
       const id = parseInt(c.req.param('id'))
       if (Number.isNaN(id)) return c.json({ error: 'Invalid repo id' }, 400)
 
-      const repo = getRepoById(database, id)
+      const repo = await getRepoById(database, id)
       if (!repo || repo.cloneStatus !== 'ready') return c.json({ error: 'Repo not found' }, 404)
 
       const workspaceId = c.req.param('workspaceId')
@@ -245,7 +245,7 @@ app.get('/', async (c) => {
       const id = parseInt(c.req.param('id'))
       if (Number.isNaN(id)) return c.json({ error: 'Invalid repo id' }, 400)
 
-      const repo = getRepoById(database, id)
+      const repo = await getRepoById(database, id)
       if (!repo || repo.cloneStatus !== 'ready') return c.json({ error: 'Repo not found' }, 404)
 
       const response = await openCodeClient.forward({
@@ -276,13 +276,13 @@ app.get('/', async (c) => {
         return c.json({ error: 'Cannot delete the assistant repository' }, 403)
       }
 
-      const repo = getRepoById(database, id)
+      const repo = await getRepoById(database, id)
       
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)
       }
       
-      automationService.prepareRepoDelete(id)
+      await automationService.prepareRepoDelete(id)
       
       await repoService.deleteRepoFiles(database, id)
       
@@ -298,7 +298,7 @@ app.get('/', async (c) => {
       const id = parseInt(c.req.param('id'))
       await repoService.pullRepo(database, gitAuthService, id)
       
-      const repo = getRepoById(database, id)
+      const repo = await getRepoById(database, id)
       return c.json(repo)
     } catch (error: unknown) {
       logger.error('Failed to pull repo:', error)
@@ -309,7 +309,7 @@ app.get('/', async (c) => {
   app.post('/:id/config/switch', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
-      const repo = getRepoById(database, id)
+      const repo = await getRepoById(database, id)
       
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)
@@ -323,7 +323,7 @@ app.get('/', async (c) => {
       }
       
       const settingsService = new SettingsService(database)
-      const configContent = settingsService.getOpenCodeConfigContent(configName)
+      const configContent = await settingsService.getOpenCodeConfigContent(configName)
       
       if (!configContent) {
         return c.json({ error: `Config '${configName}' not found` }, 404)
@@ -341,7 +341,7 @@ app.get('/', async (c) => {
       logger.info('Restarting OpenCode server due to workspace config change')
       await restartOpenCode(openCodeSupervisor)
       
-      const updatedRepo = getRepoById(database, id)
+      const updatedRepo = await getRepoById(database, id)
       return c.json(updatedRepo)
     } catch (error: unknown) {
       logger.error('Failed to switch repo config:', error)
@@ -352,7 +352,7 @@ app.get('/', async (c) => {
   app.post('/:id/branch/switch', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
-      const repo = getRepoById(database, id)
+      const repo = await getRepoById(database, id)
       
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)
@@ -367,7 +367,7 @@ app.get('/', async (c) => {
       
       await repoService.switchBranch(database, gitAuthService, id, branch)
       
-      const updatedRepo = getRepoById(database, id)
+      const updatedRepo = await getRepoById(database, id)
       const currentBranch = await repoService.getCurrentBranch(updatedRepo!, gitAuthService.getGitEnvironment())
       
       return c.json({ ...updatedRepo, currentBranch })
@@ -380,7 +380,7 @@ app.get('/', async (c) => {
   app.post('/:id/branch/create', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
-      const repo = getRepoById(database, id)
+      const repo = await getRepoById(database, id)
       
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)
@@ -395,7 +395,7 @@ app.get('/', async (c) => {
       
       await repoService.createBranch(database, gitAuthService, id, branch)
       
-      const updatedRepo = getRepoById(database, id)
+      const updatedRepo = await getRepoById(database, id)
       const currentBranch = await repoService.getCurrentBranch(updatedRepo!, gitAuthService.getGitEnvironment())
       
       return c.json({ ...updatedRepo, currentBranch })
@@ -408,7 +408,7 @@ app.get('/', async (c) => {
   app.get('/:id/download', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
-      const repo = getRepoById(database, id)
+      const repo = await getRepoById(database, id)
 
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)
@@ -455,7 +455,7 @@ app.get('/', async (c) => {
   app.post('/:id/reset-permissions', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
-      const repo = getRepoById(database, id)
+      const repo = await getRepoById(database, id)
       
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)
@@ -489,7 +489,7 @@ app.get('/', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
 
-      const repo: Repo | null = resolveRepo(database, id)
+      const repo: Repo | null = await resolveRepo(database, id)
 
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)
@@ -507,7 +507,7 @@ app.get('/', async (c) => {
     try {
       const id = parseInt(c.req.param('id'))
 
-      const repo: Repo | null = resolveRepo(database, id)
+      const repo: Repo | null = await resolveRepo(database, id)
 
       if (!repo) {
         return c.json({ error: 'Repo not found' }, 404)

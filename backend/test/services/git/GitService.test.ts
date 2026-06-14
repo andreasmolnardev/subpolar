@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vitest'
-import type { Database } from '../../../src/db/schema'
+import type PocketBase from 'pocketbase'
 import type { GitAuthService } from '../../../src/services/git-auth'
-
-vi.mock('bun:sqlite', () => ({
-  Database: vi.fn()
-}))
 
 vi.mock('../../../src/services/settings', () => ({
   SettingsService: vi.fn().mockImplementation(() => ({
@@ -46,13 +42,24 @@ const getRepoByIdMock = getRepoById as MockedFunction<typeof getRepoById>
 
 describe('GitService', () => {
   let service: GitService
-  let database: Database
+  let database: PocketBase
   let mockGitAuthService: GitAuthService
   let mockSettingsService: any
 
   beforeEach(() => {
     vi.clearAllMocks()
-    database = {} as Database
+    database = {
+      collection: () => ({
+        getOne: vi.fn().mockRejectedValue(new Error('Not found')),
+        getFirstListItem: vi.fn().mockRejectedValue(new Error('Not found')),
+        getFullList: vi.fn().mockResolvedValue([]),
+        getList: vi.fn().mockResolvedValue({ items: [], totalItems: 0 }),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+      }),
+      health: { check: vi.fn().mockResolvedValue({ code: 200 }) },
+    } as unknown as PocketBase
     mockGitAuthService = {
       getGitEnvironment: vi.fn().mockReturnValue({}),
       getSSHEnvironment: vi.fn().mockReturnValue({}),
@@ -79,7 +86,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('rev-parse')) return Promise.resolve('main')
         if (args.includes('rev-list')) return Promise.resolve('0 0')
@@ -101,7 +108,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('rev-parse')) return Promise.resolve('main')
         if (args.includes('rev-list')) return Promise.resolve('0 0')
@@ -238,7 +245,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('')
 
       const result = await (service as any).getFileStatus('/path/to/repo', 'clean.ts', {})
@@ -251,7 +258,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('M  modified.ts')
 
       const result = await (service as any).getFileStatus('/path/to/repo', 'modified.ts', {})
@@ -264,7 +271,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue(' M modified.ts')
 
       const result = await (service as any).getFileStatus('/path/to/repo', 'modified.ts', {})
@@ -277,7 +284,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('?? untracked.ts')
 
       const result = await (service as any).getFileStatus('/path/to/repo', 'untracked.ts', {})
@@ -290,7 +297,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('A  new.ts')
 
       const result = await (service as any).getFileStatus('/path/to/repo', 'new.ts', {})
@@ -303,7 +310,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('D  deleted.ts')
 
       const result = await (service as any).getFileStatus('/path/to/repo', 'deleted.ts', {})
@@ -316,7 +323,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockRejectedValue(new Error('git command failed'))
 
       const result = await (service as any).getFileStatus('/path/to/repo', 'error.ts', {})
@@ -328,7 +335,7 @@ describe('GitService', () => {
   describe('getFileDiff for clean files', () => {
     it('returns empty diff for clean file (no changes)', async () => {
       const mockRepo = { id: 1, fullPath: '/path/to/repo' }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) return Promise.resolve('')
         return Promise.resolve('')
@@ -347,7 +354,7 @@ describe('GitService', () => {
   describe('getFileDiff', () => {
     it('returns diff for untracked file', async () => {
       const mockRepo = { id: 1, fullPath: '/path/to/repo' }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) return Promise.resolve('?? newfile.ts')
         if (args.includes('--no-index')) {
@@ -372,7 +379,7 @@ describe('GitService', () => {
 
     it('returns diff for modified tracked file', async () => {
       const mockRepo = { id: 1, fullPath: '/path/to/repo' }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) return Promise.resolve('M  file.ts')
         if (args.includes('rev-parse')) return Promise.resolve('abc123')
@@ -400,7 +407,7 @@ describe('GitService', () => {
   describe('getFullDiff', () => {
     it('delegates to getFileDiff', async () => {
       const mockRepo = { id: 1, fullPath: '/path/to/repo' }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) return Promise.resolve('M  file.ts')
         if (args.includes('rev-parse')) return Promise.resolve('abc123')
@@ -421,7 +428,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock
         .mockResolvedValueOnce(
           'abc123|John Doe|john@example.com|1704110400|First commit\n' +
@@ -456,7 +463,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValueOnce('').mockResolvedValueOnce('')
 
       const result = await service.getLog(1, database, 10)
@@ -471,7 +478,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('abc123|John Doe|john@example.com|1704110400|Test commit')
 
       const result = await service.getCommit(1, 'abc123', database)
@@ -490,7 +497,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('')
 
       const result = await service.getCommit(1, 'nonexistent', database)
@@ -503,7 +510,7 @@ describe('GitService', () => {
     it('returns diff for file', async () => {
       const expectedDiff = 'diff --git a/file.ts b/file.ts\nindex 123..456 100644\n--- a/file.ts\n+++ b/file.ts\n@@ -1,1 +1,1 @@\n-old line\n+new line'
       const mockRepo = { id: 1, fullPath: '/path/to/repo' }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) return Promise.resolve('M  file.ts')
         if (args.includes('rev-parse')) return Promise.resolve('abc123')
@@ -523,7 +530,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('[main abc1234] Test commit\n 1 file changed')
 
       const result = await service.commit(1, 'Test commit', database)
@@ -541,7 +548,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('[main abc1234] Commit specific files\n 2 files changed')
 
       const result = await service.commit(1, 'Commit specific files', database, ['file1.ts', 'file2.ts'])
@@ -560,7 +567,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('')
 
       const result = await service.stageFiles(1, ['file1.ts', 'file2.ts'], database)
@@ -587,7 +594,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('')
 
       const result = await service.unstageFiles(1, ['file1.ts', 'file2.ts'], database)
@@ -607,7 +614,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('HEAD is now at abc123')
 
       const result = await service.resetToCommit(1, 'abc123', database)
@@ -631,7 +638,7 @@ describe('GitService', () => {
         cloneStatus: 'ready' as const,
         clonedAt: 123456,
       }
-      getRepoByIdMock.mockReturnValue(mockRepo)
+      getRepoByIdMock.mockResolvedValue(mockRepo)
       executeCommandMock.mockResolvedValue('Everything up-to-date')
 
       const result = await service.push(1, {}, database)
@@ -653,7 +660,7 @@ describe('GitService', () => {
         cloneStatus: 'ready' as const,
         clonedAt: 123456,
       }
-      getRepoByIdMock.mockReturnValue(mockRepo)
+      getRepoByIdMock.mockResolvedValue(mockRepo)
       executeCommandMock.mockResolvedValueOnce('main\n').mockResolvedValueOnce('')
 
       await service.push(1, { setUpstream: true }, database)
@@ -676,7 +683,7 @@ describe('GitService', () => {
         cloneStatus: 'ready' as const,
         clonedAt: 123456,
       }
-      getRepoByIdMock.mockReturnValue(mockRepo)
+      getRepoByIdMock.mockResolvedValue(mockRepo)
       executeCommandMock.mockResolvedValue('')
 
       const result = await service.fetch(1, database)
@@ -695,7 +702,7 @@ describe('GitService', () => {
         cloneStatus: 'ready' as const,
         clonedAt: 123456,
       }
-      getRepoByIdMock.mockReturnValue(mockRepo)
+      getRepoByIdMock.mockResolvedValue(mockRepo)
       executeCommandMock.mockResolvedValue('')
 
       const result = await service.pull(1, database)
@@ -707,7 +714,7 @@ describe('GitService', () => {
   describe('getBranches', () => {
     it('returns list of local branches', async () => {
       const mockRepo = { id: 1, fullPath: '/path/to/repo' }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('rev-parse')) return Promise.resolve('main')
         if (args.includes('branch')) return Promise.resolve('* main abc123 [origin/main] Initial commit\n  feature def456 [origin/feature] Feature work')
@@ -726,7 +733,7 @@ describe('GitService', () => {
   describe('getBranchStatus', () => {
     it('returns correct ahead/behind counts', async () => {
       const mockRepo = { id: 1, fullPath: '/path/to/repo' }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('3\t5')
 
       const result = await service.getBranchStatus(1, database)
@@ -736,7 +743,7 @@ describe('GitService', () => {
 
     it('returns zeros when no upstream', async () => {
       const mockRepo = { id: 1, fullPath: '/path/to/repo' }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockRejectedValue(new Error('No upstream branch'))
 
       const result = await service.getBranchStatus(1, database)
@@ -748,7 +755,7 @@ describe('GitService', () => {
   describe('createBranch', () => {
     it('creates and switches to new branch', async () => {
       const mockRepo = { id: 1, fullPath: '/path/to/repo' }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue("Switched to a new branch 'feature-branch'")
 
       const result = await service.createBranch(1, 'feature-branch', database)
@@ -764,7 +771,7 @@ describe('GitService', () => {
   describe('switchBranch', () => {
     it('switches to existing branch', async () => {
       const mockRepo = { id: 1, fullPath: '/path/to/repo' }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue("Switched to branch 'main'")
 
       const result = await service.switchBranch(1, 'main', database)
@@ -783,7 +790,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('Changes discarded')
 
       const result = await service.discardChanges(1, ['file.ts', 'dir/file2.ts'], true, database)
@@ -801,7 +808,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) {
           return Promise.resolve('M  file.ts\n')
@@ -830,7 +837,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) {
           return Promise.resolve('?? untracked.ts\n')
@@ -855,7 +862,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) {
           return Promise.resolve('M  modified.ts\n?? untracked.ts\n')
@@ -891,7 +898,7 @@ describe('GitService', () => {
     })
 
     it('throws error when repository not found', async () => {
-      getRepoByIdMock.mockReturnValue(null)
+      getRepoByIdMock.mockResolvedValue(null)
 
       await expect(service.discardChanges(1, ['file.ts'], false, database)).rejects.toThrow('Repository not found')
     })
@@ -901,7 +908,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       const error = new Error('Permission denied')
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) {
@@ -921,7 +928,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) {
           return Promise.resolve('?? dir/\n')
@@ -948,7 +955,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('log') && !args.includes('--not')) {
           return Promise.resolve('abc123\x00John Doe\x00john@example.com\x001609459200\x00Initial commit')
@@ -1000,7 +1007,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('log') && !args.includes('--not')) {
           return Promise.resolve('abc123\x00John Doe\x00john@example.com\x001609459200\x00Rename file')
@@ -1034,7 +1041,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('log') && !args.includes('--not')) {
           return Promise.resolve('abc123\x00John Doe\x00john@example.com\x001609459200\x00Copy file')
@@ -1068,7 +1075,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('log') && !args.includes('--not')) {
           return Promise.resolve('abc123\x00John Doe\x00john@example.com\x001609459200\x00Empty commit')
@@ -1095,7 +1102,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('')
 
       const result = await service.getCommitDetails(1, 'nonexistent', database)
@@ -1104,7 +1111,7 @@ describe('GitService', () => {
     })
 
     it('throws error when repository not found', async () => {
-      getRepoByIdMock.mockReturnValue(null)
+      getRepoByIdMock.mockResolvedValue(null)
 
       await expect(service.getCommitDetails(1, 'abc123', database)).rejects.toThrow('Repository not found')
     })
@@ -1114,7 +1121,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('log') && !args.includes('--not')) {
           return Promise.resolve('abc123\x00John Doe\x00john@example.com\x001609459200\x00Local commit')
@@ -1141,7 +1148,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('log') && !args.includes('--not')) {
           return Promise.resolve('abc123\x00John Doe\x00john@example.com\x001609459200\x00Fix: merge|conflict|handling')
@@ -1168,7 +1175,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       const error = new Error('Git error')
       executeCommandMock.mockRejectedValue(error)
 
@@ -1182,7 +1189,7 @@ describe('GitService', () => {
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       const diffOutput = `diff --git a/file.ts b/file.ts
 index abc123..def456 100644
 --- a/file.ts
@@ -1214,7 +1221,7 @@ index abc123..def456 100644
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       executeCommandMock.mockResolvedValue('Binary files a/image.png and b/image.png differ')
 
       const result = await service.getCommitDiff(1, 'abc123', 'image.png', database)
@@ -1224,7 +1231,7 @@ index abc123..def456 100644
     })
 
     it('throws error when repository not found', async () => {
-      getRepoByIdMock.mockReturnValue(null)
+      getRepoByIdMock.mockResolvedValue(null)
 
       await expect(service.getCommitDiff(1, 'abc123', 'file.ts', database)).rejects.toThrow('Repository not found')
     })
@@ -1234,7 +1241,7 @@ index abc123..def456 100644
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       const diffOutput = `diff --git a/deleted.ts b/deleted.ts
 deleted file mode 100644
 index abc123..0000000
@@ -1257,7 +1264,7 @@ index abc123..0000000
         id: 1,
         fullPath: '/path/to/repo',
       }
-      getRepoByIdMock.mockReturnValue(mockRepo as any)
+      getRepoByIdMock.mockResolvedValue(mockRepo as any)
       const error = new Error('Fatal error')
       executeCommandMock.mockRejectedValue(error)
 
@@ -1275,7 +1282,7 @@ index abc123..def456 100644
 +added line
  existing line 1
  existing line 2
--removed line
+ -removed line
  existing line 3`
 
       const result = (service as any).parseDiffOutput(diffOutput, 'modified', 'file.ts')
@@ -1349,11 +1356,11 @@ index abc123..def456 100644
 +added 1
  context
 +added 2
--removed 1
+ -removed 1
  context
 +added 3
--removed 2
--removed 3`
+ -removed 2
+ -removed 3`
 
       const result = (service as any).parseDiffOutput(diffOutput, 'modified', 'file.ts')
 

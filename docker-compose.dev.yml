@@ -1,15 +1,15 @@
 services:
   pocketbase:
-    image: elestio/pocketbase:latest
-    container_name: subpolar-dev-pocketbase
+    build: ./pocketbase
+    container_name: subpolar-pocketbase
     ports:
       - "8090:8090"
     environment:
       - POCKETBASE_EMAIL=${POCKETBASE_EMAIL:-admin@example.com}
       - POCKETBASE_PASSWORD=${POCKETBASE_PASSWORD:-adminpassword}
     volumes:
-      - ./pocketbase/pb_data:/pb_data
-      - ./pocketbase/migrations:/pb_migs
+      - ./pocketbase/pb_data:/app/pb_data
+      - ./pocketbase/pb_migrations:/app/pb_migrations
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/api/health"]

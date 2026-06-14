@@ -2,6 +2,8 @@ import PocketBase from 'pocketbase'
 import { logger } from '../utils/logger'
 import { ENV } from '@subpolar/shared/config/env'
 
+const POCKETBASE_URL = ENV.POCKETBASE.URL
+
 let pbClient: PocketBase | null = null
 
 export async function getPocketBaseClient(): Promise<PocketBase> {
@@ -16,15 +18,15 @@ export async function getPocketBaseClient(): Promise<PocketBase> {
   const client = new PocketBase(baseUrl)
 
   try {
-    await client.admins.authWithPassword(email, password)
-    logger.info('PocketBase: Connected with admin authentication')
-  } catch (error) {
-    logger.warn('PocketBase: Admin auth failed, trying user auth:', error)
+    await client.collection('_superusers').authWithPassword(email, password)
+    logger.info('PocketBase: Connected with superuser authentication')
+  } catch (superuserError) {
+    logger.warn('PocketBase: Superuser auth failed, trying user auth:', superuserError)
     try {
       await client.collection('users').authWithPassword(email, password)
       logger.info('PocketBase: Connected with user authentication')
-    } catch (authError) {
-      logger.error('PocketBase: All authentication attempts failed:', authError)
+    } catch (userError) {
+      logger.error('PocketBase: All authentication attempts failed:', userError)
       throw new Error('Failed to authenticate with PocketBase')
     }
   }
@@ -52,4 +54,5 @@ export async function healthCheck(): Promise<boolean> {
   }
 }
 
+export { POCKETBASE_URL }
 export type { PocketBase }

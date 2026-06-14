@@ -27,7 +27,7 @@ export function createSTTRoutes(db: Database) {
       const userId = c.req.query('userId') || 'default'
 
       const settingsService = new SettingsService(db)
-      const settings = settingsService.getSettings(userId)
+      const settings = await settingsService.getSettings(userId)
       const sttConfig = settings.preferences.stt as STTConfig | undefined
 
       if (!sttConfig?.enabled) {
@@ -135,7 +135,7 @@ export function createSTTRoutes(db: Database) {
       const forceRefresh = c.req.query('refresh') === 'true'
 
       const settingsService = new SettingsService(db)
-      const settings = settingsService.getSettings(userId)
+      const settings = await settingsService.getSettings(userId)
       const sttConfig = settings.preferences.stt as STTConfig | undefined
 
       if (!sttConfig?.endpoint) {
@@ -182,7 +182,7 @@ export function createSTTRoutes(db: Database) {
   app.get('/status', async (c) => {
     const userId = c.req.query('userId') || 'default'
     const settingsService = new SettingsService(db)
-    const settings = settingsService.getSettings(userId)
+    const settings = await settingsService.getSettings(userId)
     const sttConfig = settings.preferences.stt as STTConfig | undefined
 
     return c.json({

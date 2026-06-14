@@ -1,5 +1,4 @@
 import { defineConfig } from 'vitest/config'
-import path from 'path'
 
 export default defineConfig({
   test: {
@@ -28,14 +27,7 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       PORT: '3001',
-      DATABASE_PATH: ':memory:',
-      AUTH_SECRET: 'test-secret-for-encryption',
       WORKSPACE_PATH: '/tmp/test-workspace',
-    },
-  },
-  resolve: {
-    alias: {
-      'bun:sqlite': path.resolve(__dirname, './test/mocks/bun-sqlite.ts'),
     },
   },
 })

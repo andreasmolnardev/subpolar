@@ -1,9 +1,6 @@
 import { mkdtemp, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
-import type { Database } from '../../src/db/schema'
-import { migrate } from '../../src/db/migration-runner'
-import { allMigrations } from '../../src/db/migrations'
 import type { Repo } from '@subpolar/shared/types'
 
 export async function createTempAssistantWorkspace() {
@@ -17,12 +14,6 @@ export async function createTempAssistantWorkspace() {
     assistantDir,
     cleanup: () => rm(workspacePath, { recursive: true, force: true }),
   }
-}
-
-export function createTestDb(): Database {
-  const db = new Database(':memory:')
-  migrate(db, allMigrations)
-  return db
 }
 
 export const mockRepo: Repo = {

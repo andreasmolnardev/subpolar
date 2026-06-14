@@ -48,10 +48,10 @@ interface AutomationRunRecord {
   error_text: string | null
 }
 
-function parseSkillMetadata(raw: string | null) {
+function parseSkillMetadata(raw: unknown) {
   if (!raw) return null
   try {
-    const parsed = JSON.parse(raw)
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
     const result = AutomationSkillMetadataSchema.safeParse(parsed)
     return result.success ? result.data : null
   } catch {

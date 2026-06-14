@@ -1,67 +1,78 @@
 import { Hono } from 'hono'
-import type { AuthInstance } from '../auth'
+import PocketBase from 'pocketbase'
+import { syncAdminFromEnv, signInUser, signUpUser, signOutUser, getUserCount } from '../auth'
+import { POCKETBASE_URL } from '../db/pocketbase-client'
 import { ENV } from '@subpolar/shared/config/env'
-import { logger } from '../utils/logger'
 
-export function createAuthRoutes(auth: AuthInstance): Hono {
+export function createAuthRoutes(pb: PocketBase) {
   const app = new Hono()
 
-  app.all('/*', async (c) => {
-    const response = await auth.handler(c.req.raw)
+  syncAdminFromEnv(pb)
 
-    const setCookie = response.headers.get('set-cookie')
-    if (c.req.path.includes('sign-in')) {
-      logger.info(`Sign-in response - Status: ${response.status}, Set-Cookie: ${setCookie ? 'present' : 'missing'}`)
-      if (setCookie) {
-        logger.debug(`Set-Cookie header: ${setCookie.substring(0, 100)}...`)
+  app.post('/sign-in/email', async (c) => {
+    const { email, password } = await c.req.json()
+    const userPb = new PocketBase(POCKETBASE_URL)
+    try {
+      const result = await signInUser(userPb, email, password)
+      const cookie = userPb.authStore.exportToCookie({ httpOnly: false })
+      c.header('set-cookie', cookie)
+      return c.json({ token: result.token, user: result.record })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Invalid credentials'
+      return c.json({ message }, 401)
+    }
+  })
+
+  app.post('/sign-up/email', async (c) => {
+    const { email, password, name } = await c.req.json()
+    try {
+      await signUpUser(pb, email, password, name)
+      const userPb = new PocketBase(POCKETBASE_URL)
+      const result = await signInUser(userPb, email, password)
+      const cookie = userPb.authStore.exportToCookie({ httpOnly: false })
+      c.header('set-cookie', cookie)
+      return c.json({ token: result.token, user: result.record }, 201)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Registration failed'
+      return c.json({ message }, 400)
+    }
+  })
+
+  app.post('/sign-out', async (c) => {
+    signOutUser(pb)
+    c.header('set-cookie', 'pb_auth=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT')
+    return c.json({ success: true })
+  })
+
+  app.get('/session', async (c) => {
+    const cookie = c.req.header('cookie') || ''
+    const tempPb = new PocketBase(POCKETBASE_URL)
+    if (cookie) tempPb.authStore.loadFromCookie(cookie)
+
+    if (tempPb.authStore.isValid) {
+      try {
+        await tempPb.collection('users').authRefresh()
+        return c.json({ user: tempPb.authStore.model, token: tempPb.authStore.token })
+      } catch {
+        return c.json({ user: null, token: null })
       }
     }
+    return c.json({ user: null, token: null })
+  })
 
-    return response
+  app.get('/config', async (c) => {
+    const userCount = await getUserCount(pb)
+    return c.json({
+      enabledProviders: ['email'],
+      registrationEnabled: true,
+      isFirstUser: userCount === 0,
+    })
   })
 
   return app
 }
 
-const isAdminConfigured = (): boolean => {
-  return !!(ENV.AUTH.ADMIN_EMAIL && ENV.AUTH.ADMIN_PASSWORD)
-}
-
-export async function syncAdminFromEnv(auth: AuthInstance): Promise<void> {
-  if (!isAdminConfigured()) return
-
-  const adminEmail = ENV.AUTH.ADMIN_EMAIL!
-  const adminPassword = ENV.AUTH.ADMIN_PASSWORD!
-
-  try {
-    const existingUser = await auth.api.listUsers({
-      query: {
-        filter: `email = "${adminEmail}"`,
-      },
-    })
-
-    if (existingUser && existingUser.total > 0) {
-      if (ENV.AUTH.ADMIN_PASSWORD_RESET) {
-        logger.info(`Admin password reset from environment for ${adminEmail}`)
-        logger.warn('Remove ADMIN_PASSWORD_RESET=true from environment after password reset')
-      }
-      return
-    }
-
-    await auth.api.signUpEmail({
-      body: {
-        email: adminEmail,
-        password: adminPassword,
-        name: 'Admin',
-      },
-    })
-    logger.info(`Admin user created from environment: ${adminEmail}`)
-  } catch (error) {
-    logger.error('Failed to create admin user from environment:', error)
-  }
-}
-
-export function createAuthInfoRoutes(auth: AuthInstance) {
+export function createAuthInfoRoutes(pb: PocketBase) {
   const app = new Hono()
 
   app.get('/config', async (c) => {
@@ -79,44 +90,29 @@ export function createAuthInfoRoutes(auth: AuthInstance) {
 
     enabledProviders.push('passkey')
 
-    let isFirstUser = true
-    try {
-      const users = await auth.api.listUsers({ query: { limit: 1 } })
-      isFirstUser = users.total === 0
-    } catch {
-      // if API fails, assume first user
-    }
-
-    const adminConfigured = isAdminConfigured()
+    const userCount = await getUserCount(pb)
 
     return c.json({
       enabledProviders,
-      registrationEnabled: !adminConfigured,
-      isFirstUser,
-      adminConfigured,
+      isFirstUser: userCount === 0,
+      adminConfigured: !!(ENV.AUTH.ADMIN_EMAIL && ENV.AUTH.ADMIN_PASSWORD),
     })
   })
 
   app.get('/me', async (c) => {
-    try {
-      const session = await auth.api.getSession({
-        headers: c.req.raw.headers,
-      })
+    const cookie = c.req.header('cookie') || ''
+    const tempPb = new PocketBase(POCKETBASE_URL)
+    if (cookie) tempPb.authStore.loadFromCookie(cookie)
 
-      if (!session) {
-        return c.json({ user: null, session: null })
+    if (tempPb.authStore.isValid) {
+      try {
+        await tempPb.collection('users').authRefresh()
+        return c.json({ user: tempPb.authStore.model })
+      } catch {
+        return c.json({ user: null })
       }
-
-      return c.json({
-        user: session.user,
-        session: {
-          id: session.session.id,
-          expiresAt: session.session.expiresAt,
-        },
-      })
-    } catch {
-      return c.json({ user: null, session: null })
     }
+    return c.json({ user: null })
   })
 
   return app

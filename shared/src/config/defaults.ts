@@ -25,10 +25,6 @@ export const DEFAULTS = {
     PASSWORD: 'adminpassword',
   },
 
-  DATABASE: {
-    PATH: './data/opencode.db',
-  },
-
   WORKSPACE: {
     BASE_PATH: './workspace',
     REPOS_DIR: 'repos',

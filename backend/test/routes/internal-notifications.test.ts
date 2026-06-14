@@ -1,33 +1,67 @@
 import { describe, it, expect, beforeEach, vi } from 'bun:test'
 import { Hono } from 'hono'
-import type { Database } from '../../src/db/schema'
+import type PocketBase from 'pocketbase'
 import { createInternalRoutes } from '../../src/routes/internal'
 import { AutomationService } from '../../src/services/automations'
 import { NotificationService } from '../../src/services/notification'
 import { SettingsService } from '../../src/services/settings'
 import { createOpenCodeClient } from '../../src/services/opencode/client'
-import { allMigrations } from '../../src/db/migrations'
 import { getOrCreateInternalToken } from '../../src/services/internal-token'
-import { migrate } from '../../src/db/migration-runner'
+
+function createMockPocketBase(): PocketBase {
+  const appSecrets = new Map<string, { value: string; created_at: number; updated_at: number }>()
+  let idCounter = 0
+
+  return {
+    collection: (name: string) => {
+      const col = name === 'app_secrets' ? appSecrets : new Map<string, Record<string, unknown>>()
+      return {
+        getFirstListItem: async <T = unknown>(filter: string): Promise<T> => {
+          const key = filter.match(/key\s*=\s*"([^"]+)"/)?.[1]
+          if (key) {
+            const record = col.get(key)
+            if (record) return { id: String(++idCounter), ...record } as unknown as T
+          }
+          throw new Error('Not found')
+        },
+        create: async <T = unknown>(data: Record<string, unknown>): Promise<T> => {
+          const key = data.key as string
+          col.set(key, { ...data } as { value: string; created_at: number; updated_at: number })
+          return { id: String(++idCounter), ...data } as unknown as T
+        },
+        update: async <T = unknown>(id: string, data: Record<string, unknown>): Promise<T> => {
+          return { id, ...data } as unknown as T
+        },
+        getOne: async <T = unknown>(): Promise<T> => { throw new Error('Not found') },
+        getFullList: async <T = unknown>(): Promise<T[]> => Array.from(col.values()) as unknown as T[],
+        getList: async <T = unknown>(): Promise<{ items: T[]; totalItems: number }> => {
+          const items = Array.from(col.values())
+          return { items: items as unknown as T[], totalItems: items.length }
+        },
+        delete: async (): Promise<boolean> => true,
+      }
+    },
+    health: { check: async () => ({ code: 200 }) },
+  } as unknown as PocketBase
+}
 
 describe('internal/notifications routes', () => {
-  let db: Database
+  let pb: PocketBase
   let automationservice: AutomationService
   let notificationService: NotificationService
   let settingsService: SettingsService
   let app: Hono
   let token: string
 
-  beforeEach(() => {
-    db = new Database(':memory:')
-    migrate(db, allMigrations)
+  beforeEach(async () => {
+    pb = createMockPocketBase()
     const openCodeClient = createOpenCodeClient()
-    automationservice = new AutomationService(db, openCodeClient)
-    notificationService = new NotificationService(db)
-    settingsService = new SettingsService(db)
+    automationservice = new AutomationService(pb, openCodeClient)
+    notificationService = new NotificationService(pb)
+    settingsService = new SettingsService(pb)
     app = new Hono()
-    app.route('/api/internal', createInternalRoutes(db, automationservice, notificationService, settingsService, openCodeClient))
-    token = getOrCreateInternalToken(db)
+    app.route('/api/internal', createInternalRoutes(pb, automationservice, notificationService, settingsService, openCodeClient))
+    token = await getOrCreateInternalToken(pb)
   })
 
   it('POST /api/internal/notifications/send returns 401 without bearer token', async () => {

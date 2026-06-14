@@ -110,7 +110,7 @@ export class AskpassHandler implements IPCHandler {
     logger.info(`Looking up credentials for host: ${hostname} (normalized: ${normalizedRequest})`)
     
     const settingsService = new SettingsService(this.database)
-    const settings = settingsService.getSettings('default')
+    const settings = await settingsService.getSettings('default')
     const allCredentials = (settings.preferences.gitCredentials || []) as GitCredential[]
     const gitCredentials = allCredentials.filter(cred => !cred.type || cred.type === 'pat')
     logger.info(`Found ${gitCredentials.length} configured PAT credentials (${allCredentials.length} total)`)

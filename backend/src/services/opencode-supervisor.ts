@@ -288,13 +288,13 @@ export class OpenCodeSupervisor {
   }
 
   private async rollbackToLastKnownGood(): Promise<void> {
-    this.settingsService.archiveBrokenConfig(this.userId)
-    const lastGood = this.settingsService.restoreToLastKnownGoodConfig(this.userId)
+    await this.settingsService.archiveBrokenConfig(this.userId)
+    const lastGood = await this.settingsService.restoreToLastKnownGoodConfig(this.userId)
     if (!lastGood) {
       throw new Error('No last known good config available')
     }
 
-    const config = this.settingsService.updateOpenCodeConfig(lastGood.configName, { content: lastGood.content }, this.userId)
+    const config = await this.settingsService.updateOpenCodeConfig(lastGood.configName, { content: lastGood.content }, this.userId)
     if (!config) {
       throw new Error(`Failed to restore OpenCode config '${lastGood.configName}'`)
     }
@@ -306,12 +306,12 @@ export class OpenCodeSupervisor {
 
   private async seedDefaultConfig(): Promise<void> {
     const seedConfig = JSON.stringify({ $schema: 'https://opencode.ai/config.json' }, null, 2)
-    const defaultConfig = this.settingsService.getDefaultOpenCodeConfig(this.userId)
+    const defaultConfig = await this.settingsService.getDefaultOpenCodeConfig(this.userId)
 
     if (defaultConfig) {
-      this.settingsService.updateOpenCodeConfig(defaultConfig.name, { content: seedConfig }, this.userId)
+      await this.settingsService.updateOpenCodeConfig(defaultConfig.name, { content: seedConfig }, this.userId)
     } else {
-      this.settingsService.createOpenCodeConfig(
+      await this.settingsService.createOpenCodeConfig(
         {
           name: 'default',
           content: seedConfig,

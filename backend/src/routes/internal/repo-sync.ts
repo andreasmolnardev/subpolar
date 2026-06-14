@@ -12,7 +12,7 @@ export function createInternalRepoSyncRoutes(db: Database) {
     const repoIdRaw = c.req.param('repoId')
     const repoId = Number(repoIdRaw)
     if (!Number.isFinite(repoId)) return c.json({ error: 'invalid repoId' }, 400)
-    const repo = getRepoById(db, repoId)
+    const repo = await getRepoById(db, repoId)
     if (!repo) return c.json({ error: 'repo not found' }, 404)
     if (repo.cloneStatus !== 'ready') return c.json({ error: 'repo not ready' }, 409)
     const repoPath = repo.fullPath

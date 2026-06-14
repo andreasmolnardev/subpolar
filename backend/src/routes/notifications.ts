@@ -82,7 +82,7 @@ export function createNotificationRoutes(
       );
     }
 
-    const subscriptions = notificationService.getSubscriptions(userId);
+    const subscriptions = await notificationService.getSubscriptions(userId);
     if (subscriptions.length === 0) {
       return c.json(
         { error: "No push subscriptions registered" },
@@ -92,7 +92,7 @@ export function createNotificationRoutes(
 
     await notificationService.sendTestNotification(userId);
 
-    return c.json({ success: true, devicesNotified: subscriptions.length });
+    return c.json({ success: true, devicesNotified: (await notificationService.getSubscriptions(userId)).length });
   });
 
   return app;

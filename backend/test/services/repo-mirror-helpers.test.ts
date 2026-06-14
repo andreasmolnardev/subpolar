@@ -117,10 +117,10 @@ describe('createRepoRow', () => {
       clonedAt: Date.now(),
       isLocal: true,
     }
-    createRepo.mockReturnValue(fakeRepo)
+    createRepo.mockResolvedValue(fakeRepo)
 
     const { createRepoRow } = await import('../../src/services/repo')
-    const result = createRepoRow(database, {
+    const result = await createRepoRow(database, {
       name: 'demo',
       localPath: 'demo',
       fullPath: path.join(tmpRoot, 'demo'),
@@ -146,10 +146,10 @@ describe('createRepoRow', () => {
       clonedAt: Date.now(),
       isLocal: false,
     }
-    createRepo.mockReturnValue(fakeRepo)
+    createRepo.mockResolvedValue(fakeRepo)
 
     const { createRepoRow } = await import('../../src/services/repo')
-    const result = createRepoRow(database, {
+    const result = await createRepoRow(database, {
       name: 'demo',
       originUrl: 'https://github.com/example/repo.git',
       localPath: 'demo',
@@ -168,10 +168,10 @@ describe('createRepoRow', () => {
 
   it('uses supplied branch as defaultBranch fallback', async () => {
     const database = {} as never
-    createRepo.mockReturnValue({ id: 3 })
+    createRepo.mockResolvedValue({ id: 3 })
 
     const { createRepoRow } = await import('../../src/services/repo')
-    createRepoRow(database, {
+    await createRepoRow(database, {
       name: 'demo',
       localPath: 'demo',
       fullPath: path.join(tmpRoot, 'demo'),
@@ -197,10 +197,10 @@ describe('createRepoRow', () => {
       isLocal: false,
     }
 
-    mockGetRepoByUrlAndBranch.mockReturnValue(existingRepo)
+    mockGetRepoByUrlAndBranch.mockResolvedValue(existingRepo)
 
     const { createRepoRow } = await import('../../src/services/repo')
-    const result = createRepoRow(database, {
+    const result = await createRepoRow(database, {
       name: 'new-name',
       originUrl: 'https://github.com/example/repo.git',
       localPath: 'new-name',
@@ -227,10 +227,10 @@ describe('createRepoRow', () => {
       isLocal: true,
     }
 
-    mockGetRepoByLocalPath.mockReturnValue(existingRepo)
+    mockGetRepoByLocalPath.mockResolvedValue(existingRepo)
 
     const { createRepoRow } = await import('../../src/services/repo')
-    const result = createRepoRow(database, {
+    const result = await createRepoRow(database, {
       name: 'new-name',
       localPath: 'existing-repo',
       fullPath: path.join(tmpRoot, 'existing-repo'),
@@ -255,7 +255,7 @@ describe('isRepoInUse', () => {
   })
 
   it('returns false when repo does not exist in DB', async () => {
-    getRepoById.mockReturnValue(null)
+    getRepoById.mockResolvedValue(null)
     mockGetActiveDirectories.mockReturnValue([])
 
     const { isRepoInUse } = await import('../../src/services/repo')
@@ -265,7 +265,7 @@ describe('isRepoInUse', () => {
   })
 
   it('returns false when no active sessions match repo fullPath', async () => {
-    getRepoById.mockReturnValue({
+    getRepoById.mockResolvedValue({
       id: 1,
       fullPath: path.join(tmpRoot, 'demo'),
       localPath: 'demo',
@@ -279,7 +279,7 @@ describe('isRepoInUse', () => {
   })
 
   it('returns true when active session matches repo fullPath', async () => {
-    getRepoById.mockReturnValue({
+    getRepoById.mockResolvedValue({
       id: 1,
       fullPath: path.join(tmpRoot, 'demo'),
       localPath: 'demo',

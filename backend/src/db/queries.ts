@@ -59,16 +59,6 @@ function toPocketBaseId(numId: number): string {
 }
 
 const TABLES_WITH_REPO_ID = ['automation_jobs', 'automation_runs', 'repo_settings'] as const
-type RepoIdTable = typeof TABLES_WITH_REPO_ID[number]
-
-async function updateRepoIdReference(pb: PocketBase, tableName: RepoIdTable, fromRepoId: number, toRepoId: number): Promise<void> {
-  const records = await pb.collection(tableName).getFullList({
-    filter: `repo_id = "${toPocketBaseId(fromRepoId)}"`,
-  })
-  for (const record of records) {
-    await pb.collection(tableName).update(record.id, { repo_id: toPocketBaseId(toRepoId) })
-  }
-}
 
 export async function getRepoById(pb: PocketBase, id: number): Promise<Repo | null> {
   try {
@@ -84,37 +74,10 @@ export async function ensureAssistantRepo(pb: PocketBase): Promise<Repo> {
   const now = Date.now()
 
   if (existing) {
-    const record = existing as unknown as RepoRecord
-    if (parseInt(record.id, 10) !== ASSISTANT_REPO_ID) {
-      const oldId = parseInt(record.id, 10)
-      if (!isNaN(oldId)) {
-        for (const table of TABLES_WITH_REPO_ID) {
-          await updateRepoIdReference(pb, table, oldId, ASSISTANT_REPO_ID)
-        }
-        await pb.collection('repos').delete(record.id)
-      }
-      await pb.collection('repos').create({
-        id: toPocketBaseId(ASSISTANT_REPO_ID),
-        repo_url: null,
-        local_path: ASSISTANT_REPO_PATH,
-        source_path: null,
-        branch: null,
-        default_branch: 'main',
-        clone_status: 'ready',
-        cloned_at: now,
-        last_accessed_at: now,
-        is_worktree: false,
-        is_local: false,
-      })
-    }
-
-    const repo = await getRepoById(pb, ASSISTANT_REPO_ID)
-    if (!repo) throw new Error('Failed to sync Assistant repository')
-    return repo
+    return recordToRepo(existing as unknown as RepoRecord)
   }
 
-  await pb.collection('repos').create({
-    id: toPocketBaseId(ASSISTANT_REPO_ID),
+  const record = await pb.collection('repos').create({
     repo_url: null,
     local_path: ASSISTANT_REPO_PATH,
     source_path: null,
@@ -127,9 +90,7 @@ export async function ensureAssistantRepo(pb: PocketBase): Promise<Repo> {
     is_local: false,
   })
 
-  const repo = await getRepoById(pb, ASSISTANT_REPO_ID)
-  if (!repo) throw new Error('Failed to sync Assistant repository')
-  return repo
+  return recordToRepo(record as unknown as RepoRecord)
 }
 
 export async function createRepo(pb: PocketBase, input: { repoUrl?: string; localPath: string; sourcePath?: string; branch?: string; defaultBranch: string; cloneStatus: string; clonedAt: number; isWorktree?: boolean; isLocal?: boolean }): Promise<Repo> {

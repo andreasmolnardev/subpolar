@@ -185,9 +185,10 @@ export class SSHHostKeyHandler implements IPCHandler {
     }
   }
 
-  private async getTrustedHost(host: string): Promise<{ key_type: string; public_key: string } | null> {
+  private async getTrustedHost(host: string): Promise<{ id: string; key_type: string; public_key: string } | null> {
     try {
       const result = await this.database.collection('trusted_ssh_hosts').getFirstListItem<{
+        id: string
         key_type: string
         public_key: string
       }>(`host = "${host}"`)

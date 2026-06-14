@@ -45,7 +45,7 @@ migrate((app) => {
       ],
       fields: [
         { name: "user_id", type: "text", required: true, max: 128 },
-        { name: "preferences", type: "json", required: true },
+        { name: "preferences", type: "json", required: false },
         { name: "updated_at", type: "number", required: true },
       ],
     },
@@ -206,9 +206,9 @@ migrate((app) => {
       ],
       fields: [
         { name: "user_id", type: "text", required: true, max: 128 },
-        { name: "recent", type: "json", required: true },
-        { name: "favorite", type: "json", required: true },
-        { name: "variant", type: "json", required: true },
+        { name: "recent", type: "json", required: false },
+        { name: "favorite", type: "json", required: false },
+        { name: "variant", type: "json", required: false },
         { name: "updated_at", type: "number", required: true },
       ],
     },

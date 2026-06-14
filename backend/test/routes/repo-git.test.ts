@@ -1,13 +1,9 @@
 import { describe, it, expect, vi, beforeEach, type MockedFunction } from 'vitest'
 import { Hono } from 'hono'
-import type { Database } from '../../src/db/schema'
+import type PocketBase from 'pocketbase'
 import type { GitAuthService } from '../../src/services/git-auth'
 import { createRepoGitRoutes } from '../../src/routes/repo-git'
 import * as db from '../../src/db/queries'
-
-vi.mock('bun:sqlite', () => ({
-  Database: vi.fn(),
-}))
 
 vi.mock('../../src/utils/logger', () => ({
   logger: {
@@ -53,25 +49,23 @@ const getRepoByIdMock = db.getRepoById as MockedFunction<typeof db.getRepoById>
 
 describe('Repo Git Routes', () => {
   let app: Hono
-  let mockDatabase: Database
+  let mockDatabase: PocketBase
   let mockGitAuthService: GitAuthService
 
   beforeEach(() => {
     vi.clearAllMocks()
     mockDatabase = {
-      run: vi.fn(),
-      prepare: vi.fn(() => ({
-        run: vi.fn(),
-        get: vi.fn(),
-        all: vi.fn(),
-        iterate: vi.fn(),
-        values: vi.fn(),
-      })),
-      exec: vi.fn(),
-      query: vi.fn(),
-      inTransaction: vi.fn(),
-      close: vi.fn(),
-    } as unknown as Database
+      collection: (name: string) => ({
+        getOne: vi.fn().mockRejectedValue(new Error('Not found')),
+        getFirstListItem: vi.fn().mockRejectedValue(new Error('Not found')),
+        getFullList: vi.fn().mockResolvedValue([]),
+        getList: vi.fn().mockResolvedValue({ items: [], totalItems: 0 }),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+      }),
+      health: { check: vi.fn().mockResolvedValue({ code: 200 }) },
+    } as unknown as PocketBase
     mockGitAuthService = {
       getGitEnvironment: vi.fn().mockReturnValue({}),
     } as unknown as GitAuthService
@@ -104,7 +98,7 @@ describe('Repo Git Routes', () => {
     })
 
     it('returns empty object when no repos found', async () => {
-      getRepoByIdMock.mockReturnValue(null)
+      getRepoByIdMock.mockResolvedValue(null)
       const response = await app.request('/git-status-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,10 +114,10 @@ describe('Repo Git Routes', () => {
       const { executeCommand } = await import('../../src/utils/process')
       const executeCommandMock = executeCommand as MockedFunction<typeof executeCommand>
 
-      getRepoByIdMock.mockImplementation((_, id) => {
-        if (id === 1) return { id: 1, fullPath: '/repo1' } as any
-        if (id === 2) return { id: 2, fullPath: '/repo2' } as any
-        return null
+      getRepoByIdMock.mockImplementation((_: PocketBase, id: number) => {
+        if (id === 1) return Promise.resolve({ id: 1, fullPath: '/repo1' } as any)
+        if (id === 2) return Promise.resolve({ id: 2, fullPath: '/repo2' } as any)
+        return Promise.resolve(null)
       })
 
       executeCommandMock.mockImplementation((args) => {
@@ -149,10 +143,10 @@ describe('Repo Git Routes', () => {
       const { executeCommand } = await import('../../src/utils/process')
       const executeCommandMock = executeCommand as MockedFunction<typeof executeCommand>
 
-      getRepoByIdMock.mockImplementation((_, id) => {
-        if (id === 1) return { id: 1, fullPath: '/repo1' } as any
-        if (id === 2) return null
-        return null
+      getRepoByIdMock.mockImplementation((_: PocketBase, id: number) => {
+        if (id === 1) return Promise.resolve({ id: 1, fullPath: '/repo1' } as any)
+        if (id === 2) return Promise.resolve(null)
+        return Promise.resolve(null)
       })
 
       executeCommandMock.mockImplementation((args) => {
@@ -185,7 +179,7 @@ describe('Repo Git Routes', () => {
     })
 
     it('returns 404 when repo does not exist', async () => {
-      getRepoByIdMock.mockReturnValue(null)
+      getRepoByIdMock.mockResolvedValue(null)
       const response = await app.request('/999/git/diff-full?path=file.ts')
       const body = await response.json()
 
@@ -197,7 +191,7 @@ describe('Repo Git Routes', () => {
       const { executeCommand } = await import('../../src/utils/process')
       const executeCommandMock = executeCommand as MockedFunction<typeof executeCommand>
 
-      getRepoByIdMock.mockReturnValue({ id: 1, localPath: 'test-repo', fullPath: '/repos/test-repo' } as any)
+      getRepoByIdMock.mockResolvedValue({ id: 1, localPath: 'test-repo', fullPath: '/repos/test-repo' } as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) return Promise.resolve('M  file.ts')
         if (args.includes('rev-parse')) return Promise.resolve('abc123')
@@ -219,7 +213,7 @@ describe('Repo Git Routes', () => {
       const { executeCommand } = await import('../../src/utils/process')
       const executeCommandMock = executeCommand as MockedFunction<typeof executeCommand>
 
-      getRepoByIdMock.mockReturnValue({ id: 1, localPath: 'test-repo', fullPath: '/repos/test-repo' } as any)
+      getRepoByIdMock.mockResolvedValue({ id: 1, localPath: 'test-repo', fullPath: '/repos/test-repo' } as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) return Promise.resolve('M  file.ts')
         if (args.includes('rev-parse')) return Promise.resolve('abc123')
@@ -238,7 +232,7 @@ describe('Repo Git Routes', () => {
       const { executeCommand } = await import('../../src/utils/process')
       const executeCommandMock = executeCommand as MockedFunction<typeof executeCommand>
 
-      getRepoByIdMock.mockReturnValue({ id: 1, localPath: 'test-repo' } as any)
+      getRepoByIdMock.mockResolvedValue({ id: 1, localPath: 'test-repo' } as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('status')) return Promise.resolve('M  file.ts')
         if (args.includes('rev-parse')) return Promise.resolve('abc123')
@@ -256,7 +250,7 @@ describe('Repo Git Routes', () => {
 
   describe('GET /:id/git/branches', () => {
     it('returns 404 when repo does not exist', async () => {
-      getRepoByIdMock.mockReturnValue(null)
+      getRepoByIdMock.mockResolvedValue(null)
       const response = await app.request('/999/git/branches')
       const body = await response.json()
 
@@ -268,7 +262,7 @@ describe('Repo Git Routes', () => {
       const { executeCommand } = await import('../../src/utils/process')
       const executeCommandMock = executeCommand as MockedFunction<typeof executeCommand>
 
-      getRepoByIdMock.mockReturnValue({ id: 1, fullPath: '/path/to/repo' } as any)
+      getRepoByIdMock.mockResolvedValue({ id: 1, fullPath: '/path/to/repo' } as any)
       executeCommandMock.mockImplementation((args) => {
         if (args.includes('rev-parse')) return Promise.resolve('main')
         if (args.includes('branch')) return Promise.resolve('* main abc123 [origin/main] Initial commit')
@@ -289,7 +283,7 @@ describe('Repo Git Routes', () => {
       const { executeCommand } = await import('../../src/utils/process')
       const executeCommandMock = executeCommand as MockedFunction<typeof executeCommand>
 
-      getRepoByIdMock.mockReturnValue({ id: 1, fullPath: '/path/to/repo' } as any)
+      getRepoByIdMock.mockResolvedValue({ id: 1, fullPath: '/path/to/repo' } as any)
       executeCommandMock.mockRejectedValue(new Error('Git operation failed'))
 
       const response = await app.request('/1/git/branches')
@@ -302,7 +296,7 @@ describe('Repo Git Routes', () => {
 
   describe('POST /:id/git/discard', () => {
     it('should return 404 when repo does not exist', async () => {
-      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockReturnValue(null)
+      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockResolvedValue(null)
       const response = await app.request('/999/git/discard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -315,7 +309,7 @@ describe('Repo Git Routes', () => {
     })
 
     it('should return 400 when paths is not an array', async () => {
-      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockReturnValue({ id: 1 } as any)
+      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockResolvedValue({ id: 1 } as any)
       const response = await app.request('/1/git/discard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -328,7 +322,7 @@ describe('Repo Git Routes', () => {
     })
 
     it('should return 400 when paths is missing', async () => {
-      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockReturnValue({ id: 1 } as any)
+      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockResolvedValue({ id: 1 } as any)
       const response = await app.request('/1/git/discard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -341,7 +335,7 @@ describe('Repo Git Routes', () => {
     })
 
     it('should return 500 when git operation fails', async () => {
-      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockReturnValue({ id: 1, fullPath: '/path/to/repo' } as any)
+      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockResolvedValue({ id: 1, fullPath: '/path/to/repo' } as any)
       const response = await app.request('/1/git/discard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -356,7 +350,7 @@ describe('Repo Git Routes', () => {
 
   describe('GET /:id/git/commit/:hash', () => {
     it('should return 404 when repo does not exist', async () => {
-      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockReturnValue(null)
+      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockResolvedValue(null)
       const response = await app.request('/999/git/commit/abc123')
 
       expect(response.status).toBe(404)
@@ -365,14 +359,14 @@ describe('Repo Git Routes', () => {
     })
 
     it('should return 400 when hash is missing', async () => {
-      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockReturnValue({ id: 1 } as any)
+      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockResolvedValue({ id: 1 } as any)
       const response = await app.request('/1/git/commit/')
 
       expect(response.status).toBeGreaterThanOrEqual(400)
     })
 
     it('should return 500 when git operation fails', async () => {
-      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockReturnValue({ id: 1, fullPath: '/path/to/repo' } as any)
+      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockResolvedValue({ id: 1, fullPath: '/path/to/repo' } as any)
       const response = await app.request('/1/git/commit/abc123')
 
       expect(response.status).toBe(500)
@@ -383,7 +377,7 @@ describe('Repo Git Routes', () => {
 
   describe('GET /:id/git/commit/:hash/diff', () => {
     it('should return 404 when repo does not exist', async () => {
-      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockReturnValue(null)
+      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockResolvedValue(null)
       const response = await app.request('/999/git/commit/abc123/diff?path=file.ts')
 
       expect(response.status).toBe(404)
@@ -392,14 +386,14 @@ describe('Repo Git Routes', () => {
     })
 
     it('should return 400 when hash is missing', async () => {
-      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockReturnValue({ id: 1 } as any)
+      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockResolvedValue({ id: 1 } as any)
       const response = await app.request('/1/git/commit//diff?path=file.ts')
 
       expect(response.status).toBeGreaterThanOrEqual(400)
     })
 
     it('should return 400 when path query parameter is missing', async () => {
-      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockReturnValue({ id: 1 } as any)
+      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockResolvedValue({ id: 1 } as any)
       const response = await app.request('/1/git/commit/abc123/diff')
       const body = await response.json()
 
@@ -408,7 +402,7 @@ describe('Repo Git Routes', () => {
     })
 
     it('should return 500 when git operation fails', async () => {
-      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockReturnValue({ id: 1, fullPath: '/path/to/repo' } as any)
+      ;(db.getRepoById as MockedFunction<typeof db.getRepoById>).mockResolvedValue({ id: 1, fullPath: '/path/to/repo' } as any)
       const response = await app.request('/1/git/commit/abc123/diff?path=file.ts')
 
       expect(response.status).toBe(500)

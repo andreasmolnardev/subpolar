@@ -173,6 +173,7 @@ export function DesktopSidebar() {
   }
 
   return (
+    <>
     <Sidebar collapsed={collapsed} className="pt-0">
       {/* Brand */}
       <div className="flex items-center justify-between px-3 py-3 border-b border-border">
@@ -322,6 +323,7 @@ export function DesktopSidebar() {
       editingAgent={null}
       availableSkills={opencodeSkills?.map(s => s.name) || []}
     />
+    </>
   )
 }
 

@@ -19,7 +19,7 @@ export class GitService {
 
   async getStatus(repoId: number, database: Database): Promise<GitStatusResponse> {
     try {
-      const repo = getRepoById(database, repoId)
+      const repo = await getRepoById(database, repoId)
       if (!repo) {
         throw new Error(`Repository not found`)
       }
@@ -50,7 +50,7 @@ export class GitService {
   }
 
   async getFileDiff(repoId: number, filePath: string, database: Database, options?: GitDiffOptions & { includeStaged?: boolean }): Promise<FileDiffResponse> {
-    const repo = getRepoById(database, repoId)
+    const repo = await getRepoById(database, repoId)
     if (!repo) {
       throw new Error(`Repository not found: ${repoId}`)
     }
@@ -85,7 +85,7 @@ export class GitService {
 
   async getLog(repoId: number, database: Database, limit: number = 10): Promise<GitCommit[]> {
     try {
-      const repo = getRepoById(database, repoId)
+      const repo = await getRepoById(database, repoId)
       if (!repo) {
         throw new Error(`Repository not found: ${repoId}`)
       }
@@ -139,7 +139,7 @@ export class GitService {
 
   async getCommit(repoId: number, hash: string, database: Database): Promise<GitCommit | null> {
     try {
-      const repo = getRepoById(database, repoId)
+      const repo = await getRepoById(database, repoId)
       if (!repo) {
         throw new Error(`Repository not found: ${repoId}`)
       }
@@ -190,7 +190,7 @@ export class GitService {
 
   async commit(repoId: number, message: string, database: Database, stagedPaths?: string[]): Promise<string> {
     try {
-      const repo = getRepoById(database, repoId)
+      const repo = await getRepoById(database, repoId)
       if (!repo) {
         throw new Error(`Repository not found`)
       }
@@ -198,7 +198,7 @@ export class GitService {
       const repoPath = repo.fullPath
       const authEnv = this.gitAuthService.getGitEnvironment()
 
-      const settings = this.settingsService.getSettings('default')
+      const settings = await this.settingsService.getSettings('default')
       const gitCredentials = (settings.preferences.gitCredentials || []) as GitCredential[]
       const identity = await resolveGitIdentity(settings.preferences.gitIdentity, gitCredentials)
       const identityEnv = identity ? createGitIdentityEnv(identity) : {}
@@ -223,7 +223,7 @@ export class GitService {
 
   async stageFiles(repoId: number, paths: string[], database: Database): Promise<string> {
     try {
-      const repo = getRepoById(database, repoId)
+      const repo = await getRepoById(database, repoId)
       if (!repo) {
         throw new Error(`Repository not found`)
       }
@@ -247,7 +247,7 @@ export class GitService {
 
   async unstageFiles(repoId: number, paths: string[], database: Database): Promise<string> {
     try {
-      const repo = getRepoById(database, repoId)
+      const repo = await getRepoById(database, repoId)
       if (!repo) {
         throw new Error(`Repository not found`)
       }
@@ -271,7 +271,7 @@ export class GitService {
 
   async discardChanges(repoId: number, paths: string[], staged: boolean, database: Database): Promise<string> {
     try {
-      const repo = getRepoById(database, repoId)
+      const repo = await getRepoById(database, repoId)
       if (!repo) {
         throw new Error(`Repository not found`)
       }
@@ -427,7 +427,7 @@ export class GitService {
 
   async getCommitDetails(repoId: number, hash: string, database: Database): Promise<CommitDetails | null> {
     try {
-      const repo = getRepoById(database, repoId)
+      const repo = await getRepoById(database, repoId)
       if (!repo) {
         throw new Error(`Repository not found: ${repoId}`)
       }
@@ -481,7 +481,7 @@ export class GitService {
 
   async getCommitDiff(repoId: number, hash: string, filePath: string, database: Database): Promise<FileDiffResponse> {
     try {
-      const repo = getRepoById(database, repoId)
+      const repo = await getRepoById(database, repoId)
       if (!repo) {
         throw new Error(`Repository not found: ${repoId}`)
       }
@@ -541,7 +541,7 @@ export class GitService {
 
   async resetToCommit(repoId: number, commitHash: string, database: Database): Promise<string> {
     try {
-      const repo = getRepoById(database, repoId)
+      const repo = await getRepoById(database, repoId)
       if (!repo) {
         throw new Error(`Repository not found`)
       }
@@ -560,7 +560,7 @@ export class GitService {
   }
 
   async push(repoId: number, options: { setUpstream?: boolean }, database: Database): Promise<string> {
-    const repo = getRepoById(database, repoId)
+    const repo = await getRepoById(database, repoId)
     if (!repo) {
       throw new Error('Repository not found')
     }
@@ -590,7 +590,7 @@ export class GitService {
   }
 
   async fetch(repoId: number, database: Database): Promise<string> {
-    const repo = getRepoById(database, repoId)
+    const repo = await getRepoById(database, repoId)
     if (!repo) {
       throw new Error('Repository not found')
     }
@@ -608,7 +608,7 @@ export class GitService {
   }
 
   async pull(repoId: number, database: Database): Promise<string> {
-    const repo = getRepoById(database, repoId)
+    const repo = await getRepoById(database, repoId)
     if (!repo) {
       throw new Error('Repository not found')
     }
@@ -626,7 +626,7 @@ export class GitService {
   }
 
   async getBranches(repoId: number, database: Database): Promise<GitBranch[]> {
-    const repo = getRepoById(database, repoId)
+    const repo = await getRepoById(database, repoId)
     if (!repo) {
       throw new Error(`Repository not found`)
     }
@@ -703,7 +703,7 @@ export class GitService {
 
   async getBranchStatus(repoId: number, database: Database): Promise<{ ahead: number; behind: number }> {
     try {
-      const repo = getRepoById(database, repoId)
+      const repo = await getRepoById(database, repoId)
       if (!repo) {
         throw new Error(`Repository not found`)
       }
@@ -722,7 +722,7 @@ export class GitService {
   }
 
   async createBranch(repoId: number, branchName: string, database: Database): Promise<string> {
-    const repo = getRepoById(database, repoId)
+    const repo = await getRepoById(database, repoId)
     if (!repo) {
       throw new Error(`Repository not found`)
     }
@@ -736,7 +736,7 @@ export class GitService {
   }
 
   async switchBranch(repoId: number, branchName: string, database: Database): Promise<string> {
-    const repo = getRepoById(database, repoId)
+    const repo = await getRepoById(database, repoId)
     if (!repo) {
       throw new Error(`Repository not found`)
     }
@@ -995,6 +995,6 @@ export class GitService {
     }
 
     const args = ['git', '-C', fullPath, 'push', '--set-upstream', 'origin', branchName]
-    return executeCommand(args, { env })
+    return await executeCommand(args, { env })
   }
 }

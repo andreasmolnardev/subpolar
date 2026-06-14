@@ -1,5 +1,5 @@
 import { redirect } from 'react-router-dom'
-import { getSession } from './auth-client'
+import { pb } from './auth-client'
 
 export interface AuthConfig {
   enabledProviders: string[]
@@ -26,13 +26,25 @@ async function fetchAuthConfig(): Promise<AuthConfig> {
   }
 }
 
+async function checkSession() {
+  if (pb.authStore.isValid) {
+    try {
+      await pb.collection('users').authRefresh()
+      return pb.authStore.isValid
+    } catch {
+      pb.authStore.clear()
+    }
+  }
+  return false
+}
+
 export async function loginLoader() {
-  const [config, session] = await Promise.all([
+  const [config, isLoggedIn] = await Promise.all([
     fetchAuthConfig(),
-    getSession(),
+    checkSession(),
   ])
 
-  if (session.data?.user) {
+  if (isLoggedIn) {
     return redirect('/')
   }
 
@@ -44,12 +56,12 @@ export async function loginLoader() {
 }
 
 export async function setupLoader() {
-  const [config, session] = await Promise.all([
+  const [config, isLoggedIn] = await Promise.all([
     fetchAuthConfig(),
-    getSession(),
+    checkSession(),
   ])
 
-  if (session.data?.user) {
+  if (isLoggedIn) {
     return redirect('/')
   }
 
@@ -61,12 +73,12 @@ export async function setupLoader() {
 }
 
 export async function registerLoader() {
-  const [config, session] = await Promise.all([
+  const [config, isLoggedIn] = await Promise.all([
     fetchAuthConfig(),
-    getSession(),
+    checkSession(),
   ])
 
-  if (session.data?.user) {
+  if (isLoggedIn) {
     return redirect('/')
   }
 
@@ -82,9 +94,9 @@ export async function registerLoader() {
 }
 
 export async function protectedLoader() {
-  const session = await getSession()
+  const isLoggedIn = await checkSession()
 
-  if (!session.data?.user) {
+  if (!isLoggedIn) {
     return redirect('/login')
   }
 

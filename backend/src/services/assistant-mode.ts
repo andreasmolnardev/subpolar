@@ -820,7 +820,7 @@ export async function ensureAssistantMode(
   await ensureDirectoryExists(path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, ASSISTANT_SETTINGS_SKILL_DIR))
   await ensureDirectoryExists(path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, ASSISTANT_REPOS_SKILL_DIR))
 
-  const token = getOrCreateInternalToken(deps.db)
+  const token = await getOrCreateInternalToken(deps.db)
   const existingTokenContent = await fileExists(tokenPath) ? await readFileContent(tokenPath) : undefined
   const tokenCreated = !existingTokenContent || existingTokenContent.trim() !== token
   if (tokenCreated) {
@@ -1082,7 +1082,7 @@ export async function installAssistantWorkspace(deps: {
   db: Database
   apiBaseUrl: string
 }): Promise<AssistantModeStatus> {
-  const assistantRepo = ensureAssistantRepo(deps.db)
+  const assistantRepo = await ensureAssistantRepo(deps.db)
 
   return ensureAssistantMode(assistantRepo, {
     db: deps.db,

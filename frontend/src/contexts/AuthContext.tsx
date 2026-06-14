@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useEffect, useMemo, useState, useCallback, type ReactNode } from 'react'
-import { useSession, signIn, signUp, signOut, authClient, type AuthUser } from '@/lib/auth-client'
+import { pb, type AuthUser } from '@/lib/auth-client'
 import { useNavigate, useLocation } from 'react-router-dom'
 
 interface AuthConfig {
@@ -16,10 +16,7 @@ interface AuthContextValue {
   isLoading: boolean
   config: AuthConfig | null
   signInWithEmail: (email: string, password: string) => Promise<{ error?: string }>
-  signInWithProvider: (provider: 'github' | 'google' | 'discord') => Promise<{ error?: string }>
-  signInWithPasskey: () => Promise<{ error?: string }>
   signUpWithEmail: (email: string, password: string, name: string) => Promise<{ error?: string }>
-  addPasskey: (name?: string) => Promise<{ error?: string }>
   logout: () => Promise<void>
   refreshSession: () => Promise<void>
 }
@@ -33,12 +30,33 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const { data: session, isPending, refetch } = useSession()
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [config, setConfig] = useState<AuthConfig | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
 
+  const refreshSession = useCallback(async () => {
+    if (pb.authStore.isValid) {
+      try {
+        await pb.collection('users').authRefresh()
+        setUser(pb.authStore.model)
+      } catch {
+        pb.authStore.clear()
+        setUser(null)
+      }
+    } else {
+      setUser(null)
+    }
+  }, [])
+
   useEffect(() => {
+    refreshSession().finally(() => setIsLoading(false))
+
+    const unsubscribe = pb.authStore.onChange((_token, model) => {
+      setUser(model)
+    })
+
     const fetchConfig = async () => {
       try {
         const response = await fetch('/api/auth-info/config')
@@ -56,96 +74,54 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     }
     fetchConfig()
-  }, [])
+
+    return () => {
+      unsubscribe?.()
+    }
+  }, [refreshSession])
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
-    const result = await signIn.email({ email, password })
-    if (result.error) {
-      return { error: result.error.message || 'Sign in failed' }
-    }
-    await refetch()
-    const from = (location.state as { from?: string })?.from || '/'
-    navigate(from, { replace: true })
-    return {}
-  }, [refetch, navigate, location])
-
-  const signInWithProvider = useCallback(async (provider: 'github' | 'google' | 'discord') => {
     try {
-      await signIn.social({ provider, callbackURL: '/' })
-      return {}
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : 'OAuth sign in failed' }
-    }
-  }, [])
-
-  const signInWithPasskey = useCallback(async () => {
-    try {
-      const result = await authClient.signIn.passkey()
-      if (result.error) {
-        return { error: result.error.message || 'Passkey sign in failed' }
-      }
-      await refetch()
+      await pb.collection('users').authWithPassword(email, password)
       const from = (location.state as { from?: string })?.from || '/'
       navigate(from, { replace: true })
       return {}
     } catch (err) {
-      return { error: err instanceof Error ? err.message : 'Passkey sign in failed' }
+      return { error: err instanceof Error ? err.message : 'Sign in failed' }
     }
-  }, [refetch, navigate, location])
+  }, [navigate, location])
 
   const signUpWithEmail = useCallback(async (email: string, password: string, name: string) => {
-    const result = await signUp.email({ email, password, name })
-    if (result.error) {
-      return { error: result.error.message || 'Sign up failed' }
+    try {
+      await pb.collection('users').create({ email, password, passwordConfirm: password, name })
+      await pb.collection('users').authWithPassword(email, password)
+      navigate('/', { replace: true })
+      return {}
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Sign up failed' }
     }
-    await refetch()
-    navigate('/', { replace: true })
-    return {}
-  }, [refetch, navigate])
-
-  const addPasskey = useCallback(async (name?: string) => {
-    const result = await authClient.passkey.addPasskey({ name })
-    if (result.error) {
-      return { error: result.error.message || 'Failed to add passkey' }
-    }
-    return {}
-  }, [])
+  }, [navigate])
 
   const logout = useCallback(async () => {
-    await signOut({
-      fetchOptions: {
-        onSuccess: () => {
-          window.location.href = '/login'
-        },
-      },
-    })
+    pb.authStore.clear()
+    window.location.href = '/login'
   }, [])
 
-  const refreshSession = useCallback(async () => {
-    await refetch()
-  }, [refetch])
-
   const value = useMemo<AuthContextValue>(() => ({
-    user: session?.user ?? null,
-    isAuthenticated: !!session?.user,
-    isLoading: isPending,
+    user,
+    isAuthenticated: !!user,
+    isLoading,
     config,
     signInWithEmail,
-    signInWithProvider,
-    signInWithPasskey,
     signUpWithEmail,
-    addPasskey,
     logout,
     refreshSession,
   }), [
-    session,
-    isPending,
+    user,
+    isLoading,
     config,
     signInWithEmail,
-    signInWithProvider,
-    signInWithPasskey,
     signUpWithEmail,
-    addPasskey,
     logout,
     refreshSession,
   ])

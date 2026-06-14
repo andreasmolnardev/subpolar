@@ -69,7 +69,7 @@ export function createProvidersRoutes(db: Database, openCodeClient: OpenCodeClie
 
   app.get('/model-state', async (c) => {
     try {
-      const state = readModelStateFromDb(db)
+      const state = await readModelStateFromDb(db)
       return c.json(state)
     } catch (error) {
       logger.error('Failed to read OpenCode model state from DB:', error)
@@ -85,13 +85,13 @@ export function createProvidersRoutes(db: Database, openCodeClient: OpenCodeClie
       let nextState: OpenCodeModelStateRecord
       
       if (validated.favorite) {
-        nextState = toggleFavoriteOpenCodeModel(db, validated.favorite)
+        nextState = await toggleFavoriteOpenCodeModel(db, validated.favorite)
       } else if (validated.recent) {
-        nextState = addRecentOpenCodeModel(db, validated.recent)
+        nextState = await addRecentOpenCodeModel(db, validated.recent)
       } else if (validated.removeRecent) {
-        nextState = removeRecentOpenCodeModel(db, validated.removeRecent)
+        nextState = await removeRecentOpenCodeModel(db, validated.removeRecent)
       } else {
-        nextState = readModelStateFromDb(db)
+        nextState = await readModelStateFromDb(db)
       }
       
       await mirrorModelStateToFile(nextState)

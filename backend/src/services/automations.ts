@@ -366,25 +366,25 @@ export class AutomationService {
     this.onJobChange = handler
   }
 
-  listAllEnabledJobs(): AutomationJob[] {
-    return listEnabledAutomationJobs(this.db)
+  async listAllEnabledJobs(): Promise<AutomationJob[]> {
+    return await listEnabledAutomationJobs(this.db)
   }
 
-  listAllJobsWithRepos(): AutomationJobWithRepo[] {
-    return listAllAutomationJobsWithRepos(this.db)
+  async listAllJobsWithRepos(): Promise<AutomationJobWithRepo[]> {
+    return await listAllAutomationJobsWithRepos(this.db)
   }
 
-  listAllRuns(options: ListAllRunsOptions = {}): AutomationRunWithContext[] {
+  async listAllRuns(options: ListAllRunsOptions = {}): Promise<AutomationRunWithContext[]> {
     const limit = Math.min(Math.max(options.limit ?? 20, 1), 100)
     const offset = Math.max(options.offset ?? 0, 0)
-    return listAllAutomationRuns(this.db, { ...options, limit, offset })
+    return await listAllAutomationRuns(this.db, { ...options, limit, offset })
   }
 
   async recoverRunningRuns(): Promise<void> {
-    const runningRuns = listRunningAutomationRuns(this.db)
+    const runningRuns = await listRunningAutomationRuns(this.db)
 
     for (const run of runningRuns) {
-      const job = getAutomationJobById(this.db, run.repoId, run.jobId)
+      const job = await getAutomationJobById(this.db, run.repoId, run.jobId)
       if (!job) {
         continue
       }
@@ -398,20 +398,20 @@ export class AutomationService {
     }
   }
 
-  listJobs(repoId: number): AutomationJob[] {
-    this.assertRepo(repoId)
-    return listAutomationJobsByRepo(this.db, repoId)
+  async listJobs(repoId: number): Promise<AutomationJob[]> {
+    await this.assertRepo(repoId)
+    return await listAutomationJobsByRepo(this.db, repoId)
   }
 
-  getJob(repoId: number, jobId: number): AutomationJob | null {
-    return getAutomationJobById(this.db, repoId, jobId)
+  async getJob(repoId: number, jobId: number): Promise<AutomationJob | null> {
+    return await getAutomationJobById(this.db, repoId, jobId)
   }
 
-  createJob(repoId: number, input: CreateAutomationJobRequest): AutomationJob {
-    this.assertRepo(repoId)
+  async createJob(repoId: number, input: CreateAutomationJobRequest): Promise<AutomationJob> {
+    await this.assertRepo(repoId)
 
     try {
-      const job = createAutomationJob(this.db, repoId, buildCreateAutomationPersistenceInput(input))
+      const job = await createAutomationJob(this.db, repoId, buildCreateAutomationPersistenceInput(input))
       this.onJobChange?.(job, job.id)
       return job
     } catch (error) {
@@ -419,13 +419,13 @@ export class AutomationService {
     }
   }
 
-  updateJob(repoId: number, jobId: number, input: UpdateAutomationJobRequest): AutomationJob {
-    this.assertRepo(repoId)
-    const existing = this.assertJob(repoId, jobId)
+  async updateJob(repoId: number, jobId: number, input: UpdateAutomationJobRequest): Promise<AutomationJob> {
+    await this.assertRepo(repoId)
+    const existing = await this.assertJob(repoId, jobId)
     let job: AutomationJob | null
 
     try {
-      job = updateAutomationJob(this.db, repoId, jobId, buildUpdatedAutomationPersistenceInput(existing, input))
+      job = await updateAutomationJob(this.db, repoId, jobId, buildUpdatedAutomationPersistenceInput(existing, input))
     } catch (error) {
       throw new AutomationServiceError(getErrorMessage(error), 400)
     }
@@ -437,43 +437,38 @@ export class AutomationService {
     return job
   }
 
-  deleteJob(repoId: number, jobId: number): void {
-    this.assertRepo(repoId)
-    const deleted = deleteAutomationJob(this.db, repoId, jobId)
+  async deleteJob(repoId: number, jobId: number): Promise<void> {
+    await this.assertRepo(repoId)
+    const deleted = await deleteAutomationJob(this.db, repoId, jobId)
     if (!deleted) {
       throw new AutomationServiceError('Automation not found', 404)
     }
     this.onJobChange?.(null, jobId)
   }
 
-  prepareRepoDelete(repoId: number): void {
-    const jobIds = listAutomationJobIdsByRepo(this.db, repoId)
+  async prepareRepoDelete(repoId: number): Promise<void> {
+    const jobIds = await listAutomationJobIdsByRepo(this.db, repoId)
     for (const jobId of jobIds) {
       this.onJobChange?.(null, jobId)
     }
   }
 
-  /**
-   * Removes any automation_jobs and automation_runs whose repo_id (or job_id for
-   * runs) no longer exists in the repos / automation_jobs table.  Safe to call
-   * on every startup — no-op when there are no orphans.
-   */
-  cleanupOrphanedAutomations(): { orphanedJobs: number; orphanedRuns: number } {
-    const result = cleanupOrphanedAutomations(this.db)
+  async cleanupOrphanedAutomations(): Promise<{ orphanedJobs: number; orphanedRuns: number }> {
+    const result = await cleanupOrphanedAutomations(this.db)
     if (result.orphanedJobs > 0 || result.orphanedRuns > 0) {
       logger.info(`Cleaned up ${result.orphanedJobs} orphaned automation job(s) and ${result.orphanedRuns} run(s)`)
     }
     return result
   }
 
-  listRuns(repoId: number, jobId: number, limit: number = 20): AutomationRun[] {
-    this.assertJob(repoId, jobId)
-    return listAutomationRunsByJob(this.db, repoId, jobId, limit)
+  async listRuns(repoId: number, jobId: number, limit: number = 20): Promise<AutomationRun[]> {
+    await this.assertJob(repoId, jobId)
+    return await listAutomationRunsByJob(this.db, repoId, jobId, limit)
   }
 
-  getRun(repoId: number, jobId: number, runId: number): AutomationRun {
-    this.assertJob(repoId, jobId)
-    const run = getAutomationRunById(this.db, repoId, jobId, runId)
+  async getRun(repoId: number, jobId: number, runId: number): Promise<AutomationRun> {
+    await this.assertJob(repoId, jobId)
+    const run = await getAutomationRunById(this.db, repoId, jobId, runId)
     if (!run) {
       throw new AutomationServiceError('Run not found', 404)
     }
@@ -481,10 +476,10 @@ export class AutomationService {
   }
 
   async runJob(repoId: number, jobId: number, triggerSource: AutomationRunTriggerSource): Promise<AutomationRun> {
-    const repo = this.assertRepo(repoId)
-    const job = this.assertJob(repoId, jobId)
+    const repo = await this.assertRepo(repoId)
+    const job = await this.assertJob(repoId, jobId)
 
-    const existingRunningRun = getRunningAutomationRunByJob(this.db, repoId, jobId)
+    const existingRunningRun = await getRunningAutomationRunByJob(this.db, repoId, jobId)
     if (existingRunningRun) {
       throw new AutomationServiceError('Automation is already running', 409)
     }
@@ -496,7 +491,7 @@ export class AutomationService {
     AutomationService.activeRuns.add(jobId)
 
     const startedAt = Date.now()
-    const run = createAutomationRun(this.db, {
+    const run = await createAutomationRun(this.db, {
       jobId,
       repoId,
       triggerSource,
@@ -526,7 +521,7 @@ export class AutomationService {
       }
 
       const session = await sessionResponse.json() as SessionResponse
-      const runWithSession = updateAutomationRunMetadata(this.db, repoId, jobId, run.id, {
+      const runWithSession = await updateAutomationRunMetadata(this.db, repoId, jobId, run.id, {
         sessionId: session.id,
         sessionTitle,
         logText: buildRunStartedLog({
@@ -560,7 +555,7 @@ export class AutomationService {
       const errorText = getErrorMessage(error)
       logger.error(`Failed to run automation ${jobId}:`, error)
 
-      const failedRun = updateAutomationRun(this.db, repoId, jobId, run.id, {
+      const failedRun = await updateAutomationRun(this.db, repoId, jobId, run.id, {
         status: 'failed',
         finishedAt,
         errorText,
@@ -573,7 +568,7 @@ export class AutomationService {
       })
 
       try {
-        updateAutomationJobRunState(this.db, repoId, jobId, {
+        await updateAutomationJobRunState(this.db, repoId, jobId, {
           lastRunAt: finishedAt,
           nextRunAt: triggerSource === 'manual' ? job.nextRunAt : computeNextRunAtForJob(job, finishedAt),
         })
@@ -597,9 +592,9 @@ export class AutomationService {
   }
 
   async cancelRun(repoId: number, jobId: number, runId: number): Promise<AutomationRun> {
-    const repo = this.assertRepo(repoId)
-    const job = this.assertJob(repoId, jobId)
-    const run = this.getRun(repoId, jobId, runId)
+    const repo = await this.assertRepo(repoId)
+    const job = await this.assertJob(repoId, jobId)
+    const run = await this.getRun(repoId, jobId, runId)
 
     if (run.status !== 'running') {
       throw new AutomationServiceError('Only running automation runs can be cancelled', 409)
@@ -610,13 +605,13 @@ export class AutomationService {
       const assistantState = getAssistantMessageState(messages)
 
       if (assistantState?.completed || assistantState?.errorText) {
-        this.finalizeRecoveredRun(job, run, {
+        await this.finalizeRecoveredRun(job, run, {
           status: assistantState.errorText ? 'failed' : 'completed',
           responseText: assistantState.responseText,
           errorText: assistantState.errorText,
         })
 
-        return this.getRun(repoId, jobId, runId)
+        return await this.getRun(repoId, jobId, runId)
       }
 
       const abortResponse = await this.openCodeClient.forward({
@@ -633,7 +628,7 @@ export class AutomationService {
 
     const finishedAt = Date.now()
     const cancellationMessage = 'Run cancelled by user.'
-    const cancelledRun = updateAutomationRun(this.db, repoId, jobId, runId, {
+    const cancelledRun = await updateAutomationRun(this.db, repoId, jobId, runId, {
       status: 'cancelled',
       finishedAt,
       sessionId: run.sessionId,
@@ -651,7 +646,7 @@ export class AutomationService {
       }),
     })
 
-    updateAutomationJobRunState(this.db, repoId, jobId, {
+    await updateAutomationJobRunState(this.db, repoId, jobId, {
       lastRunAt: finishedAt,
       nextRunAt: job.nextRunAt,
     })
@@ -675,7 +670,7 @@ export class AutomationService {
     model: { providerID: string; modelID: string }
     sessionMonitor: SessionMonitor
   }): Promise<void> {
-    const repo = this.assertRepo(input.repoId)
+    const repo = await this.assertRepo(input.repoId)
 
     try {
       const promptResponse = await this.openCodeClient.forward({
@@ -698,14 +693,14 @@ export class AutomationService {
       const promptResult = parsePromptResponse(promptBody)
 
       if (promptResult) {
-        const currentRun = getAutomationRunById(this.db, input.repoId, input.job.id, input.runId)
+        const currentRun = await getAutomationRunById(this.db, input.repoId, input.job.id, input.runId)
         if (!currentRun || currentRun.status !== 'running') {
           return
         }
 
         const finishedAt = Date.now()
         const responseText = extractResponseText(promptResult)
-        updateAutomationRun(this.db, input.repoId, input.job.id, input.runId, {
+        await updateAutomationRun(this.db, input.repoId, input.job.id, input.runId, {
           status: 'completed',
           finishedAt,
           sessionId: input.sessionId,
@@ -721,7 +716,7 @@ export class AutomationService {
           }),
         })
 
-        updateAutomationJobRunState(this.db, input.repoId, input.job.id, {
+        await updateAutomationJobRunState(this.db, input.repoId, input.job.id, {
           lastRunAt: finishedAt,
           nextRunAt: input.triggerSource === 'manual' ? input.job.nextRunAt : computeNextRunAtForJob(input.job, finishedAt),
         })
@@ -744,12 +739,12 @@ export class AutomationService {
       const errorText = getErrorMessage(error)
       logger.error(`Failed to submit prompt for automation ${input.job.id}:`, error)
 
-      const currentRun = getAutomationRunById(this.db, input.repoId, input.job.id, input.runId)
+      const currentRun = await getAutomationRunById(this.db, input.repoId, input.job.id, input.runId)
       if (!currentRun || currentRun.status !== 'running') {
         return
       }
 
-      updateAutomationRun(this.db, input.repoId, input.job.id, input.runId, {
+      await updateAutomationRun(this.db, input.repoId, input.job.id, input.runId, {
         status: 'failed',
         finishedAt,
         sessionId: input.sessionId,
@@ -765,7 +760,7 @@ export class AutomationService {
         }),
       })
 
-      updateAutomationJobRunState(this.db, input.repoId, input.job.id, {
+      await updateAutomationJobRunState(this.db, input.repoId, input.job.id, {
         lastRunAt: finishedAt,
         nextRunAt: input.triggerSource === 'manual' ? input.job.nextRunAt : computeNextRunAtForJob(input.job, finishedAt),
       })
@@ -788,11 +783,11 @@ export class AutomationService {
     try {
       const sessionStatus = input.initialSessionStatus
       if (sessionStatus && sessionStatus.type === 'idle') {
-        const repo = this.assertRepo(input.repoId)
+        const repo = await this.assertRepo(input.repoId)
         const messages = await this.listSessionMessages(repo.fullPath, input.sessionId)
         const assistantState = getAssistantMessageState(messages)
         if (assistantState?.completed || assistantState?.errorText) {
-          this.finalizeRecoveredRun(input.job, {
+          await this.finalizeRecoveredRun(input.job, {
             id: input.runId,
             repoId: input.repoId,
             jobId: input.job.id,
@@ -808,11 +803,11 @@ export class AutomationService {
         }
       }
 
-      const repo = this.assertRepo(input.repoId)
+      const repo = await this.assertRepo(input.repoId)
       const currentMessages = await this.listSessionMessages(repo.fullPath, input.sessionId)
       const currentAssistantState = getAssistantMessageState(currentMessages)
       if (currentAssistantState?.completed || currentAssistantState?.errorText) {
-        this.finalizeRecoveredRun(input.job, {
+        await this.finalizeRecoveredRun(input.job, {
           id: input.runId,
           repoId: input.repoId,
           jobId: input.job.id,
@@ -828,7 +823,7 @@ export class AutomationService {
       }
 
       const response = await this.waitForAssistantMessage(input.job, input.sessionId, input.sessionMonitor)
-      const currentRun = getAutomationRunById(this.db, input.repoId, input.job.id, input.runId)
+      const currentRun = await getAutomationRunById(this.db, input.repoId, input.job.id, input.runId)
       if (!currentRun || currentRun.status !== 'running') {
         return
       }
@@ -836,7 +831,7 @@ export class AutomationService {
       const finishedAt = Date.now()
 
       if (response.errorText) {
-        updateAutomationRun(this.db, input.repoId, input.job.id, input.runId, {
+        await updateAutomationRun(this.db, input.repoId, input.job.id, input.runId, {
           status: 'failed',
           finishedAt,
           sessionId: input.sessionId,
@@ -854,7 +849,7 @@ export class AutomationService {
           }),
         })
       } else {
-        updateAutomationRun(this.db, input.repoId, input.job.id, input.runId, {
+        await updateAutomationRun(this.db, input.repoId, input.job.id, input.runId, {
           status: 'completed',
           finishedAt,
           sessionId: input.sessionId,
@@ -871,7 +866,7 @@ export class AutomationService {
         })
       }
 
-      updateAutomationJobRunState(this.db, input.repoId, input.job.id, {
+      await updateAutomationJobRunState(this.db, input.repoId, input.job.id, {
         lastRunAt: finishedAt,
         nextRunAt: input.triggerSource === 'manual' ? input.job.nextRunAt : computeNextRunAtForJob(input.job, finishedAt),
       })
@@ -880,12 +875,12 @@ export class AutomationService {
       const errorText = getErrorMessage(error)
       logger.error(`Failed to monitor automation ${input.job.id}:`, error)
 
-      const currentRun = getAutomationRunById(this.db, input.repoId, input.job.id, input.runId)
+      const currentRun = await getAutomationRunById(this.db, input.repoId, input.job.id, input.runId)
       if (!currentRun || currentRun.status !== 'running') {
         return
       }
 
-      updateAutomationRun(this.db, input.repoId, input.job.id, input.runId, {
+      await updateAutomationRun(this.db, input.repoId, input.job.id, input.runId, {
         status: 'failed',
         finishedAt,
         sessionId: input.sessionId,
@@ -901,7 +896,7 @@ export class AutomationService {
         }),
       })
 
-      updateAutomationJobRunState(this.db, input.repoId, input.job.id, {
+      await updateAutomationJobRunState(this.db, input.repoId, input.job.id, {
         lastRunAt: finishedAt,
         nextRunAt: input.triggerSource === 'manual' ? input.job.nextRunAt : computeNextRunAtForJob(input.job, finishedAt),
       })
@@ -913,10 +908,10 @@ export class AutomationService {
 
   private async recoverRunningRun(job: AutomationJob, run: AutomationRun): Promise<void> {
     try {
-      const repo = this.assertRepo(job.repoId)
+      const repo = await this.assertRepo(job.repoId)
 
       if (!run.sessionId) {
-        this.finalizeRecoveredRun(job, run, {
+        await this.finalizeRecoveredRun(job, run, {
           status: 'failed',
           errorText: 'This run was interrupted before completion and had no linked session to recover.',
         })
@@ -927,7 +922,7 @@ export class AutomationService {
       const assistantState = getAssistantMessageState(messages)
 
       if (assistantState?.completed || assistantState?.errorText) {
-        this.finalizeRecoveredRun(job, run, {
+        await this.finalizeRecoveredRun(job, run, {
           status: assistantState.errorText ? 'failed' : 'completed',
           responseText: assistantState.responseText,
           errorText: assistantState.errorText,
@@ -953,7 +948,7 @@ export class AutomationService {
         return
       }
 
-      this.finalizeRecoveredRun(job, run, {
+      await this.finalizeRecoveredRun(job, run, {
         status: 'failed',
         responseText: assistantState?.responseText ?? null,
         errorText: 'This run was interrupted before completion, likely because subpolar restarted while it was in progress. Open the linked session to inspect the partial output and rerun if needed.',
@@ -961,14 +956,14 @@ export class AutomationService {
     } catch (error) {
       const errorText = getErrorMessage(error)
       logger.error(`Failed to recover automation ${job.id}:`, error)
-      this.finalizeRecoveredRun(job, run, {
+      await this.finalizeRecoveredRun(job, run, {
         status: 'failed',
         errorText,
       })
     }
   }
 
-  private finalizeRecoveredRun(
+  private async finalizeRecoveredRun(
     job: AutomationJob,
     run: AutomationRun,
     input: {
@@ -976,10 +971,10 @@ export class AutomationService {
       responseText?: string | null
       errorText?: string | null
     },
-  ): void {
+  ): Promise<void> {
     const finishedAt = Date.now()
 
-    updateAutomationRun(this.db, run.repoId, run.jobId, run.id, {
+    await updateAutomationRun(this.db, run.repoId, run.jobId, run.id, {
       status: input.status,
       finishedAt,
       sessionId: run.sessionId,
@@ -997,7 +992,7 @@ export class AutomationService {
       }),
     })
 
-    updateAutomationJobRunState(this.db, run.repoId, run.jobId, {
+    await updateAutomationJobRunState(this.db, run.repoId, run.jobId, {
       lastRunAt: finishedAt,
       nextRunAt: run.triggerSource === 'manual' ? job.nextRunAt : computeNextRunAtForJob(job, finishedAt),
     })
@@ -1011,7 +1006,7 @@ export class AutomationService {
     sessionMonitor: SessionMonitor,
   ): Promise<{ responseText: string | null; errorText: string | null }> {
     const startedAt = Date.now()
-    const repo = this.assertRepo(job.repoId)
+    const repo = await this.assertRepo(job.repoId)
 
     while (Date.now() - startedAt < RUN_POLL_TIMEOUT_MS) {
       const messages = await this.listSessionMessages(repo.fullPath, sessionId)
@@ -1078,21 +1073,21 @@ export class AutomationService {
     return await response.json() as Record<string, SessionStatus>
   }
 
-  private assertRepo(repoId: number) {
+  private async assertRepo(repoId: number) {
     if (repoId === ASSISTANT_REPO_ID) {
-      const repo = getRepoById(this.db, ASSISTANT_REPO_ID)
+      const repo = await getRepoById(this.db, ASSISTANT_REPO_ID)
       if (repo) return repo
       return { ...buildAssistantRepo(), lastAccessedAt: Date.now(), isLocal: true, currentBranch: undefined }
     }
-    const repo = getRepoById(this.db, repoId)
+    const repo = await getRepoById(this.db, repoId)
     if (!repo) {
       throw new AutomationServiceError('Repo not found', 404)
     }
     return repo
   }
 
-  private assertJob(repoId: number, jobId: number) {
-    const job = getAutomationJobById(this.db, repoId, jobId)
+  private async assertJob(repoId: number, jobId: number) {
+    const job = await getAutomationJobById(this.db, repoId, jobId)
     if (!job) {
       throw new AutomationServiceError('Automation not found', 404)
     }
@@ -1147,10 +1142,10 @@ export class AutomationRunner {
     // Clean up any automation records whose repo no longer exists.  This handles
     // leftovers from before foreign-key enforcement was enabled, and guards
     // against edge cases where a repo row was removed outside the normal flow.
-    this.automationService.cleanupOrphanedAutomations()
+    await this.automationService.cleanupOrphanedAutomations()
 
     await this.automationService.recoverRunningRuns()
-    this.registerAllEnabledJobs()
+    await this.registerAllEnabledJobs()
   }
 
   stop(): void {
@@ -1284,8 +1279,8 @@ export class AutomationRunner {
     }
   }
 
-  private registerAllEnabledJobs(): void {
-    const jobs = this.automationService.listAllEnabledJobs()
+  private async registerAllEnabledJobs(): Promise<void> {
+    const jobs = await this.automationService.listAllEnabledJobs()
     logger.info(`Registering ${jobs.length} enabled automation jobs`)
     for (const job of jobs) {
       try {

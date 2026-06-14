@@ -125,7 +125,8 @@ export class SettingsService {
       const row = record as unknown as PrefsRecord
 
       try {
-        const parsed = parseJsonc(row.preferences) as Record<string, unknown>
+        const raw = typeof row.preferences === 'string' ? parseJsonc(row.preferences) : row.preferences
+        const parsed = (raw ?? {}) as Record<string, unknown>
         const validated = UserPreferencesSchema.parse({
           ...DEFAULT_USER_PREFERENCES,
           ...parsed,
@@ -165,13 +166,13 @@ export class SettingsService {
     try {
       const existing = await this.pb.collection('user_preferences').getFirstListItem(`user_id = "${userId}"`)
       await this.pb.collection('user_preferences').update(existing.id, {
-        preferences: JSON.stringify(validated),
+        preferences: validated,
         updated_at: updatedAt,
       })
     } catch {
       await this.pb.collection('user_preferences').create({
         user_id: userId,
-        preferences: JSON.stringify(validated),
+        preferences: validated,
         updated_at: updatedAt,
       })
     }
@@ -483,7 +484,7 @@ export class SettingsService {
         sort: 'created_at',
         limit: 1,
       })
-      if (configs.length > 0) {
+      if (configs.length > 0 && configs[0]) {
         await this.pb.collection('opencode_configs').update(configs[0].id, { is_default: true })
         logger.info(`Auto-set '${(configs[0] as unknown as ConfigRecord).config_name}' as default (only config)`)
       }

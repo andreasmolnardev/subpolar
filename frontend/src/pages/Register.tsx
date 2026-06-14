@@ -57,7 +57,7 @@ export function Register() {
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center space-y-2">
           <img 
-            src={theme === 'light' ? "/opencode-wordmark-light.svg" : "/opencode-wordmark-dark.svg"} 
+            src={theme === 'light' ? "/opencode-wordmark-light.svg" : "/subpolar-logo-text-dark.png"} 
             alt="OpenCode" 
             className="h-8 w-auto"
           />

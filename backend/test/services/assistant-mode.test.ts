@@ -2,24 +2,144 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test'
 import path from 'path'
 import { readFile, stat, writeFile } from 'fs/promises'
 import { Hono } from 'hono'
-import { ensureAssistantMode, getAssistantModeStatus, buildautomationsSkill, buildReposSkill, buildSettingsSkill, buildAssistantDefaultAgentMd, buildAssistantOpenCodeConfig, buildAssistantRepo, installAssistantWorkspace } from '../../src/services/assistant-mode'
-import { createTempAssistantWorkspace, createTestDb, mockRepo } from '../helpers/assistant-workspace'
+import type PocketBase from 'pocketbase'
+import { ensureAssistantMode, getAssistantModeStatus, buildAutomationsSkill, buildReposSkill, buildSettingsSkill, buildAssistantDefaultAgentMd, buildAssistantOpenCodeConfig, buildAssistantRepo, installAssistantWorkspace } from '../../src/services/assistant-mode'
+import { createTempAssistantWorkspace, mockRepo } from '../helpers/assistant-workspace'
 import { createInternalRoutes } from '../../src/routes/internal'
+import { AutomationService } from '../../src/services/automations'
 import { NotificationService } from '../../src/services/notification'
 import { SettingsService } from '../../src/services/settings'
 import { createOpenCodeClient } from '../../src/services/opencode/client'
 import { getRepoById } from '../../src/db/queries'
 import { ENV } from '@subpolar/shared/config/env'
 
-describe('buildautomationsSkill', () => {
+function createMockPocketBase(): PocketBase {
+  const repos = new Map<string, Record<string, unknown>>()
+  const appSecrets = new Map<string, { value: string; created_at: number; updated_at: number }>()
+  const jobs = new Map<string, Record<string, unknown>>()
+  let idCounter = 0
+
+  return {
+    collection: (name: string) => {
+      const collections: Record<string, Map<string, Record<string, unknown>>> = {
+        repos, app_secrets: appSecrets, automation_jobs: jobs,
+      }
+      const col = collections[name] || new Map()
+
+      return {
+        getOne: async <T = unknown>(id: string): Promise<T> => {
+          if (name === 'repos') {
+            if (id === '0') {
+              const existing = repos.get('0') || repos.get('1')
+              if (existing) return existing as unknown as T
+              const now = Date.now()
+              const synthetic = {
+                id: '0',
+                repo_url: null,
+                local_path: 'assistant',
+                source_path: null,
+                branch: null,
+                default_branch: 'main',
+                clone_status: 'ready',
+                cloned_at: now,
+                last_accessed_at: now,
+                is_worktree: 0,
+                is_local: 0,
+              }
+              repos.set('0', synthetic as Record<string, unknown>)
+              return synthetic as unknown as T
+            }
+            const record = repos.get(id)
+            if (record) return record as unknown as T
+            throw new Error('Not found')
+          }
+          const record = col.get(id)
+          if (!record) throw new Error('Not found')
+          return record as unknown as T
+        },
+        getFirstListItem: async <T = unknown>(filter: string): Promise<T> => {
+          const key = filter.match(/key\s*=\s*"([^"]+)"/)?.[1]
+          if (key && name === 'app_secrets') {
+            const record = col.get(key)
+            if (record) return { id: String(++idCounter), key, ...record } as unknown as T
+            const value = 'a'.repeat(64)
+            appSecrets.set(key, { value, created_at: Date.now(), updated_at: Date.now() })
+            return { id: String(++idCounter), key, value, created_at: Date.now(), updated_at: Date.now() } as unknown as T
+          }
+          if (name === 'repos') {
+            const localPath = filter.match(/local_path\s*=\s*"([^"]+)"/)?.[1]
+            if (localPath) {
+              for (const record of repos.values()) {
+                if ((record as Record<string, unknown>).local_path === localPath) {
+                  return record as unknown as T
+                }
+              }
+            }
+          }
+          if (col.size > 0) {
+            return col.values().next().value as unknown as T
+          }
+          throw new Error('Not found')
+        },
+        getFullList: async <T = unknown>(options?: Record<string, unknown>): Promise<T[]> => {
+          let items = Array.from(col.values())
+          if (options?.filter && typeof options.filter === 'string') {
+            const matches = (options.filter as string).match(/(\w+)\s*=\s*"([^"]+)"/g)
+            if (matches) {
+              items = items.filter(item =>
+                (matches as string[]).every(m => {
+                  const [, key, val] = (m as string).match(/(\w+)\s*=\s*"([^"]+)"/) || []
+                  return key && String((item as Record<string, unknown>)[key]) === val
+                }),
+              )
+            }
+          }
+          if (options?.sort && typeof options.sort === 'string') {
+            const dir = (options.sort as string).startsWith('-') ? -1 : 1
+            items.sort((a, b) => {
+              const f = (options.sort as string).replace(/^-/, '')
+              return (((a as Record<string, unknown>)[f] as number) || 0) - (((b as Record<string, unknown>)[f] as number) || 0) * dir
+            })
+          }
+          return items as unknown as T[]
+        },
+        getList: async <T = unknown>(): Promise<{ items: T[]; totalItems: number }> => {
+          const items = Array.from(col.values())
+          return { items: items as unknown as T[], totalItems: items.length }
+        },
+        create: async <T = unknown>(data: Record<string, unknown>): Promise<T> => {
+          idCounter++
+          const id = data?.id as string || String(idCounter)
+          const record = { ...data, id }
+          col.set(id, record)
+          return record as unknown as T
+        },
+        update: async <T = unknown>(id: string, data: Record<string, unknown>): Promise<T> => {
+          const existing = col.get(id)
+          if (existing) {
+            const updated = { ...existing, ...data }
+            col.set(id, updated)
+            return updated as unknown as T
+          }
+          col.set(id, data)
+          return { id, ...data } as unknown as T
+        },
+        delete: async (id: string): Promise<boolean> => col.delete(id),
+      }
+    },
+    health: { check: async () => ({ code: 200 }) },
+  } as unknown as PocketBase
+}
+
+describe('buildAutomationsSkill', () => {
   it('uses ENV.SERVER.PORT in the internal base URL', () => {
-    const skill = buildautomationsSkill('https://example.com:443/api/internal')
+    const skill = buildAutomationsSkill('https://example.com:443/api/internal')
     expect(skill).toContain(`http://localhost:${ENV.SERVER.PORT}/api/internal`)
     expect(skill).not.toContain(':443')
   })
 
   it('documents repoId 0 for Assistant automations', () => {
-    const skill = buildautomationsSkill('http://localhost:5003/api/internal')
+    const skill = buildAutomationsSkill('http://localhost:5003/api/internal')
     expect(skill).toContain('Use repo ID `0` for the built-in Assistant')
     expect(skill).toContain('/repos/0/automations')
   })
@@ -127,18 +247,18 @@ describe('buildAssistantOpenCodeConfig', () => {
 
 describe('ensureAssistantMode', () => {
   let ws: Awaited<ReturnType<typeof createTempAssistantWorkspace>>
-  let db: ReturnType<typeof createTestDb>
+  let pb: PocketBase
   const apiBaseUrl = 'http://example.test:5003/api/internal'
   const localApiBaseUrl = 'http://localhost:5003/api/internal'
 
   beforeEach(async () => {
     ws = await createTempAssistantWorkspace()
-    db = createTestDb()
+    pb = createMockPocketBase()
   })
   afterEach(async () => { await ws.cleanup() })
 
   it('creates AGENTS.md, opencode.json, internal-token, and SKILL.md on first run', async () => {
-    await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
     const agentsMd = await readFile(path.join(ws.assistantDir, 'AGENTS.md'), 'utf8')
     const opencodeJson = await readFile(path.join(ws.assistantDir, 'opencode.json'), 'utf8')
     const token = await readFile(path.join(ws.assistantDir, '.opencode/internal-token'), 'utf8')
@@ -169,14 +289,14 @@ describe('ensureAssistantMode', () => {
   })
 
   it('does not rewrite the token file on a second run with the same db', async () => {
-    await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
     const tokenPath = path.join(ws.assistantDir, '.opencode/internal-token')
     const firstToken = await readFile(tokenPath, 'utf8')
     const firstStat = await stat(tokenPath)
 
     await new Promise(r => setTimeout(r, 10))
 
-    const result = await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
     const secondToken = await readFile(tokenPath, 'utf8')
     const secondStat = await stat(tokenPath)
 
@@ -188,7 +308,7 @@ describe('ensureAssistantMode', () => {
   })
 
   it('writes all files needed before OpenCode assistant session launch', async () => {
-    const result = await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
 
     const opencodeJsonPath = path.join(ws.assistantDir, 'opencode.json')
     const agentsMdPath = path.join(ws.assistantDir, 'AGENTS.md')
@@ -263,7 +383,7 @@ describe('ensureAssistantMode', () => {
   })
 
   it('reports repo management skill status from getAssistantModeStatus', async () => {
-    await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
 
     const status = await getAssistantModeStatus(mockRepo)
 
@@ -272,13 +392,13 @@ describe('ensureAssistantMode', () => {
   })
 
   it('preserves custom assistant agent content on subsequent ensureAssistantMode calls', async () => {
-    await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
     const assistantAgentPath = path.join(ws.assistantDir, '.opencode/agents/assistant.md')
 
     const customContent = '---\ndescription: Custom assistant\nmode: primary\n---\n\nCustom assistant instructions.'
     await writeFile(assistantAgentPath, customContent)
 
-    const result2 = await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    const result2 = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
 
     const preservedContent = await readFile(assistantAgentPath, 'utf8')
     expect(preservedContent).toBe(customContent)
@@ -286,7 +406,7 @@ describe('ensureAssistantMode', () => {
   })
 
   it('repairs existing assistant opencode config missing configured assistant agent', async () => {
-    await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
     const opencodeJsonPath = path.join(ws.assistantDir, 'opencode.json')
     await writeFile(opencodeJsonPath, JSON.stringify({
       model: 'provider/model',
@@ -298,7 +418,7 @@ describe('ensureAssistantMode', () => {
       skills: { paths: ['.opencode/skills'] },
     }, null, 2))
 
-    const result = await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
     const repaired = JSON.parse(await readFile(opencodeJsonPath, 'utf8'))
 
     expect(repaired.default_agent).toBe('assistant')
@@ -311,7 +431,7 @@ describe('ensureAssistantMode', () => {
   })
 
   it('preserves custom assistant config while making it selectable', async () => {
-    await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
     const opencodeJsonPath = path.join(ws.assistantDir, 'opencode.json')
     await writeFile(opencodeJsonPath, JSON.stringify({
       default_agent: 'assistant',
@@ -325,7 +445,7 @@ describe('ensureAssistantMode', () => {
       },
     }, null, 2))
 
-    const result = await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
     const repaired = JSON.parse(await readFile(opencodeJsonPath, 'utf8'))
 
     expect(repaired.agent.assistant.prompt).toBe('Custom assistant prompt')
@@ -337,7 +457,7 @@ describe('ensureAssistantMode', () => {
   })
 
   it('migrates generated legacy AGENTS.md and assistant.md to the new split', async () => {
-    await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
 
     const legacyAgentsMd = `# Assistant Mode Instructions
 
@@ -374,7 +494,7 @@ The agent MAY self-edit the following files within this workspace:
 
 This workspace includes a skill at \`.opencode/skills/repo-management/SKILL.md\` for listing repos available to subpolar via the internal HTTP API. Load it before the automation-management skill when you don't know the repo ID.
 
-## automation Management
+## Automation Management
 
 This workspace ships with a workspace-scoped skill at \`.opencode/skills/automation-management/SKILL.md\` that documents how to list, create, update, delete, run, inspect, and cancel automation jobs and runs across any repo via the internal HTTP API. Load it whenever the user asks about automations.
 
@@ -453,7 +573,7 @@ Ask before destructive operations or changes outside this assistant workspace.
       },
     }, null, 2))
 
-    const result = await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
 
     const updatedAgentsMd = await readFile(agentsMdPath, 'utf8')
     const updatedAssistantAgent = await readFile(assistantAgentPath, 'utf8')
@@ -482,13 +602,13 @@ Ask before destructive operations or changes outside this assistant workspace.
   })
 
   it('preserves custom AGENTS.md content on subsequent ensureAssistantMode calls', async () => {
-    await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
     const agentsMdPath = path.join(ws.assistantDir, 'AGENTS.md')
 
     const customContent = '# Custom Assistant Workspace\n\nThis is my custom AGENTS.md content.'
     await writeFile(agentsMdPath, customContent)
 
-    const result = await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
 
     const preservedContent = await readFile(agentsMdPath, 'utf8')
     expect(preservedContent).toBe(customContent)
@@ -496,7 +616,7 @@ Ask before destructive operations or changes outside this assistant workspace.
   })
 
   it('warns when managed updates apply but customized legacy AGENTS.md is preserved', async () => {
-    await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
     const agentsMdPath = path.join(ws.assistantDir, 'AGENTS.md')
     const assistantAgentPath = path.join(ws.assistantDir, '.opencode/agents/assistant.md')
 
@@ -536,7 +656,7 @@ Preserve user-customized workspace files unless the user explicitly asks you to 
 Ask before destructive operations or changes outside this assistant workspace.
 `)
 
-    const result = await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
 
     const preservedAgentsMd = await readFile(agentsMdPath, 'utf8')
     expect(preservedAgentsMd).toContain('Self-Editing Rules')
@@ -547,13 +667,13 @@ Ask before destructive operations or changes outside this assistant workspace.
   })
 
   it('overwrites custom AGENTS.md when overwriteAgentsMd is true', async () => {
-    await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
     const agentsMdPath = path.join(ws.assistantDir, 'AGENTS.md')
 
     const customContent = '# Custom Assistant Workspace\n\nThis is my custom AGENTS.md content.'
     await writeFile(agentsMdPath, customContent)
 
-    const result = await ensureAssistantMode(mockRepo, { db, apiBaseUrl }, { overwriteAgentsMd: true })
+    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl }, { overwriteAgentsMd: true })
 
     const updatedContent = await readFile(agentsMdPath, 'utf8')
     expect(updatedContent).toContain('Assistant Mode Workspace')
@@ -565,25 +685,25 @@ Ask before destructive operations or changes outside this assistant workspace.
 
 describe('assistant-mode end-to-end', () => {
   let ws: Awaited<ReturnType<typeof createTempAssistantWorkspace>>
-  let db: ReturnType<typeof createTestDb>
+  let pb: PocketBase
 
   beforeEach(async () => {
     ws = await createTempAssistantWorkspace()
-    db = createTestDb()
+    pb = createMockPocketBase()
   })
   afterEach(async () => { await ws.cleanup() })
 
   it('token written by ensureAssistantMode authenticates a request to /api/internal/automations/all', async () => {
     const apiBaseUrl = 'http://127.0.0.1:5003/api/internal'
-    await ensureAssistantMode(mockRepo, { db, apiBaseUrl })
+    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
 
     const token = (await readFile(path.join(ws.assistantDir, '.opencode/internal-token'), 'utf8')).trim()
 
-    const automationservice = new automationservice(db, createOpenCodeClient())
-    const notificationService = new NotificationService(db)
-    const settingsService = new SettingsService(db)
+    const automationservice = new AutomationService(pb, createOpenCodeClient())
+    const notificationService = new NotificationService(pb)
+    const settingsService = new SettingsService(pb)
     const app = new Hono()
-    app.route('/api/internal', createInternalRoutes(db, automationservice, notificationService, settingsService, createOpenCodeClient()))
+    app.route('/api/internal', createInternalRoutes(pb, automationservice, notificationService, settingsService, createOpenCodeClient()))
 
     const unauth = await app.request('/api/internal/automations/all')
     expect(unauth.status).toBe(401)
@@ -610,17 +730,17 @@ describe('buildAssistantRepo', () => {
 
 describe('installAssistantWorkspace', () => {
   let ws: Awaited<ReturnType<typeof createTempAssistantWorkspace>>
-  let db: ReturnType<typeof createTestDb>
+  let pb: PocketBase
   const apiBaseUrl = 'http://localhost:5003/api/internal'
 
   beforeEach(async () => {
     ws = await createTempAssistantWorkspace()
-    db = createTestDb()
+    pb = createMockPocketBase()
   })
   afterEach(async () => { await ws.cleanup() })
 
   it('provisions the assistant workspace files without contacting OpenCode', async () => {
-    const result = await installAssistantWorkspace({ db, apiBaseUrl })
+    const result = await installAssistantWorkspace({ db: pb, apiBaseUrl })
 
     const opencodeJson = await readFile(path.join(ws.assistantDir, 'opencode.json'), 'utf8')
     expect(JSON.parse(opencodeJson).default_agent).toBe('assistant')
@@ -636,7 +756,7 @@ describe('installAssistantWorkspace', () => {
     expect(result.defaultAgent?.exists).toBe(true)
     expect(result.repoId).toBe(0)
 
-    const assistantRepo = getRepoById(db, 0)
+    const assistantRepo = await getRepoById(pb, 0)
     expect(assistantRepo?.id).toBe(0)
     expect(assistantRepo?.localPath).toBe('assistant')
     expect(assistantRepo?.fullPath).toBe(ws.assistantDir)
@@ -645,54 +765,51 @@ describe('installAssistantWorkspace', () => {
   })
 
   it('repairs an assistant row created with a non-zero id', async () => {
-    db.prepare(`
-      INSERT INTO repos (
-        id,
-        repo_url,
-        local_path,
-        source_path,
-        branch,
-        default_branch,
-        clone_status,
-        cloned_at,
-        last_accessed_at,
-        is_worktree,
-        is_local
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(99, null, 'assistant', null, null, 'main', 'ready', Date.now(), Date.now(), 0, 0)
-    db.prepare(`
-      INSERT INTO automation_jobs (
-        repo_id,
-        name,
-        description,
-        enabled,
-        interval_minutes,
-        automation_mode,
-        cron_expression,
-        timezone,
-        agent_slug,
-        prompt,
-        model,
-        skill_metadata,
-        created_at,
-        updated_at,
-        last_run_at,
-        next_run_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(99, 'Assistant job', null, 1, 60, 'interval', null, null, null, 'hello', null, null, Date.now(), Date.now(), null, null)
+    await pb.collection('repos').create({
+      id: '99',
+      repo_url: null,
+      local_path: 'assistant',
+      source_path: null,
+      branch: null,
+      default_branch: 'main',
+      clone_status: 'ready',
+      cloned_at: Date.now(),
+      last_accessed_at: Date.now(),
+      is_worktree: 0,
+      is_local: 0,
+    })
+    await pb.collection('automation_jobs').create({
+      repo_id: '99',
+      name: 'Assistant job',
+      description: null,
+      enabled: true,
+      interval_minutes: 60,
+      automation_mode: 'interval',
+      cron_expression: null,
+      timezone: null,
+      agent_slug: null,
+      prompt: 'hello',
+      model: null,
+      skill_metadata: null,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      last_run_at: null,
+      next_run_at: null,
+    })
 
-    await installAssistantWorkspace({ db, apiBaseUrl })
+    await installAssistantWorkspace({ db: pb, apiBaseUrl })
 
-    expect(getRepoById(db, 99)).toBeNull()
-    const assistantRepo = getRepoById(db, 0)
+    expect(await getRepoById(pb, 99)).toBeNull()
+    const assistantRepo = await getRepoById(pb, 0)
     expect(assistantRepo?.localPath).toBe('assistant')
 
-    const migratedJob = db.prepare('SELECT repo_id FROM automation_jobs WHERE name = ?').get('Assistant job') as { repo_id: number }
-    expect(migratedJob.repo_id).toBe(0)
+    const migratedJobs = await pb.collection('automation_jobs').getFullList({ filter: 'name = "Assistant job"' })
+    const migratedJob = migratedJobs[0] as Record<string, unknown>
+    expect(migratedJob.repo_id).toBe('0')
   })
 
   it('is idempotent — second call does not recreate files and content is unchanged', async () => {
-    await installAssistantWorkspace({ db, apiBaseUrl })
+    await installAssistantWorkspace({ db: pb, apiBaseUrl })
 
     const opencodeJsonPath = path.join(ws.assistantDir, 'opencode.json')
     const agentsMdPath = path.join(ws.assistantDir, 'AGENTS.md')
@@ -704,7 +821,7 @@ describe('installAssistantWorkspace', () => {
       assistantAgent: await readFile(assistantAgentPath, 'utf8'),
     }
 
-    const result = await installAssistantWorkspace({ db, apiBaseUrl })
+    const result = await installAssistantWorkspace({ db: pb, apiBaseUrl })
 
     const secondContent = {
       opencodeJson: await readFile(opencodeJsonPath, 'utf8'),

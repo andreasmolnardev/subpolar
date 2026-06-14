@@ -85,10 +85,6 @@ export const ENV = {
     PASSWORD: getEnvString('POCKETBASE_PASSWORD', DEFAULTS.POCKETBASE.PASSWORD),
   },
 
-  DATABASE: {
-    PATH: getEnvString('DATABASE_PATH', DEFAULTS.DATABASE.PATH),
-  },
-
   WORKSPACE: {
     get BASE_PATH() { return resolveWorkspacePath() },
     REPOS_DIR: DEFAULTS.WORKSPACE.REPOS_DIR,
@@ -132,9 +128,6 @@ export const ENV = {
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID,
     DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET,
-    PASSKEY_RP_ID: getEnvString('PASSKEY_RP_ID', 'localhost'),
-    PASSKEY_RP_NAME: getEnvString('PASSKEY_RP_NAME', 'subpolar'),
-    PASSKEY_ORIGIN: getEnvString('PASSKEY_ORIGIN', 'http://localhost:5003'),
   },
 
 } as const
@@ -145,8 +138,6 @@ export const getConfigPath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSP
 export const getOpenCodeConfigFilePath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSPACE.CONFIG_DIR, 'opencode.json')
 export const getAgentsMdPath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSPACE.CONFIG_DIR, 'AGENTS.md')
 export const getAuthPath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSPACE.AUTH_FILE)
-export const getDatabasePath = () => ENV.DATABASE.PATH
-
 export const getApiUrl = (port: number = ENV.SERVER.PORT): string => {
   const host = ENV.SERVER.HOST
   

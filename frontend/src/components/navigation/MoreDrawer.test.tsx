@@ -39,10 +39,7 @@ const mockAuth = (logout = vi.fn()) => {
     isLoading: false,
     config: null,
     signInWithEmail: vi.fn(),
-    signInWithProvider: vi.fn(),
-    signInWithPasskey: vi.fn(),
     signUpWithEmail: vi.fn(),
-    addPasskey: vi.fn(),
     logout,
     refreshSession: vi.fn(),
   })

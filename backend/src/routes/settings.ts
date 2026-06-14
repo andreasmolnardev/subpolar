@@ -230,7 +230,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
   app.get('/', async (c) => {
     try {
       const userId = c.req.query('userId') || 'default'
-      const settings = settingsService.getSettings(userId)
+      const settings = await settingsService.getSettings(userId)
       return c.json(settings)
     } catch (error) {
       logger.error('Failed to get settings:', error)
@@ -268,7 +268,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
         validated.preferences.gitCredentials = validations
       }
 
-      const currentSettings = settingsService.getSettings(userId)
+      const currentSettings = await settingsService.getSettings(userId)
       const settings = settingsService.updateSettings(validated.preferences, userId)
 
       let serverRestarted = false
@@ -320,7 +320,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
   app.get('/opencode-configs', async (c) => {
     try {
       const userId = c.req.query('userId') || 'default'
-      const configs = settingsService.getOpenCodeConfigs(userId)
+      const configs = await settingsService.getOpenCodeConfigs(userId)
       return c.json(configs)
     } catch (error) {
       logger.error('Failed to get OpenCode configs:', error)
@@ -335,16 +335,16 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
       const validated = CreateOpenCodeConfigSchema.parse(body)
 
       if (validated.isDefault) {
-        settingsService.saveLastKnownGoodConfig(userId)
+        await settingsService.saveLastKnownGoodConfig(userId)
 
-        const provisionalConfig = settingsService.createOpenCodeConfig(
+        const provisionalConfig = await settingsService.createOpenCodeConfig(
           { ...validated, isDefault: false },
           userId,
           { suppressAutoDefault: true }
         )
 
         if (hasConfiguredPlugins(provisionalConfig.content)) {
-          const config = settingsService.updateOpenCodeConfig(provisionalConfig.name, {
+          const config = await settingsService.updateOpenCodeConfig(provisionalConfig.name, {
             content: provisionalConfig.rawContent,
             isDefault: true,
           }, userId)
@@ -364,7 +364,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
 
         const patchResult = await patchConfigWithRecovery(openCodeClient, provisionalConfig.content)
         if (!patchResult.success) {
-          settingsService.deleteOpenCodeConfig(provisionalConfig.name, userId)
+          await settingsService.deleteOpenCodeConfig(provisionalConfig.name, userId)
           return c.json({ 
             error: 'Config validation failed', 
             details: patchResult.error,
@@ -378,7 +378,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
           patchResult.appliedConfig,
           patchResult.removedFields
         )
-        const config = settingsService.updateOpenCodeConfig(provisionalConfig.name, {
+        const config = await settingsService.updateOpenCodeConfig(provisionalConfig.name, {
           content: contentToWrite,
           isDefault: true,
         }, userId)
@@ -399,7 +399,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
         return c.json(config)
       }
 
-      const config = settingsService.createOpenCodeConfig(validated, userId)
+      const config = await settingsService.createOpenCodeConfig(validated, userId)
       return c.json(config)
     } catch (error) {
       logger.error('Failed to create OpenCode config:', error)
@@ -420,10 +420,10 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
       const body = await c.req.json()
       const validated = UpdateOpenCodeConfigSchema.parse(body)
       
-      const existingConfig = settingsService.getOpenCodeConfigByName(configName, userId)
+      const existingConfig = await settingsService.getOpenCodeConfigByName(configName, userId)
       const previousContent = existingConfig?.content
       
-      const config = settingsService.updateOpenCodeConfig(configName, validated, userId)
+      const config = await settingsService.updateOpenCodeConfig(configName, validated, userId)
       if (!config) {
         return c.json({ error: 'Config not found' }, 404)
       }
@@ -478,7 +478,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
       const userId = c.req.query('userId') || 'default'
       const configName = c.req.param('name')
       
-      const deleted = settingsService.deleteOpenCodeConfig(configName, userId)
+      const deleted = await settingsService.deleteOpenCodeConfig(configName, userId)
       if (!deleted) {
         return c.json({ error: 'Config not found' }, 404)
       }
@@ -495,15 +495,15 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
       const userId = c.req.query('userId') || 'default'
       const configName = c.req.param('name')
 
-      settingsService.saveLastKnownGoodConfig(userId)
+      await settingsService.saveLastKnownGoodConfig(userId)
 
-      const existingConfig = settingsService.getOpenCodeConfigByName(configName, userId)
+      const existingConfig = await settingsService.getOpenCodeConfigByName(configName, userId)
       if (!existingConfig) {
         return c.json({ error: 'Config not found' }, 404)
       }
 
       if (hasConfiguredPlugins(existingConfig.content)) {
-        const config = settingsService.setDefaultOpenCodeConfig(configName, userId)
+        const config = await settingsService.setDefaultOpenCodeConfig(configName, userId)
         if (!config) {
           return c.json({ error: 'Config not found' }, 404)
         }
@@ -532,7 +532,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
         patchResult.appliedConfig,
         patchResult.removedFields
       )
-      const updatedConfig = settingsService.updateOpenCodeConfig(configName, {
+      const updatedConfig = await settingsService.updateOpenCodeConfig(configName, {
         content: contentToWrite,
       }, userId)
 
@@ -540,7 +540,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
         return c.json({ error: 'Failed to update OpenCode config' }, 500)
       }
 
-      const config = settingsService.setDefaultOpenCodeConfig(configName, userId)
+      const config = await settingsService.setDefaultOpenCodeConfig(configName, userId)
       if (!config) {
         return c.json({ error: 'Config not found' }, 404)
       }
@@ -564,7 +564,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
   app.get('/opencode-configs/default', async (c) => {
     try {
       const userId = c.req.query('userId') || 'default'
-      const config = settingsService.getDefaultOpenCodeConfig(userId)
+      const config = await settingsService.getDefaultOpenCodeConfig(userId)
       
       if (!config) {
         return c.json({ error: 'No default config found' }, 404)
@@ -704,7 +704,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
       }
 
       const configPath = getOpenCodeConfigFilePath()
-      const config = settingsService.getDefaultOpenCodeConfig(userId)
+      const config = await settingsService.getDefaultOpenCodeConfig(userId)
       if (!config) {
         return c.json({ error: 'Failed to get default config after rollback' }, 500)
       }
@@ -986,7 +986,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
   app.get('/custom-commands', async (c) => {
     try {
       const userId = c.req.query('userId') || 'default'
-      const settings = settingsService.getSettings(userId)
+      const settings = await settingsService.getSettings(userId)
       return c.json(settings.preferences.customCommands)
     } catch (error) {
       logger.error('Failed to get custom commands:', error)
@@ -1000,7 +1000,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
       const body = await c.req.json()
       const validated = CreateCustomCommandSchema.parse(body)
       
-      const settings = settingsService.getSettings(userId)
+      const settings = await settingsService.getSettings(userId)
       const existingCommand = settings.preferences.customCommands.find(cmd => cmd.name === validated.name)
       if (existingCommand) {
         return c.json({ error: 'Command with this name already exists' }, 409)
@@ -1027,7 +1027,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
       const body = await c.req.json()
       const validated = UpdateCustomCommandSchema.parse(body)
       
-      const settings = settingsService.getSettings(userId)
+      const settings = await settingsService.getSettings(userId)
       const commandIndex = settings.preferences.customCommands.findIndex(cmd => cmd.name === commandName)
       if (commandIndex === -1) {
         return c.json({ error: 'Command not found' }, 404)
@@ -1059,7 +1059,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
       const userId = c.req.query('userId') || 'default'
       const commandName = decodeURIComponent(c.req.param('name'))
       
-      const settings = settingsService.getSettings(userId)
+      const settings = await settingsService.getSettings(userId)
       const commandExists = settings.preferences.customCommands.some(cmd => cmd.name === commandName)
       if (!commandExists) {
         return c.json({ error: 'Command not found' }, 404)
@@ -1506,7 +1506,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
 
   app.get('/opencode-server-auth', async (c) => {
     try {
-      const hasStored = settingsService.hasStoredOpenCodeServerPassword()
+      const hasStored = await settingsService.hasStoredOpenCodeServerPassword()
       const source = hasStored ? 'db' : ENV.OPENCODE.SERVER_PASSWORD ? 'env' : 'none'
       const isSet = source !== 'none'
       return c.json({ isSet, source })
@@ -1520,19 +1520,19 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
     try {
       const body = await c.req.json()
       const validated = OpenCodeServerAuthBodySchema.parse(body)
-      const previousPasswordState = settingsService.getStoredOpenCodeServerPasswordState()
+      const previousPasswordState = await settingsService.getStoredOpenCodeServerPasswordState()
 
       if (validated.password === null) {
-        settingsService.clearOpenCodeServerPassword()
+        await settingsService.clearOpenCodeServerPassword()
       } else if (validated.password) {
-        settingsService.setOpenCodeServerPassword(validated.password)
+        await settingsService.setOpenCodeServerPassword(validated.password)
       }
 
       try {
         await opencodeServerManager.restart()
       } catch (restartError) {
         try {
-          settingsService.restoreOpenCodeServerPasswordState(previousPasswordState)
+          await settingsService.restoreOpenCodeServerPasswordState(previousPasswordState)
           await opencodeServerManager.restart()
           sseAggregator.reconnect()
         } catch (restoreError) {
@@ -1543,7 +1543,7 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
 
       sseAggregator.reconnect()
 
-      const hasStored = settingsService.hasStoredOpenCodeServerPassword()
+      const hasStored = await settingsService.hasStoredOpenCodeServerPassword()
       const source = hasStored ? 'db' : ENV.OPENCODE.SERVER_PASSWORD ? 'env' : 'none'
       const isSet = source !== 'none'
       return c.json({ isSet, source })
