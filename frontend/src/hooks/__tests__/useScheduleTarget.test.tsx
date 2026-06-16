@@ -2,15 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAutomationTarget } from '../useAutomationTarget'
-import type { AssistantModeStatus, Repo } from '@subpolar/shared/types'
+import type { AssistantModeStatus } from '@subpolar/shared/types'
 
 const mocks = vi.hoisted(() => ({
-  getRepo: vi.fn(),
+  getProject: vi.fn(),
   getAssistantModeStatus: vi.fn(),
 }))
 
-vi.mock('@/api/repos', () => ({
-  getRepo: mocks.getRepo,
+vi.mock('@/api/projects', () => ({
+  getProject: mocks.getProject,
   getAssistantModeStatus: mocks.getAssistantModeStatus,
 }))
 
@@ -40,6 +40,7 @@ describe('useAutomationTarget', () => {
           agentsMd: { path: '', exists: false, created: false },
           opencodeJson: { path: '', exists: false, created: false },
         },
+        agents: [],
         automationsSkill: { path: '', exists: false, created: false },
       }
 
@@ -51,10 +52,10 @@ describe('useAutomationTarget', () => {
         expect(result.current.automationTarget).toBeDefined()
       })
 
-      expect(result.current.automationTarget?.kind).toBe('assistant')
+      expect(result.current.automationTarget?.kind).toBe('project')
       expect(result.current.automationTarget?.fullPath).toBe('/abs/assistant')
-      expect(result.current.automationTarget?.repoId).toBe(0)
-      expect(result.current.automationTarget?.backHref).toBe('/assistant')
+      expect(result.current.automationTarget?.projectId).toBe(0)
+      expect(result.current.automationTarget?.backHref).toBe('/projects/0')
       expect(result.current.isLoading).toBe(false)
       expect(result.current.isError).toBe(false)
     })
@@ -64,6 +65,7 @@ describe('useAutomationTarget', () => {
         directory: '/abs/assistant',
         relativePath: 'repos/assistant',
         files: { agentsMd: { path: '', exists: false, created: false }, opencodeJson: { path: '', exists: false, created: false } },
+        agents: [],
         automationsSkill: { path: '', exists: false, created: false },
         repoId: 0,
       })
@@ -71,25 +73,24 @@ describe('useAutomationTarget', () => {
       renderHook(() => useAutomationTarget(0), { wrapper: createWrapper() })
 
       await vi.waitFor(() => {
-        expect(mocks.getRepo).not.toHaveBeenCalled()
+        expect(mocks.getProject).not.toHaveBeenCalled()
       })
     })
   })
 
-  describe('repoId === 5 (real repo)', () => {
-    it('returns repo automation target with correct properties', async () => {
-      const mockRepo: Repo = {
+  describe('repoId === 5 (real project)', () => {
+    it('returns project automation target with correct properties', async () => {
+      const mockProject = {
         id: 5,
-        repoUrl: 'https://x/my-repo',
-        localPath: 'repos/my-repo',
-        fullPath: '/abs/repos/my-repo',
-        sourcePath: undefined,
-        defaultBranch: 'main',
-        cloneStatus: 'ready',
-        clonedAt: 0,
+        name: 'my-project',
+        directory: 'repos/my-project',
+        fullPath: '/abs/repos/my-project',
+        status: 'ready' as const,
+        createdAt: 0,
+        updatedAt: 0,
       }
 
-      mocks.getRepo.mockResolvedValue(mockRepo)
+      mocks.getProject.mockResolvedValue(mockProject)
 
       const { result } = renderHook(() => useAutomationTarget(5), { wrapper: createWrapper() })
 
@@ -97,25 +98,24 @@ describe('useAutomationTarget', () => {
         expect(result.current.automationTarget).toBeDefined()
       })
 
-      expect(result.current.automationTarget?.kind).toBe('repo')
-      expect(result.current.automationTarget?.repoId).toBe(5)
-      expect(result.current.automationTarget?.fullPath).toBe('/abs/repos/my-repo')
-      expect(result.current.automationTarget?.backHref).toBe('/repos/5')
+      expect(result.current.automationTarget?.kind).toBe('project')
+      expect(result.current.automationTarget?.projectId).toBe(5)
+      expect(result.current.automationTarget?.fullPath).toBe('/abs/repos/my-project')
+      expect(result.current.automationTarget?.backHref).toBe('/projects/5')
     })
 
-    it('does not call getAssistantModeStatus for repo', async () => {
-      const mockRepo: Repo = {
+    it('does not call getAssistantModeStatus for project', async () => {
+      const mockProject = {
         id: 5,
-        repoUrl: 'https://x/my-repo',
-        localPath: 'repos/my-repo',
-        fullPath: '/abs/repos/my-repo',
-        sourcePath: undefined,
-        defaultBranch: 'main',
-        cloneStatus: 'ready',
-        clonedAt: 0,
+        name: 'my-project',
+        directory: 'repos/my-project',
+        fullPath: '/abs/repos/my-project',
+        status: 'ready' as const,
+        createdAt: 0,
+        updatedAt: 0,
       }
 
-      mocks.getRepo.mockResolvedValue(mockRepo)
+      mocks.getProject.mockResolvedValue(mockProject)
 
       renderHook(() => useAutomationTarget(5), { wrapper: createWrapper() })
 

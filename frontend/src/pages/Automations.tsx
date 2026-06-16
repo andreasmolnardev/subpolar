@@ -12,7 +12,7 @@ import {
   useRunRepoAutomation,
   useUpdateRepoAutomation,
 } from '@/hooks/useAutomations'
-import { useRepoActivity } from '@/hooks/useRepoActivity'
+import { useProjectActivity } from '@/hooks/useProjectActivity'
 import { useAutomationTarget } from '@/hooks/useAutomationTarget'
 import { useAutomationUrlState } from '@/hooks/useAutomationUrlState'
 import { AutomationJobDialog, JobsTab, JobDetailTab, RunHistoryTab, AutomationTabMenu } from '@/components/automations'
@@ -49,7 +49,7 @@ export function Automations() {
 
   const { automationTarget, isLoading: automationTargetLoading } = useAutomationTarget(repoId)
 
-  useRepoActivity(repoId ?? 0, Boolean(automationTarget) && automationTarget?.kind === 'repo')
+  useProjectActivity(repoId ?? 0, Boolean(automationTarget) && automationTarget?.kind === 'project')
 
   const { data: jobs, isLoading: jobsLoading } = useRepoAutomations(repoId)
   const { data: selectedJob, isFetching: isJobFetching } = useRepoAutomation(repoId, jobId)

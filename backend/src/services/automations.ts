@@ -7,7 +7,7 @@ import {
   type AutomationRunTriggerSource,
   type UpdateAutomationJobRequest,
 } from '@subpolar/shared/types'
-import { getRepoById } from '../db/queries'
+import { getProjectById } from '../db/projects'
 import type { AutomationJobWithRepo } from '../db/automations'
 import {
   cleanupOrphanedAutomations,
@@ -40,8 +40,8 @@ import type { OpenCodeClient } from './opencode/client'
 import { sseAggregator, type SSEEvent } from './sse-aggregator'
 import { getErrorMessage } from '../utils/error-utils'
 import { logger } from '../utils/logger'
-import { buildAssistantRepo } from './assistant-mode'
-import { ASSISTANT_REPO_ID } from '@subpolar/shared/utils'
+import { buildGeneralChatProject } from './assistant-mode'
+import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
 
 class AutomationServiceError extends Error {
   status: number
@@ -1074,16 +1074,14 @@ export class AutomationService {
   }
 
   private async assertRepo(repoId: number) {
-    if (repoId === ASSISTANT_REPO_ID) {
-      const repo = await getRepoById(this.db, ASSISTANT_REPO_ID)
-      if (repo) return repo
-      return { ...buildAssistantRepo(), lastAccessedAt: Date.now(), isLocal: true, currentBranch: undefined }
+    if (repoId === GENERAL_CHAT_PROJECT_ID) {
+      return buildGeneralChatProject()
     }
-    const repo = await getRepoById(this.db, repoId)
-    if (!repo) {
-      throw new AutomationServiceError('Repo not found', 404)
+    const project = await getProjectById(this.db, String(repoId))
+    if (!project) {
+      throw new AutomationServiceError('Project not found', 404)
     }
-    return repo
+    return project
   }
 
   private async assertJob(repoId: number, jobId: number) {

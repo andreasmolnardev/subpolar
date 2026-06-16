@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { FolderGit2, FolderOpen, CalendarClock, Menu, Info, History, Bot } from 'lucide-react'
+import { FolderKanban, FolderOpen, CalendarClock, Menu, Info, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMobile } from '@/hooks/useMobile'
 import { useMobileTabBar } from '@/hooks/useMobileTabBar'
@@ -20,10 +20,9 @@ interface GlobalTabsArgs {
   pathname: string
   openSheet: ReturnType<typeof useMobileTabBar>['openSheet']
   open: ReturnType<typeof useMobileTabBar>['open']
-  close: ReturnType<typeof useMobileTabBar>['close']
   navigate: ReturnType<typeof useNavigate>
-  isInsideRepo: boolean
-  repoId: string | null
+  isInsideProject: boolean
+  projectId: string | null
   updateParams: ReturnType<typeof useUrlParams>['updateParams']
 }
 
@@ -31,36 +30,36 @@ type TabBarMode = 'hidden' | 'global' | 'automation'
 
 interface MobileTabRouteState {
   mode: TabBarMode
-  isInsideRepo: boolean
-  repoId: string | null
+  isInsideProject: boolean
+  projectId: string | null
 }
 
 function getMobileTabRouteState(pathname: string): MobileTabRouteState {
-  const repoMatch = pathname.match(/^\/repos\/(\d+)(?:\/([^/]+))?/)
-  const repoId = repoMatch?.[1] ?? null
-  const repoSection = repoMatch?.[2]
+  const projectMatch = pathname.match(/^\/projects\/(\d+)(?:\/([^/]+))?/)
+  const projectId = projectMatch?.[1] ?? null
+  const projectSection = projectMatch?.[2]
 
   if (pathname === '/' || pathname === '/automations') {
-    return { mode: 'global', isInsideRepo: false, repoId: null }
+    return { mode: 'global', isInsideProject: false, projectId: null }
   }
 
-  if (!repoId) {
-    return { mode: 'hidden', isInsideRepo: false, repoId: null }
+  if (!projectId) {
+    return { mode: 'hidden', isInsideProject: false, projectId: null }
   }
 
-  switch (repoSection) {
+  switch (projectSection) {
     case undefined:
-      return { mode: 'global', isInsideRepo: true, repoId }
+      return { mode: 'global', isInsideProject: true, projectId }
     case 'automations':
-      return { mode: 'automation', isInsideRepo: true, repoId }
+      return { mode: 'automation', isInsideProject: true, projectId }
     default:
-      return { mode: 'hidden', isInsideRepo: false, repoId }
+      return { mode: 'hidden', isInsideProject: false, projectId }
   }
 }
 
-function buildGlobalTabs({ pathname, openSheet, open, close, navigate, isInsideRepo, repoId, updateParams }: GlobalTabsArgs): TabDef[] {
+function buildGlobalTabs({ pathname, openSheet, open, navigate, isInsideProject, projectId, updateParams }: GlobalTabsArgs): TabDef[] {
   const handleFilesClick = () => {
-    if (isInsideRepo && repoId) {
+    if (isInsideProject && projectId) {
       updateParams((p) => { p.set('dialog', 'files'); p.delete('mobileTab') }, 'push')
     } else {
       open('files')
@@ -69,11 +68,11 @@ function buildGlobalTabs({ pathname, openSheet, open, close, navigate, isInsideR
 
   return [
     {
-      key: 'repos',
-      label: 'Repos',
-      icon: FolderGit2,
-      onClick: () => open('repos'),
-      active: openSheet === 'repos' || (pathname === '/' && !openSheet),
+      key: 'projects',
+      label: 'Projects',
+      icon: FolderKanban,
+      onClick: () => open('projects'),
+      active: openSheet === 'projects' || (pathname === '/' && !openSheet),
     },
     {
       key: 'files',
@@ -163,7 +162,7 @@ const TabBarRow = memo(function TabBarRow({ tabs }: TabBarRowProps) {
 export const MobileTabBar = memo(function MobileTabBar() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const { openSheet, open, close } = useMobileTabBar()
+  const { openSheet, open } = useMobileTabBar()
   const { updateParams } = useUrlParams()
   const { automationTab, setAutomationTab } = useAutomationUrlState()
   const isMobile = useMobile()
@@ -176,10 +175,9 @@ export const MobileTabBar = memo(function MobileTabBar() {
         pathname,
         openSheet,
         open,
-        close,
         navigate,
-        isInsideRepo: routeState.isInsideRepo,
-        repoId: routeState.repoId,
+        isInsideProject: routeState.isInsideProject,
+        projectId: routeState.projectId,
         updateParams,
       })),
     [
@@ -189,8 +187,9 @@ export const MobileTabBar = memo(function MobileTabBar() {
       pathname,
       openSheet,
       open,
-      close,
       navigate,
+      routeState.isInsideProject,
+      routeState.projectId,
       updateParams,
     ],
   )

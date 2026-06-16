@@ -13,7 +13,6 @@ import { VoiceSettings } from '@/components/settings/VoiceSettings'
 import { NotificationSettings } from '@/components/settings/NotificationSettings'
 import { VersionSelectDialog } from '@/components/settings/VersionSelectDialog'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Settings2, Keyboard, Code, ChevronLeft, Key, GitBranch, User, Volume2, Bell, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSettingsDialog } from '@/hooks/useSettingsDialog'
@@ -91,12 +90,7 @@ export function SettingsDialog() {
     pushSectionHistory(view)
   }, [setActiveTab, pushSectionHistory])
 
-  const handleTabChange = (tab: string) => {
-    const nextView = tab as SettingsView
-    setActiveTab(nextView)
-    setMobileView(nextView)
-    pushSectionHistory(nextView)
-  }
+  // handleTabChange removed – sidebar handles navigation
 
    return (
       <Dialog open={isOpen} modal={false} onOpenChange={(open) => !open && close()}>
@@ -109,74 +103,55 @@ export function SettingsDialog() {
           onFocusOutside={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => e.preventDefault()}
         >
-         <div className="hidden sm:flex sm:flex-col sm:h-full sm:min-h-0">
-           <div className="sticky top-0 z-10 bg-gradient-to-b from-background via-background to-transparent border-b border-border backdrop-blur-sm px-6 py-4 flex-shrink-0 flex items-center justify-between">
-             <h2 className="text-2xl font-semibold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
-               Settings
-             </h2>
-             <Button
-               variant="ghost"
-               size="icon"
-               onClick={close}
-               className="text-muted-foreground hover:text-foreground min-w-[44px] min-h-[44px]"
-             >
-               <X className="w-5 h-5" />
-             </Button>
-           </div>
-          <Tabs defaultValue="account" value={activeTab} onValueChange={handleTabChange} className="w-full flex flex-col flex-1 min-h-0">
-            <div className="px-6 pt-6 pb-4 flex-shrink-0">
-              <TabsList className="grid w-full grid-cols-8 bg-card p-1">
-                <TabsTrigger value="account" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-muted-foreground transition-all duration-200">
-                  Account
-                </TabsTrigger>
-                <TabsTrigger value="general" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-muted-foreground transition-all duration-200">
-                  General
-                </TabsTrigger>
-                <TabsTrigger value="notifications" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-muted-foreground transition-all duration-200">
-                  Notify
-                </TabsTrigger>
-                <TabsTrigger value="voice" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-muted-foreground transition-all duration-200">
-                  Voice
-                </TabsTrigger>
-                <TabsTrigger value="git" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-muted-foreground transition-all duration-200">
-                  Git
-                </TabsTrigger>
-                <TabsTrigger value="shortcuts" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-muted-foreground transition-all duration-200">
-                  Shortcuts
-                </TabsTrigger>
-                <TabsTrigger value="opencode" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-muted-foreground transition-all duration-200">
-                  OpenCode
-                </TabsTrigger>
-                <TabsTrigger value="providers" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-muted-foreground transition-all duration-200">
-                  Providers
-                </TabsTrigger>
-              </TabsList>
+<div className="hidden sm:flex sm:flex-col sm:h-full sm:min-h-0">
+            <div className="sticky top-0 z-10 bg-gradient-to-b from-background via-background to-transparent border-b border-border backdrop-blur-sm px-6 py-4 flex-shrink-0 flex items-center justify-between">
+              <h2 className="text-2xl font-semibold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
+                Settings
+              </h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={close}
+                className="text-muted-foreground hover:text-foreground min-w-[44px] min-h-[44px]"
+              >
+                <X className="w-5 h-5" />
+              </Button>
             </div>
-
-            <div className="flex-1 overflow-y-auto">
-              <div className="px-6 pb-6">
-                <TabsContent key="account" value="account" className="mt-0"><AccountSettings /></TabsContent>
-                <TabsContent key="general" value="general" className="mt-0"><GeneralSettings /></TabsContent>
-                <TabsContent key="notifications" value="notifications" className="mt-0"><NotificationSettings /></TabsContent>
-                <TabsContent key="voice" value="voice" className="mt-0"><VoiceSettings /></TabsContent>
-                <TabsContent key="git" value="git" className="mt-0"><GitSettings /></TabsContent>
-                <TabsContent key="shortcuts" value="shortcuts" className="mt-0"><KeyboardShortcuts /></TabsContent>
-                <TabsContent key="opencode" value="opencode" className="mt-0">
+            <div className="flex flex-1 overflow-hidden">
+              {/* Sidebar menu */}
+              <nav className="w-64 flex-shrink-0 border-r border-border bg-card p-4">
+                {menuItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => { setActiveTab(item.id as SettingsView); setMobileView(item.id as SettingsView); pushSectionHistory(item.id as SettingsView); }}
+                    className={`w-full text-left px-3 py-2 rounded-md mb-2 flex items-center gap-2 ${activeTab === item.id ? 'bg-blue-600 text-white' : 'text-muted-foreground hover:bg-gray-200'} transition-colors`}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </nav>
+              {/* Content area */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {activeTab === 'account' && <AccountSettings />}
+                {activeTab === 'general' && <GeneralSettings />}
+                {activeTab === 'notifications' && <NotificationSettings />}
+                {activeTab === 'voice' && <VoiceSettings />}
+                {activeTab === 'git' && <GitSettings />}
+                {activeTab === 'shortcuts' && <KeyboardShortcuts />}
+                {activeTab === 'opencode' && (
                   <div className="space-y-6">
                     <ServerHealthStatus onOpenVersionDialog={() => setIsVersionDialogOpen(true)} />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <OpenCodeServerAuthSettings isOpen={authSectionsOpen} onToggle={toggleAuthSections} />
-                      <ManagerTokenSettings isOpen={authSectionsOpen} onToggle={toggleAuthSections} />
-                    </div>
+                    <OpenCodeServerAuthSettings isOpen={authSectionsOpen} onToggle={toggleAuthSections} />
+                    <ManagerTokenSettings isOpen={authSectionsOpen} onToggle={toggleAuthSections} />
                     <ServerEnvVarsSettings />
                     <OpenCodeConfigManager hideHealthStatus />
                   </div>
-                </TabsContent>
-                <TabsContent key="providers" value="providers" className="mt-0"><ProviderSettings /></TabsContent>
+                )}
+                {activeTab === 'providers' && <ProviderSettings />}
               </div>
             </div>
-          </Tabs>
-        </div>
+          </div>
 
         <div className="sm:hidden flex flex-col h-full min-h-0">
            <div className="flex-shrink-0 bg-gradient-to-b from-background via-background to-transparent border-b border-border backdrop-blur-sm px-4 py-4 flex items-center justify-between">

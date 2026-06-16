@@ -14,8 +14,6 @@ import {
 } from "@subpolar/shared/notifications"
 import { SettingsService } from "./settings"
 import { sseAggregator, type SSEEvent } from "./sse-aggregator"
-import { getRepoByLocalPath, getRepoBySourcePath } from "../db/queries"
-import { getReposPath } from "@subpolar/shared/config/env"
 import path from "path"
 
 interface VapidConfig {
@@ -247,17 +245,10 @@ export class NotificationService {
     let repoId: number | undefined
 
     if (_directory) {
-      const reposBasePath = getReposPath()
-      const localPath = path.relative(reposBasePath, _directory)
-      const repo = await (getRepoBySourcePath(this.pb, path.resolve(_directory)) ?? getRepoByLocalPath(this.pb, localPath))
-
-      if (repo) {
-        repoId = repo.id
-        repoName = path.basename(repo.localPath)
-        notificationUrl = sessionId
-          ? `/repos/${repo.id}/sessions/${sessionId}`
-          : `/repos/${repo.id}`
-      }
+      repoName = path.basename(_directory)
+      notificationUrl = sessionId
+        ? `/projects/${repoId}/sessions/${sessionId}`
+        : `/projects/${repoId}`
     }
 
     const payload = buildEventNotificationPayload(event, {

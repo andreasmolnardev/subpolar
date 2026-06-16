@@ -9,7 +9,7 @@ import {
   type AutomationRunStatus,
   type AutomationRunTriggerSource,
 } from '@subpolar/shared/schemas'
-import { ASSISTANT_REPO_ID, ASSISTANT_REPO_NAME, ASSISTANT_REPO_PATH } from '@subpolar/shared/utils'
+import { GENERAL_CHAT_PROJECT_ID, GENERAL_CHAT_PROJECT_NAME, GENERAL_CHAT_PROJECT_PATH } from '@subpolar/shared/utils'
 import type { AutomationJobPersistenceInput } from '../services/automation-config'
 
 interface AutomationJobRecord {
@@ -208,13 +208,13 @@ export async function deleteAutomationJob(pb: PocketBase, repoId: number, jobId:
 }
 
 export async function cleanupOrphanedAutomations(pb: PocketBase): Promise<{ orphanedJobs: number; orphanedRuns: number }> {
-  const allRepos = await pb.collection('repos').getFullList({ fields: 'id' })
-  const repoIds = new Set((allRepos as unknown as Array<{ id: string }>).map(r => r.id))
+  const allProjects = await pb.collection('projects').getFullList({ fields: 'id' })
+  const projectIds = new Set((allProjects as unknown as Array<{ id: string }>).map(r => r.id))
 
   const allJobs = await pb.collection('automation_jobs').getFullList({ fields: 'id,repo_id' })
   let orphanedJobs = 0
   for (const j of allJobs as unknown as Array<{ id: string; repo_id: string }>) {
-    if (j.repo_id !== toPbId(ASSISTANT_REPO_ID) && !repoIds.has(j.repo_id)) {
+    if (j.repo_id !== toPbId(GENERAL_CHAT_PROJECT_ID) && !projectIds.has(j.repo_id)) {
       await pb.collection('automation_jobs').delete(j.id)
       orphanedJobs++
     }
@@ -224,7 +224,7 @@ export async function cleanupOrphanedAutomations(pb: PocketBase): Promise<{ orph
   let orphanedRuns = 0
   const allJobIds = new Set((await pb.collection('automation_jobs').getFullList({ fields: 'id' }) as unknown as Array<{ id: string }>).map(r => r.id))
   for (const r of allRuns as unknown as Array<{ id: string; repo_id: string; job_id: string }>) {
-    if ((r.repo_id !== toPbId(ASSISTANT_REPO_ID) && !repoIds.has(r.repo_id)) || !allJobIds.has(r.job_id)) {
+    if ((r.repo_id !== toPbId(GENERAL_CHAT_PROJECT_ID) && !projectIds.has(r.repo_id)) || !allJobIds.has(r.job_id)) {
       await pb.collection('automation_runs').delete(r.id)
       orphanedRuns++
     }
@@ -379,24 +379,24 @@ function repoNameFromPath(repoPath: string): string {
 }
 
 function resolveRepoDisplay(repoId: number, repoPath: string | null): { repoName: string; repoPath: string } {
-  if (repoId === ASSISTANT_REPO_ID) {
-    return { repoName: ASSISTANT_REPO_NAME, repoPath: ASSISTANT_REPO_PATH }
+  if (repoId === GENERAL_CHAT_PROJECT_ID) {
+    return { repoName: GENERAL_CHAT_PROJECT_NAME, repoPath: GENERAL_CHAT_PROJECT_PATH }
   }
   return { repoName: repoNameFromPath(repoPath ?? ''), repoPath: repoPath ?? '' }
 }
 
 export async function listAllAutomationJobsWithRepos(pb: PocketBase): Promise<AutomationJobWithRepo[]> {
   const jobs = await pb.collection('automation_jobs').getFullList({ sort: 'created_at' })
-  const repos = await pb.collection('repos').getFullList({ fields: 'id,repo_url,local_path' })
-  const repoMap = new Map((repos as unknown as Array<{ id: string; repo_url: string | null; local_path: string }>).map(r => [r.id, r]))
+  const projects = await pb.collection('projects').getFullList({ fields: 'id,directory' })
+  const projectMap = new Map((projects as unknown as Array<{ id: string; directory: string }>).map(r => [r.id, r]))
 
   return (jobs as unknown as AutomationJobRecord[]).map((job) => {
-    const repo = repoMap.get(job.repo_id)
+    const proj = projectMap.get(job.repo_id)
     const jobObj = rowToAutomationJob(job)
     return {
       ...jobObj,
-      ...resolveRepoDisplay(parseInt(job.repo_id, 10), repo?.local_path ?? null),
-      repoUrl: repo?.repo_url ?? '',
+      ...resolveRepoDisplay(parseInt(job.repo_id, 10), proj?.directory ?? null),
+      repoUrl: '',
     }
   })
 }
@@ -434,17 +434,16 @@ export async function listAllAutomationRuns(pb: PocketBase, options: ListAllRuns
   })
 
   const jobs = await pb.collection('automation_jobs').getFullList({ fields: 'id,name' })
-  const repos = await pb.collection('repos').getFullList({ fields: 'id,repo_url,local_path' })
+  const projects = await pb.collection('projects').getFullList({ fields: 'id,directory' })
   const jobMap = new Map((jobs as unknown as Array<{ id: string; name: string }>).map(j => [j.id, j.name]))
-  const repoMap = new Map((repos as unknown as Array<{ id: string; repo_url: string | null; local_path: string }>).map(r => [r.id, r]))
+  const projectMap = new Map((projects as unknown as Array<{ id: string; directory: string }>).map(r => [r.id, r.directory]))
 
   return (result.items as unknown as AutomationRunRecord[]).map((run) => {
     const runObj = rowToAutomationRun(run)
-    const repo = repoMap.get(run.repo_id)
     return {
       ...runObj,
       jobName: jobMap.get(run.job_id) ?? '',
-      ...resolveRepoDisplay(parseInt(run.repo_id, 10), repo?.local_path ?? null),
+      ...resolveRepoDisplay(parseInt(run.repo_id, 10), projectMap.get(run.repo_id) ?? null),
     }
   })
 }

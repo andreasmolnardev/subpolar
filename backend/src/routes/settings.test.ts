@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { Hono } from 'hono'
 import type PocketBase from 'pocketbase'
 import { createSettingsRoutes } from './settings'
-import type { GitAuthService } from '../services/git-auth'
 import { createStubOpenCodeClient } from '../../test/helpers/stub-opencode-client'
 
 function createMockPocketBase(): PocketBase {

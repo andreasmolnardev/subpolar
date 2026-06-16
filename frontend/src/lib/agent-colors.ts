@@ -21,6 +21,12 @@ const DEFAULT_AGENT_COLORS: Record<string, { light: string; dark: string }> = {
   build: { light: '#034cff', dark: '#89b5ff' },
   docs:  { light: '#ffb224', dark: '#ffb224' },
   ask:   { light: '#0091ff', dark: '#0091ff' },
+  auto:  { light: '#6366f1', dark: '#a5b4fc' },
+  'code-build-sandbox':  { light: '#059669', dark: '#6ee7b7' },
+  'code-build-master':   { light: '#034cff', dark: '#89b5ff' },
+  'code-plan':           { light: '#a753ae', dark: '#edb2f1' },
+  'code-analyze':        { light: '#f59e0b', dark: '#fcd34d' },
+  research:              { light: '#ec4899', dark: '#f9a8d4' },
 }
 
 const FALLBACK_COLOR = { light: '#6b7280', dark: '#9ca3af' }

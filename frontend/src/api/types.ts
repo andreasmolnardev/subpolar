@@ -1,21 +1,3 @@
-export interface Repo {
-  id: number
-  repoUrl?: string
-  localPath: string
-  fullPath: string
-  sourcePath?: string
-  branch?: string
-  currentBranch?: string
-  defaultBranch: string
-  cloneStatus: 'cloning' | 'ready' | 'error'
-  clonedAt: number
-  lastPulled?: number
-  lastAccessedAt?: number
-  openCodeConfigName?: string
-  isWorktree?: boolean
-  isLocal?: boolean
-}
-
 import type { components } from './opencode-types'
 
 export type Message = components['schemas']['Message']

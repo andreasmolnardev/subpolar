@@ -26,11 +26,11 @@ export function createInternalRoutes(
   app.route('/notifications', createInternalNotificationRoutes(notificationService))
   app.route('/settings', createInternalSettingsRoutes(settingsService))
   const repos = new Hono()
-  repos.route('/', createInternalRepoRoutes(db, settingsService))
+  repos.route('/', createInternalRepoRoutes())
   repos.route('/:id/automations', createAutomationRoutes(automationService))
-  repos.route('/', createInternalRepoSyncRoutes(db))
+  repos.route('/', createInternalRepoSyncRoutes())
   app.route('/repos', repos)
-  app.route('/opencode-workspaces', createInternalOpenCodeWorkspacesRoutes(db))
+  app.route('/opencode-workspaces', createInternalOpenCodeWorkspacesRoutes())
   app.route('/assistant', createInternalAssistantRoutes(openCodeClient))
   return app
 }

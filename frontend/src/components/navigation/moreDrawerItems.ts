@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Plug, Sparkles, ShieldOff, CalendarClock, GitCommitHorizontal, Code2, Settings, LogOut, Plus, Folder, Clock, SquarePlus, History } from 'lucide-react'
+import { Plug, Sparkles, CalendarClock, Code2, Settings, LogOut, Plus, Folder, Clock, SquarePlus, History } from 'lucide-react'
 
 export interface MoreDrawerItem {
   key: string
@@ -34,16 +34,15 @@ function getBaseItems(): MoreDrawerItem[] {
 export function buildNavModel(pathname: string): NavModel {
   const baseItems = getBaseItems()
 
-  const repoDetailMatch = /^\/repos\/(\d+)$/.exec(pathname)
-  if (repoDetailMatch) {
-    const id = repoDetailMatch[1]
+  const projectDetailMatch = /^\/projects\/(\d+)$/.exec(pathname)
+  if (projectDetailMatch) {
+    const id = projectDetailMatch[1]
     const items: MoreDrawerItem[] = [
       { key: 'files', label: 'Files', icon: Folder, dialog: 'files' },
       { key: 'mcp', label: 'MCP', icon: Plug, dialog: 'mcp' },
       { key: 'skills', label: 'Skills', icon: Sparkles, dialog: 'skills' },
-      { key: 'reset-permissions', label: 'Reset Permissions', icon: ShieldOff, dialog: 'resetPermissions', danger: true },
-      { key: 'automations', label: 'automations', icon: CalendarClock, to: `/repos/${id}/automations` },
-      { key: 'source-control', label: 'Source Control', icon: GitCommitHorizontal, dialog: 'sourceControl' },
+      { key: 'lsp', label: 'LSP', icon: Code2, dialog: 'lsp' },
+      { key: 'automations', label: 'automations', icon: CalendarClock, to: `/projects/${id}/automations` },
       { key: 'history', label: 'History', icon: History, to: '/history' },
       ...baseItems,
     ]
@@ -56,16 +55,14 @@ export function buildNavModel(pathname: string): NavModel {
     }
   }
 
-  const sessionDetailMatch = /^\/repos\/(\d+)\/sessions\/[^/]+$/.exec(pathname)
+  const sessionDetailMatch = /^\/projects\/(\d+)\/sessions\/[^/]+$/.exec(pathname)
   if (sessionDetailMatch) {
     const items: MoreDrawerItem[] = [
       { key: 'files', label: 'Files', icon: Folder, dialog: 'files' },
       { key: 'mcp', label: 'MCP', icon: Plug, dialog: 'mcp' },
       { key: 'skills', label: 'Skills', icon: Sparkles, dialog: 'skills' },
       { key: 'lsp', label: 'LSP', icon: Code2, dialog: 'lsp' },
-      { key: 'reset-permissions', label: 'Reset Permissions', icon: ShieldOff, dialog: 'resetPermissions', danger: true },
-      { key: 'automations', label: 'automations', icon: CalendarClock, to: `/repos/${sessionDetailMatch[1]}/automations` },
-      { key: 'source-control', label: 'Source Control', icon: GitCommitHorizontal, dialog: 'sourceControl' },
+      { key: 'automations', label: 'automations', icon: CalendarClock, to: `/projects/${sessionDetailMatch[1]}/automations` },
       { key: 'history', label: 'History', icon: History, to: '/history' },
       ...baseItems,
     ]
@@ -87,7 +84,7 @@ export function buildNavModel(pathname: string): NavModel {
     }
   }
 
-  if (pathname === '/automations' || /^\/repos\/\d+\/automations$/.test(pathname)) {
+  if (pathname === '/automations' || /^\/projects\/\d+\/automations$/.test(pathname)) {
     return {
       primary: [
         { key: 'new-automation', label: 'New automation', icon: Clock, onSelect: 'new-automation', variant: 'primary' },
@@ -102,7 +99,7 @@ export function buildNavModel(pathname: string): NavModel {
   if (pathname === '/') {
     return {
       primary: [
-        { key: 'new-repo', label: 'New Repo', icon: Plus, onSelect: 'new-repo', variant: 'primary' },
+        { key: 'new-project', label: 'New Project', icon: Plus, onSelect: 'new-repo', variant: 'primary' },
       ],
       items: [
         { key: 'all-automations', label: 'All automations', icon: CalendarClock, to: '/automations' },

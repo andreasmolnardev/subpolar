@@ -11,8 +11,9 @@ vi.mock('@/hooks/useDesktop')
 vi.mock('@/hooks/useSidebarCollapsed')
 vi.mock('@/hooks/useAuth')
 
-vi.mock('@/api/repos', () => ({
-  listRepos: vi.fn().mockResolvedValue([]),
+vi.mock('@/api/projects', () => ({
+  listProjects: vi.fn().mockResolvedValue([]),
+  createProject: vi.fn(),
 }))
 
 vi.mock('@/api/settings', () => ({

@@ -62,6 +62,15 @@ export const AssistantModeFileSchema = z.object({
   created: z.boolean(),
 })
 
+export const AgentFileInfoSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  exists: z.boolean(),
+  created: z.boolean(),
+})
+
+export type AgentFileInfo = z.infer<typeof AgentFileInfoSchema>
+
 export const AssistantModeStatusSchema = z.object({
   repoId: z.number(),
   directory: z.string(),
@@ -75,6 +84,7 @@ export const AssistantModeStatusSchema = z.object({
     agentsMd: AssistantModeFileSchema,
     opencodeJson: AssistantModeFileSchema,
   }),
+  agents: z.array(AgentFileInfoSchema),
   internalToken: z.object({
     path: z.string(),
     created: z.boolean(),
@@ -95,12 +105,19 @@ export const AssistantModeStatusSchema = z.object({
     path: z.string(),
     created: z.boolean(),
   }).optional(),
-  defaultAgent: z.object({
-    name: z.literal('assistant'),
+  codeReviewSkill: z.object({
     path: z.string(),
-    exists: z.boolean(),
     created: z.boolean(),
   }).optional(),
+  codeAnalysisSkill: z.object({
+    path: z.string(),
+    created: z.boolean(),
+  }).optional(),
+  researchWebSkill: z.object({
+    path: z.string(),
+    created: z.boolean(),
+  }).optional(),
+  defaultAgent: AgentFileInfoSchema.optional(),
 })
 
 export const AssistantModeInitRequestSchema = z.object({

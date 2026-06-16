@@ -7,13 +7,13 @@ import { useAuth } from '@/hooks/useAuth'
 import { useServerHealth } from '@/hooks/useServerHealth'
 import { useCommands } from '@/hooks/useCommands'
 import { useUIState } from '@/stores/uiStateStore'
-import { getRepo } from '@/api/repos'
+import { getProject } from '@/api/projects'
 
 vi.mock('@/hooks/useAuth')
 vi.mock('@/hooks/useServerHealth')
 vi.mock('@/hooks/useCommands')
-vi.mock('@/api/repos', () => ({
-  getRepo: vi.fn(),
+vi.mock('@/api/projects', () => ({
+  getProject: vi.fn(),
 }))
 vi.mock('@/components/file-browser/FileBrowserSheet', () => ({
   FileBrowserSheet: ({ isOpen, basePath, onFileSelect }: { isOpen: boolean; basePath: string; onFileSelect: (file: { path: string }) => void }) => (
@@ -119,14 +119,14 @@ describe('MoreDrawer', () => {
     useUIState.getState().clearPendingPromptCommand()
     useUIState.getState().clearPendingPromptFile()
     useUIState.getState().setActivePromptFileBasePath(null)
-    vi.mocked(getRepo).mockResolvedValue({
+    vi.mocked(getProject).mockResolvedValue({
       id: 1,
-      localPath: 'wrong-repo',
+      name: 'wrong-repo',
+      directory: 'wrong-repo',
       fullPath: '/workspace/repos/wrong-repo',
-      branch: 'main',
-      defaultBranch: 'main',
-      cloneStatus: 'ready',
-      clonedAt: 0,
+      status: 'ready',
+      createdAt: 0,
+      updatedAt: 0,
     })
   })
 

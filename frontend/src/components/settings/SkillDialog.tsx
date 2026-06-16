@@ -9,8 +9,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { SkillFileInfo, CreateSkillRequest, UpdateSkillRequest, SkillScope } from '@subpolar/shared'
-import type { Repo } from '@/api/types'
-import { listRepos } from '@/api/repos'
+import { listProjects, type Project } from '@/api/projects'
 import { useQuery } from '@tanstack/react-query'
 
 const skillFormSchema = z.object({
@@ -33,9 +32,9 @@ interface SkillDialogProps {
 }
 
 export function SkillDialog({ open, onOpenChange, onSubmit, editingSkill }: SkillDialogProps) {
-  const { data: repos = [] } = useQuery<Repo[]>({
+  const { data: repos = [] } = useQuery<Project[]>({
     queryKey: ['repos'],
-    queryFn: listRepos,
+    queryFn: listProjects,
     enabled: open,
     staleTime: 5 * 60 * 1000,
   })

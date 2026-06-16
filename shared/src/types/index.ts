@@ -12,15 +12,13 @@ import {
   ServerEnvVarSchema,
 } from '../schemas/settings'
 import {
-  RepoSchema,
-  InternalRepoListResponseSchema,
-  CreateRepoRequestSchema,
-  DiscoverReposRequestSchema,
-  DiscoverReposResponseSchema,
-  RepoStatusSchema,
+  ProjectSchema,
+  CreateProjectRequestSchema,
+  UpdateProjectRequestSchema,
+  ProjectStatusSchema,
   AssistantModeStatusSchema,
   AssistantModeInitRequestSchema,
-} from '../schemas/repo'
+} from '../schemas/project'
 import {
   FileInfoSchema,
   CreateFileRequestSchema,
@@ -59,12 +57,10 @@ export type CreateOpenCodeConfigRequest = z.infer<typeof CreateOpenCodeConfigReq
 export type UpdateOpenCodeConfigRequest = z.infer<typeof UpdateOpenCodeConfigRequestSchema>
 export type OpenCodeConfigResponse = z.infer<typeof OpenCodeConfigResponseSchema>
 
-export type Repo = z.infer<typeof RepoSchema>
-export type InternalRepoListResponse = z.infer<typeof InternalRepoListResponseSchema>
-export type CreateRepoRequest = z.infer<typeof CreateRepoRequestSchema>
-export type DiscoverReposRequest = z.infer<typeof DiscoverReposRequestSchema>
-export type DiscoverReposResponse = z.infer<typeof DiscoverReposResponseSchema>
-export type RepoStatus = z.infer<typeof RepoStatusSchema>
+export type Project = z.infer<typeof ProjectSchema>
+export type CreateProjectRequest = z.infer<typeof CreateProjectRequestSchema>
+export type UpdateProjectRequest = z.infer<typeof UpdateProjectRequestSchema>
+export type ProjectStatus = z.infer<typeof ProjectStatusSchema>
 export type AssistantModeStatus = z.infer<typeof AssistantModeStatusSchema>
 export type AssistantModeInitRequest = z.infer<typeof AssistantModeInitRequestSchema>
 
@@ -91,7 +87,7 @@ export type AssistantNotificationResponse = z.infer<typeof AssistantNotification
 export type AssistantSettingsPatch = z.infer<typeof AssistantSettingsPatchSchema>
 
 export { FetchError } from './errors'
-export type { ApiErrorResponse, ApiErrorCode, GitErrorCode } from './errors'
+export type { ApiErrorResponse, ApiErrorCode } from './errors'
 export { BLOCKED_SERVER_ENV_KEYS, DEFAULT_SERVER_ENV_VARS } from '../schemas/settings'
 
 export interface SuccessResponse {

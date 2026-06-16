@@ -24,13 +24,11 @@ import { opencodeServerManager, ConfigReloadError } from '../services/opencode-s
 import { getOrCreateInternalToken, rotateInternalToken } from '../services/internal-token'
 import { sseAggregator } from '../services/sse-aggregator'
 import type { OpenCodeSupervisor } from '../services/opencode-supervisor'
-import type { GitAuthService } from '../services/git-auth'
 import { DEFAULT_AGENTS_MD } from '../constants'
 import { validateSSHPrivateKey } from '../utils/ssh-validation'
 import { encryptSecret } from '../utils/crypto'
 import { compareVersions, isValidVersion } from '../utils/version-utils'
-import { getImportedSessionDirectories, getOpenCodeImportStatus, OpenCodeImportProtectionError, syncOpenCodeImport } from '../services/opencode-import'
-import { relinkReposFromSessionDirectories } from '../services/repo'
+import { getOpenCodeImportStatus, OpenCodeImportProtectionError, syncOpenCodeImport } from '../services/opencode-import'
 import { ENV } from '@subpolar/shared/config/env'
 import {
   listManagedSkills,
@@ -223,7 +221,7 @@ async function extractOpenCodeError(response: Response, defaultError: string): P
     : defaultError
 }
 
-export function createSettingsRoutes(db: Database, gitAuthService: GitAuthService, openCodeClient: OpenCodeClient, openCodeSupervisor?: OpenCodeSupervisor) {
+export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClient, openCodeSupervisor?: OpenCodeSupervisor) {
   const app = new Hono()
   const settingsService = new SettingsService(db)
 
@@ -624,19 +622,13 @@ export function createSettingsRoutes(db: Database, gitAuthService: GitAuthServic
         }, 404)
       }
 
-      let relinkedRepos
-      if (result.stateImported) {
-        const importedSessions = await getImportedSessionDirectories(result.workspaceStatePath)
-        relinkedRepos = await relinkReposFromSessionDirectories(db, gitAuthService, importedSessions.directories)
-      } else {
-        relinkedRepos = {
-          repos: [],
-          relinkedCount: 0,
-          existingCount: 0,
-          nonRepoPathCount: 0,
-          duplicatePathCount: 0,
-          errors: [],
-        }
+      const relinkedRepos = {
+        repos: [],
+        relinkedCount: 0,
+        existingCount: 0,
+        nonRepoPathCount: 0,
+        duplicatePathCount: 0,
+        errors: [],
       }
 
       opencodeServerManager.clearStartupError()

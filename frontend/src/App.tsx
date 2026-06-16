@@ -1,14 +1,16 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createBrowserRouter, RouterProvider, Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Outlet, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom'
 import { useEffect, useRef, useCallback } from 'react'
 import { Toaster } from 'sonner'
-import { Repos } from './pages/Repos'
-import { RepoDetail } from './pages/RepoDetail'
+import { Home } from './pages/Home'
+import { Projects } from './pages/Projects'
+import { ProjectDetail } from './pages/ProjectDetail'
 import { SessionDetail } from './pages/SessionDetail'
 import { Automations } from './pages/Automations'
 import { GlobalAutomations } from './pages/GlobalAutomations'
 import { History } from './pages/History'
+import { Agents } from './pages/Agents'
 import { Login } from './pages/Login'
 import { Register } from './pages/Register'
 import { Setup } from './pages/Setup'
@@ -41,6 +43,13 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+function RepoRedirect() {
+  const { id, sessionId } = useParams<{ id: string; sessionId: string }>()
+  if (sessionId && id) return <Navigate to={`/projects/${id}/sessions/${sessionId}`} replace />
+  if (id) return <Navigate to={`/projects/${id}`} replace />
+  return <Navigate to="/projects" replace />
+}
 
 function SSHHostKeyDialogWrapper() {
   const { sshHostKey } = useEventContext()
@@ -117,7 +126,7 @@ function AppShell() {
   )
 
   const canOpenMoreWithSwipe = () => {
-    return /^\/repos\/[^/]+\/sessions\/[^/]+$/.test(location.pathname) && !openSheet
+    return /^\/projects\/[^/]+\/sessions\/[^/]+$/.test(location.pathname) && !openSheet
   }
 
   const { bind: bindMoreSwipe } = useRightEdgeSwipe(
@@ -204,23 +213,54 @@ const router = createBrowserRouter([
       },
       {
         path: '/',
-        element: <Repos />,
+        element: <Home />,
         loader: protectedLoader,
       },
       {
-        path: '/repos/:id',
-        element: <RepoDetail />,
+        path: '/home',
+        element: <Home />,
         loader: protectedLoader,
       },
       {
-        path: '/repos/:id/sessions/:sessionId',
+        path: '/agents',
+        element: <Agents />,
+        loader: protectedLoader,
+      },
+      {
+        path: '/projects',
+        element: <Projects />,
+        loader: protectedLoader,
+      },
+      {
+        path: '/projects/:id',
+        element: <ProjectDetail />,
+        loader: protectedLoader,
+      },
+      {
+        path: '/projects/:id/sessions/:sessionId',
         element: <SessionDetail />,
         loader: protectedLoader,
       },
       {
-        path: '/repos/:id/automations',
+        path: '/projects/:id/automations',
         element: <Automations />,
         loader: protectedLoader,
+      },
+      {
+        path: '/repos/:id/sessions/:sessionId',
+        element: <RepoRedirect />,
+      },
+      {
+        path: '/repos/:id/automations',
+        element: <RepoRedirect />,
+      },
+      {
+        path: '/repos/:id',
+        element: <RepoRedirect />,
+      },
+      {
+        path: '/repos',
+        element: <RepoRedirect />,
       },
       {
         path: '/automations',

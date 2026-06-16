@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useMemo, u
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { OpenCodeClient } from '@/api/opencode'
-import { listRepos } from '@/api/repos'
+import { listProjects } from '@/api/projects'
 import type { PermissionRequest, PermissionResponse, QuestionRequest, SSEEvent, SSHHostKeyRequest, MessageWithParts } from '@/api/types'
 import { showToast } from '@/lib/toast'
 import { openCodeEventStream, type EventStreamHealthState } from '@/lib/opencode-event-stream'
@@ -194,7 +194,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
 
   const { data: repos } = useQuery({
     queryKey: ['repos'],
-    queryFn: listRepos,
+    queryFn: listProjects,
   })
 
   const allPermissions = useMemo(() => Object.values(permissionsBySession).flat(), [permissionsBySession])
@@ -399,7 +399,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     if (!currentQuestion) return
     const repoId = getRepoIdForSession(currentQuestion.sessionID)
     if (repoId) {
-      const targetPath = `/repos/${repoId}/sessions/${currentQuestion.sessionID}`
+      const targetPath = `/projects/${repoId}/sessions/${currentQuestion.sessionID}`
       if (window.location.pathname !== targetPath) {
         navigate(targetPath)
       }
@@ -410,7 +410,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     if (!currentPermission) return
     const repoId = getRepoIdForSession(currentPermission.sessionID)
     if (repoId) {
-      const targetPath = `/repos/${repoId}/sessions/${currentPermission.sessionID}`
+      const targetPath = `/projects/${repoId}/sessions/${currentPermission.sessionID}`
       if (window.location.pathname !== targetPath) {
         navigate(targetPath)
       }

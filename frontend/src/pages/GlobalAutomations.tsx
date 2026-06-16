@@ -19,7 +19,7 @@ import type { AutomationTab } from '@/hooks/useAutomationUrlState'
 
 import type { AutomationJobWithRepo, AutomationRunWithContext } from '@/api/automations'
 import { Combobox } from '@/components/ui/combobox'
-import { isWorkspaceRepoId } from '@/lib/automations/automation-target'
+import { isGeneralChatId } from '@/lib/automations/automation-target'
 
 type StatusFilter = 'all' | 'enabled' | 'disabled'
 type automationModeFilter = 'all' | 'cron' | 'interval'
@@ -277,7 +277,7 @@ export function GlobalAutomations() {
   const handleNavigateToRepo = (repoPath: string) => {
     const repoId = jobs.find((j) => j.repoPath === repoPath)?.repoId
     if (repoId === undefined) return
-    navigate(isWorkspaceRepoId(repoId) ? '/' : `/repos/${repoId}`)
+    navigate(isGeneralChatId(repoId) ? '/' : `/projects/${repoId}`)
   }
 
   if (isLoading) {
@@ -513,7 +513,7 @@ export function GlobalAutomations() {
                     </div>
                     <Button onClick={() => navigate('/')}>
                       <Plus className="w-4 h-4 mr-2" />
-                      Go to Repositories
+                      Go to Projects
                     </Button>
                   </CardContent>
                 </Card>
@@ -550,7 +550,7 @@ export function GlobalAutomations() {
                   <Card
                     key={job.id}
                     className="group cursor-pointer transition-all hover:shadow-md border-border/70 bg-card/60"
-                    onClick={() => navigate(`/repos/${job.repoId}/automations`)}
+                    onClick={() => navigate(`/projects/${job.repoId}/automations`)}
                   >
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-start justify-between gap-2">

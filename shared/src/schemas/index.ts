@@ -1,5 +1,5 @@
 export * from './settings'
-export * from './repo'
+export * from './project'
 export * from './files'
 export * from './opencode'
 export * from './auth'

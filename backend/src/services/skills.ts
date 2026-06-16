@@ -4,11 +4,11 @@ import type { Database } from '../db/schema'
 import type { SkillFileInfo, SkillScope, CreateSkillRequest, UpdateSkillRequest } from '@subpolar/shared'
 import { SKILL_NAME_REGEX } from '@subpolar/shared'
 import { getWorkspacePath } from '@subpolar/shared/config/env'
-import { getRepoById, listRepos } from '../db/queries'
-import type { Repo } from '@subpolar/shared/types'
 import { ensureDirectoryExists, fileExists, readFileContent, writeFileContent, deletePath, listDirectory } from './file-operations'
 import type { OpenCodeClient } from './opencode/client'
 import { logger } from '../utils/logger'
+import type { Project } from '@subpolar/shared/types'
+import { listProjects, getProjectById } from '../db/projects'
 
 interface OpenCodeSkillInfo {
   name: string
@@ -25,8 +25,8 @@ function getOldGlobalSkillsPath(): string {
   return path.join(os.homedir(), '.config', 'opencode', 'skills')
 }
 
-function getProjectSkillsPath(repo: Repo): string {
-  return path.join(repo.fullPath, '.opencode', 'skills')
+function getProjectSkillsPath(project: Project): string {
+  return path.join(project.fullPath, '.opencode', 'skills')
 }
 
 export async function migrateGlobalSkills(): Promise<void> {
@@ -93,13 +93,13 @@ async function getSkillFilePath(db: Database, scope: SkillScope, name: string, r
     return path.join(getGlobalSkillsPath(), name, 'SKILL.md')
   }
   if (!repoId) {
-    throw new Error('repoId is required for project-scoped skills')
+    throw new Error('project ID is required for project-scoped skills')
   }
-  const repo = await getRepoById(db, repoId)
-  if (!repo) {
-    throw new Error(`Repository with id ${repoId} not found`)
+  const project = await getProjectById(db, String(repoId))
+  if (!project) {
+    throw new Error(`Project with id ${repoId} not found`)
   }
-  return path.join(getProjectSkillsPath(repo), name, 'SKILL.md')
+  return path.join(getProjectSkillsPath(project), name, 'SKILL.md')
 }
 
 function buildSkillFileContent(name: string, description: string, body: string): string {
@@ -127,9 +127,9 @@ async function fetchOpenCodeSkills(openCodeClient: OpenCodeClient, directory: st
 function classifySkillLocation(
   location: string,
   globalPrefix: string,
-  repos: Repo[],
+  projects: Project[],
   customDirectory?: string,
-): { scope: SkillScope; repo?: Repo } | null {
+): { scope: SkillScope; project?: Project } | null {
   if (location.startsWith(globalPrefix + path.sep)) {
     return { scope: 'global' }
   }
@@ -139,10 +139,10 @@ function classifySkillLocation(
       return { scope: 'project' }
     }
   }
-  for (const repo of repos) {
-    const projectPrefix = getProjectSkillsPath(repo)
+  for (const project of projects) {
+    const projectPrefix = getProjectSkillsPath(project)
     if (location.startsWith(projectPrefix + path.sep)) {
-      return { scope: 'project', repo }
+      return { scope: 'project', project }
     }
   }
   return null
@@ -150,7 +150,7 @@ function classifySkillLocation(
 
 function toSkillFileInfo(
   skill: OpenCodeSkillInfo,
-  classification: { scope: SkillScope; repo?: Repo },
+  classification: { scope: SkillScope; project?: Project },
 ): SkillFileInfo {
   return {
     name: skill.name,
@@ -158,8 +158,8 @@ function toSkillFileInfo(
     body: skill.content,
     scope: classification.scope,
     location: skill.location,
-    repoId: classification.repo?.id,
-    repoName: classification.repo?.localPath,
+    repoId: classification.project?.id,
+    repoName: classification.project?.name,
   }
 }
 
@@ -170,7 +170,7 @@ export async function listManagedSkills(
   directory?: string,
 ): Promise<SkillFileInfo[]> {
   const globalPrefix = getGlobalSkillsPath()
-  const allRepos = await listRepos(db)
+  const allProjects = await listProjects(db, 'default')
 
   const seenLocations = new Set<string>()
   const result: SkillFileInfo[] = []
@@ -179,29 +179,29 @@ export async function listManagedSkills(
     const skills = await fetchOpenCodeSkills(openCodeClient, directory)
     for (const skill of skills) {
       if (seenLocations.has(skill.location)) continue
-      const classification = classifySkillLocation(skill.location, globalPrefix, allRepos, directory)
+      const classification = classifySkillLocation(skill.location, globalPrefix, allProjects, directory)
       if (!classification) continue
       seenLocations.add(skill.location)
       result.push(toSkillFileInfo(skill, classification))
     }
   } else {
-    const targetRepos = repoId
-      ? allRepos.filter(r => r.id === repoId)
-      : allRepos
+    const targetProjects = repoId
+      ? allProjects.filter(p => p.id === repoId)
+      : allProjects
 
-    if (repoId && targetRepos.length === 0) {
-      throw new Error(`Repository with id ${repoId} not found`)
+    if (repoId && targetProjects.length === 0) {
+      throw new Error(`Project with id ${repoId} not found`)
     }
 
-    const directories = targetRepos.length > 0
-      ? targetRepos.map(r => r.fullPath)
+    const directories = targetProjects.length > 0
+      ? targetProjects.map(p => p.fullPath)
       : [getWorkspacePath()]
 
     for (const dir of directories) {
       const skills = await fetchOpenCodeSkills(openCodeClient, dir)
       for (const skill of skills) {
         if (seenLocations.has(skill.location)) continue
-        const classification = classifySkillLocation(skill.location, globalPrefix, allRepos)
+        const classification = classifySkillLocation(skill.location, globalPrefix, allProjects)
         if (!classification) continue
         seenLocations.add(skill.location)
         result.push(toSkillFileInfo(skill, classification))
@@ -249,7 +249,7 @@ export async function createSkill(
   await writeFileContent(skillPath, buildSkillFileContent(name, description, body))
   logger.info(`Created skill "${name}" at ${skillPath}`)
 
-  const repo = repoId ? await getRepoById(db, repoId) : null
+  const project = repoId ? await getProjectById(db, String(repoId)) : null
 
   return {
     name,
@@ -258,7 +258,7 @@ export async function createSkill(
     scope,
     location: skillPath,
     repoId: scope === 'project' ? repoId : undefined,
-    repoName: repo?.localPath,
+    repoName: project?.name,
   }
 }
 

@@ -4,9 +4,6 @@ import { cors } from 'hono/cors'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { readFile } from 'fs/promises'
 import { initializeDatabase, type Database } from './db/schema'
-import { createRepoRoutes } from './routes/repos'
-import { createIPCServer, type IPCServer } from './ipc/ipcServer'
-import { GitAuthService } from './services/git-auth'
 import { createSettingsRoutes } from './routes/settings'
 import { createHealthRoutes } from './routes/health'
 import { createTTSRoutes, cleanupExpiredCache } from './routes/tts';
@@ -27,13 +24,12 @@ async function getAppVersion(): Promise<string> {
 import { createProvidersRoutes } from './routes/providers'
 import { createOAuthRoutes } from './routes/oauth'
 import { createSSERoutes } from './routes/sse'
-import { createSSHRoutes } from './routes/ssh'
 import { createNotificationRoutes } from './routes/notifications'
 import { createMcpOauthProxyRoutes } from './routes/mcp-oauth-proxy'
-import { syncAdminFromEnv } from './auth'
 import { createAuthRoutes, createAuthInfoRoutes } from './routes/auth'
 import { createAuthMiddleware } from './auth/middleware'
 import { createPromptTemplateRoutes } from './routes/prompt-templates'
+import { createProjectRoutes } from './routes/projects'
 import { createInternalRoutes } from './routes/internal'
 import { createOpenCodeProxyRoutes } from './routes/opencode-proxy'
 import { sseAggregator } from './services/sse-aggregator'
@@ -61,7 +57,6 @@ import {
 import { logger } from './utils/logger'
 import { 
   getWorkspacePath, 
-  getReposPath, 
   getConfigPath,
   getOpenCodeConfigFilePath,
   getAgentsMdPath,
@@ -102,8 +97,6 @@ async function initializeApp() {
 
 import { DEFAULT_AGENTS_MD } from './constants'
 
-let ipcServer: IPCServer | undefined
-const gitAuthService = new GitAuthService()
 let openCodeSupervisor: OpenCodeSupervisor | undefined
 async function ensureDefaultConfigExists(): Promise<void> {
   const ss = new SettingsService(db!)
@@ -242,7 +235,6 @@ async function ensureDefaultAgentsMdExists(): Promise<void> {
 
 try {
   await ensureDirectoryExists(getWorkspacePath())
-  await ensureDirectoryExists(getReposPath())
   await ensureDirectoryExists(getConfigPath())
   logger.info('Workspace directories initialized')
 
@@ -270,12 +262,6 @@ try {
     apiBaseUrl: `http://localhost:${PORT}/api/internal`,
   })
   logger.info('Assistant workspace installed')
-
-  ipcServer = await createIPCServer(process.env.STORAGE_PATH || undefined)
-  await gitAuthService.initialize(ipcServer, db!)
-  logger.info(`Git IPC server running at ${ipcServer.ipcHandlePath}`)
-
-  await syncAdminFromEnv(db!)
 
   opencodeServerManager.setDatabase(db!)
   const openCodeStatus = await openCodeSupervisor.start()
@@ -326,19 +312,18 @@ app.route('/api/health', createHealthRoutes(openCodeSupervisor))
 app.route('/api/mcp-oauth-proxy', createMcpOauthProxyRoutes(openCodeClient!, requireAuth!))
 app.route('/api/internal', createInternalRoutes(db!, automationService!, notificationService!, settingsService!, openCodeClient!))
 app.route('/api/opencode-proxy', createOpenCodeProxyRoutes(db!, settingsService!))
+app.route('/api/projects', createProjectRoutes(db!))
 
 const protectedApi = new Hono()
 protectedApi.use('/*', requireAuth!)
 
-protectedApi.route('/repos', createRepoRoutes(db!, gitAuthService, automationService!, openCodeClient!, openCodeSupervisor))
-protectedApi.route('/settings', createSettingsRoutes(db!, gitAuthService, openCodeClient!, openCodeSupervisor))
+protectedApi.route('/settings', createSettingsRoutes(db!, openCodeClient!, openCodeSupervisor))
 protectedApi.route('/files', createFileRoutes())
 protectedApi.route('/providers', createProvidersRoutes(db!, openCodeClient!, openCodeSupervisor))
 protectedApi.route('/oauth', createOAuthRoutes(openCodeClient!, openCodeSupervisor))
 protectedApi.route('/tts', createTTSRoutes(db!))
 protectedApi.route('/stt', createSTTRoutes(db!))
 protectedApi.route('/sse', createSSERoutes())
-protectedApi.route('/ssh', createSSHRoutes(gitAuthService))
 protectedApi.route('/notifications', createNotificationRoutes(notificationService!))
 protectedApi.route('/prompt-templates', createPromptTemplateRoutes(db!))
 protectedApi.route('/automations', createAutomationRoutes(automationService!))
@@ -394,7 +379,7 @@ if (isProduction) {
       status: 'running',
       endpoints: {
         health: '/api/health',
-        repos: '/api/repos',
+        projects: '/api/projects',
         settings: '/api/settings',
         sessions: '/api/sessions',
         files: '/api/files',
@@ -439,10 +424,6 @@ const shutdown = async (signal: string) => {
   try {
     sseAggregator.shutdown()
     logger.info('SSE Aggregator stopped')
-    if (ipcServer) {
-      await ipcServer.dispose()
-      logger.info('Git IPC server stopped')
-    }
     if (openCodeSupervisor) {
       await openCodeSupervisor.stop()
     }

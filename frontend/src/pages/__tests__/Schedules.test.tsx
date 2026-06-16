@@ -41,8 +41,8 @@ vi.mock('@/hooks/useAutomations', () => ({
   useCancelRepoautomationRun: mocks.useCancelRepoautomationRun,
 }))
 
-vi.mock('@/hooks/useRepoActivity', () => ({
-  useRepoActivity: mocks.useRepoActivity,
+vi.mock('@/hooks/useProjectActivity', () => ({
+  useProjectActivity: mocks.useRepoActivity,
 }))
 
 vi.mock('@/hooks/useAutomationUrlState', () => ({

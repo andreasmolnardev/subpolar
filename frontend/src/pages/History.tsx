@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { listRepos } from '@/api/repos'
+import { listProjects } from '@/api/projects'
 import { useSessionsAcrossDirectories } from '@/hooks/useOpenCode'
 import { SessionList } from '@/components/session/SessionList'
 import { Header } from '@/components/ui/header'
@@ -17,7 +17,7 @@ export function History() {
 
   const { data: repos, isLoading: reposLoading } = useQuery({
     queryKey: ['repos'],
-    queryFn: listRepos,
+    queryFn: listProjects,
   })
 
   const directories = useMemo(() => {

@@ -1,19 +1,17 @@
 import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown, ChevronRight, Command as CommandIcon, FileText, X, GitBranch } from 'lucide-react'
+import { ChevronDown, ChevronRight, Command as CommandIcon, FileText, X } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useServerHealth } from '@/hooks/useServerHealth'
 import { useCommands } from '@/hooks/useCommands'
 import { useUrlParams } from '@/hooks/useUrlParams'
 import { useUIState } from '@/stores/uiStateStore'
-import { useQuery } from '@tanstack/react-query'
-import { getRepo } from '@/api/repos'
 import { OPENCODE_API_ENDPOINT } from '@/config'
 import { SideDrawer, SideDrawerContent } from '@/components/ui/side-drawer'
 import { FileBrowserSheet } from '@/components/file-browser/FileBrowserSheet'
 import { buildMoreItems } from './moreDrawerItems'
 import { useSwipeBack } from '@/hooks/useMobile'
-import { getRepoDisplayName } from '@/lib/utils'
+
 import { getPathWithReturnTo } from '@/lib/navigation'
 import type { components } from '@/api/opencode-types'
 
@@ -27,16 +25,15 @@ interface MoreDrawerProps {
 export function MoreDrawer({ isOpen, onClose }: MoreDrawerProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { id } = useParams<{ id: string }>()
-  const repoId = id ? Number(id) : null
+  useParams<{ id: string }>()
   const [commandsOpen, setCommandsOpen] = useState(false)
   const [mentionFileBrowserOpen, setMentionFileBrowserOpen] = useState(false)
   const swipeRef = useRef<HTMLDivElement>(null)
   const { bind } = useSwipeBack(onClose, { enabled: isOpen, suspendsRouteSwipe: true })
-  const { searchParams, updateParams } = useUrlParams()
+  const { updateParams } = useUrlParams()
   const { logout } = useAuth()
   const { data: health } = useServerHealth()
-  const isSessionDetail = /^\/repos\/\d+\/sessions\/[^/]+$/.test(location.pathname)
+  const isSessionDetail = /^\/projects\/\d+\/sessions\/[^/]+$/.test(location.pathname)
   const { filterCommands } = useCommands(isSessionDetail ? OPENCODE_API_ENDPOINT : null)
   const activePromptFileBasePath = useUIState((state) => state.activePromptFileBasePath)
   const selectPromptCommand = useUIState((state) => state.selectPromptCommand)
@@ -49,14 +46,7 @@ export function MoreDrawer({ isOpen, onClose }: MoreDrawerProps) {
     }
   }, [isOpen, bind])
 
-  const { data: repo } = useQuery({
-    queryKey: ['repo', repoId],
-    queryFn: () => repoId ? getRepo(repoId) : null,
-    enabled: !!repoId,
-  })
 
-  const currentBranch = repo?.currentBranch || repo?.branch
-  const repoDisplayName = repo ? getRepoDisplayName(repo.repoUrl, repo.localPath, repo.sourcePath) : null
 
   const handleSettingsClick = () => {
     updateParams((p) => {
@@ -138,20 +128,7 @@ export function MoreDrawer({ isOpen, onClose }: MoreDrawerProps) {
               <X className="h-5 w-5" />
             </button>
           </div>
-          {(repoDisplayName || currentBranch) && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {repoDisplayName && (
-                <span className="font-medium text-orange-600 dark:text-orange-400">{repoDisplayName}</span>
-              )}
 
-              {currentBranch && (
-                <>
-                  <GitBranch className="h-3.5 w-3.5" />
-                  <span>{currentBranch}</span>
-                </>
-              )}
-            </div>
-          )}
         </div>
         <SideDrawerContent className="flex flex-col gap-1">
           {isSessionDetail && (

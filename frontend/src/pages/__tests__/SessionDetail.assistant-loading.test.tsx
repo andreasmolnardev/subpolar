@@ -101,8 +101,8 @@ vi.mock('@/hooks/useSSE', () => ({
   useSSE: mocks.useSSE,
 }))
 
-vi.mock('@/hooks/useRepoActivity', () => ({
-  useRepoActivity: mocks.useRepoActivity,
+vi.mock('@/hooks/useProjectActivity', () => ({
+  useProjectActivity: mocks.useRepoActivity,
 }))
 
 vi.mock('@/contexts/EventContext', async (importOriginal) => {
@@ -115,15 +115,17 @@ vi.mock('@/contexts/EventContext', async (importOriginal) => {
   }
 })
 
-vi.mock('@/api/repos', () => ({
-  getRepo: vi.fn((repoId: number) => Promise.resolve(repoId === 0 ? {
+vi.mock('@/api/projects', () => ({
+  getProject: vi.fn((projectId: number) => Promise.resolve(projectId === 0 ? {
     id: 0,
-    localPath: 'assistant',
+    name: 'General Chat',
+    directory: 'assistant',
     fullPath: '/abs/assistant',
-    defaultBranch: 'main',
-    cloneStatus: 'ready',
-    clonedAt: 1,
+    status: 'ready' as const,
+    createdAt: 1,
+    updatedAt: 1,
   } : null)),
+  touchProjectActivity: vi.fn(),
 }))
 
 vi.mock('@/components/session/SessionList', () => ({
@@ -134,24 +136,16 @@ vi.mock('@/components/file-browser/FileBrowserSheet', () => ({
   FileBrowserSheet: vi.fn(() => null),
 }))
 
-vi.mock('@/components/repo/RepoMcpDialog', () => ({
-  RepoMcpDialog: vi.fn(() => null),
+vi.mock('@/components/project/ProjectMcpDialog', () => ({
+  ProjectMcpDialog: vi.fn(() => null),
 }))
 
-vi.mock('@/components/repo/ResetPermissionsDialog', () => ({
-  ResetPermissionsDialog: vi.fn(() => null),
+vi.mock('@/components/project/ProjectLspDialog', () => ({
+  ProjectLspDialog: vi.fn(() => null),
 }))
 
-vi.mock('@/components/repo/RepoLspDialog', () => ({
-  RepoLspDialog: vi.fn(() => null),
-}))
-
-vi.mock('@/components/repo/RepoSkillsDialog', () => ({
-  RepoSkillsDialog: mocks.RepoSkillsDialog,
-}))
-
-vi.mock('@/components/source-control', () => ({
-  SourceControlPanel: vi.fn(() => null),
+vi.mock('@/components/project/ProjectSkillsDialog', () => ({
+  ProjectSkillsDialog: mocks.RepoSkillsDialog,
 }))
 
 vi.mock('@/components/session/QuestionPrompt', () => ({

@@ -36,8 +36,8 @@ vi.mock('@/api/settings', () => ({
   },
 }))
 
-vi.mock('@/api/repos', () => ({
-  listRepos: () => Promise.resolve([]),
+vi.mock('@/api/projects', () => ({
+  listProjects: () => Promise.resolve([]),
 }))
 
 function createWrapper() {

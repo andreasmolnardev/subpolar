@@ -8,14 +8,7 @@ import { X, Download } from 'lucide-react'
 import { GPU_ACCELERATED_STYLE, MODAL_TRANSITION_MS } from '@/lib/utils'
 import { useSwipeBack } from '@/hooks/useMobile'
 import { downloadDirectoryAsZip } from '@/api/files'
-import { downloadRepo } from '@/api/repos'
 import type { FileInfo } from '@/types/files'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 
 interface FileBrowserSheetProps {
   isOpen: boolean
@@ -34,7 +27,7 @@ export const FileBrowserSheet = memo(function FileBrowserSheet({ isOpen, onClose
   const [displayPath, setDisplayPath] = useState<string>('/')
   const [shouldRender, setShouldRender] = useState(false)
   const [currentPath, setCurrentPath] = useState<string>(basePath || '.')
-  const [downloadDialog, setDownloadDialog] = useState<{ type: 'directory' | 'repository' } | null>(null)
+  const [downloadDialog, setDownloadDialog] = useState<{ type: 'directory' } | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const fileBrowserRef = useRef<FileBrowserHandle>(null)
@@ -99,12 +92,7 @@ export const FileBrowserSheet = memo(function FileBrowserSheet({ isOpen, onClose
     await downloadDirectoryAsZip(currentPath, options)
   }, [currentPath])
 
-  const handleDownloadRepo = useCallback(async (options: { includeGit?: boolean, includePaths?: string[] }) => {
-    if (!repoId || !repoName) return
-    await downloadRepo(repoId, repoName, options)
-  }, [repoId, repoName])
-
-  const handleOpenDownloadDialog = (type: 'directory' | 'repository') => {
+  const handleOpenDownloadDialog = (type: 'directory') => {
     setDownloadDialog({ type })
   }
 
@@ -157,27 +145,14 @@ export const FileBrowserSheet = memo(function FileBrowserSheet({ isOpen, onClose
             </div>
             <div className="flex items-center gap-2">
               {repoId != null && !isEditing && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200"
-                    >
-                      <Download className="w-5 h-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleOpenDownloadDialog('directory')}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Current Directory
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleOpenDownloadDialog('repository')}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Entire Repository
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleOpenDownloadDialog('directory')}
+                  className="text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200"
+                >
+                  <Download className="w-5 h-5" />
+                </Button>
               )}
               {!isEditing && (
                 <Button
@@ -210,13 +185,11 @@ export const FileBrowserSheet = memo(function FileBrowserSheet({ isOpen, onClose
       <DownloadDialog
         open={downloadDialog !== null}
         onOpenChange={(open) => !open && setDownloadDialog(null)}
-        onDownload={downloadDialog?.type === 'directory' ? handleDownloadDirectory : handleDownloadRepo}
-        title={downloadDialog?.type === 'directory' ? 'Download Current Directory' : 'Download Repository'}
-        description={downloadDialog?.type === 'directory'
-          ? 'This will create a ZIP archive of the current directory and all its contents.'
-          : 'This will create a ZIP archive of the entire repository.'}
-        itemName={downloadDialog?.type === 'directory' ? currentPath.split('/').pop() || 'Directory' : repoName || 'Repository'}
-        targetPath={downloadDialog?.type === 'directory' ? currentPath : basePath}
+        onDownload={handleDownloadDirectory}
+        title="Download Current Directory"
+        description="This will create a ZIP archive of the current directory and all its contents."
+        itemName={currentPath.split('/').pop() || 'Directory'}
+        targetPath={currentPath}
       />
     </div>
   )

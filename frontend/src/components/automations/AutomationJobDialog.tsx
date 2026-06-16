@@ -4,8 +4,7 @@ import type { CreateAutomationJobRequest, PromptTemplate, AutomationJob } from '
 import { getProvidersWithModels } from '@/api/providers'
 import { createOpenCodeClient } from '@/api/opencode'
 import { settingsApi } from '@/api/settings'
-import { listRepos } from '@/api/repos'
-import type { Repo } from '@/api/types'
+import { listProjects, type Project } from '@/api/projects'
 import { OPENCODE_API_ENDPOINT } from '@/config'
 import { Button } from '@/components/ui/button'
 import type { ComboboxOption } from '@/components/ui/combobox'
@@ -18,7 +17,7 @@ import {
   type automationPreset,
 } from './automation-utils'
 import { getRepoDisplayName } from '@/lib/utils'
-import { ASSISTANT_REPO_ID } from '@subpolar/shared/utils'
+import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
 import { Loader2 } from 'lucide-react'
 import { usePromptTemplates, useDeletePromptTemplate } from '@/hooks/usePromptTemplates'
 import { PromptTemplateDialog } from './PromptTemplateDialog'
@@ -101,16 +100,16 @@ export function AutomationJobDialog({ open, onOpenChange, job, isSaving, onSubmi
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data: repos = [] } = useQuery<Repo[]>({
+  const { data: repos = [] } = useQuery<Project[]>({
     queryKey: ['repos'],
-    queryFn: listRepos,
+    queryFn: listProjects,
     enabled: open && !!showRepoSelector,
     staleTime: 5 * 60 * 1000,
   })
 
   const repoOptions = useMemo<ComboboxOption[]>(() => {
     const workspaceOption: ComboboxOption = {
-      value: ASSISTANT_REPO_ID.toString(),
+      value: GENERAL_CHAT_PROJECT_ID.toString(),
       label: 'Workspace',
       description: 'Workspace root',
     }

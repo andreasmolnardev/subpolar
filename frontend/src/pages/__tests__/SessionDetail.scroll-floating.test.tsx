@@ -118,8 +118,8 @@ vi.mock('@/hooks/useSSE', () => ({
   useSSE: mocks.useSSE,
 }))
 
-vi.mock('@/hooks/useRepoActivity', () => ({
-  useRepoActivity: mocks.useRepoActivity,
+vi.mock('@/hooks/useProjectActivity', () => ({
+  useProjectActivity: mocks.useRepoActivity,
 }))
 
 vi.mock('@/contexts/EventContext', async (importOriginal) => {
@@ -132,18 +132,17 @@ vi.mock('@/contexts/EventContext', async (importOriginal) => {
   }
 })
 
-vi.mock('@/api/repos', () => ({
-  getRepo: vi.fn(() => Promise.resolve({
+vi.mock('@/api/projects', () => ({
+  getProject: vi.fn(() => Promise.resolve({
     id: 1,
-    repoUrl: 'https://github.com/test/repo',
-    localPath: '/test/repo',
-    sourcePath: null,
+    name: 'test',
+    directory: '/test/repo',
     fullPath: '/test/repo',
-    branch: 'main',
-    currentBranch: 'main',
-    fullSlug: 'test/repo',
-    repoType: 'github' as const,
+    status: 'ready' as const,
+    createdAt: 0,
+    updatedAt: 0,
   })),
+  touchProjectActivity: vi.fn(),
   initializeAssistantMode: vi.fn(() => Promise.resolve({ directory: '/test/repo' })),
 }))
 
@@ -155,24 +154,16 @@ vi.mock('@/components/file-browser/FileBrowserSheet', () => ({
   FileBrowserSheet: vi.fn(() => null),
 }))
 
-vi.mock('@/components/repo/RepoMcpDialog', () => ({
-  RepoMcpDialog: vi.fn(() => null),
+vi.mock('@/components/project/ProjectMcpDialog', () => ({
+  ProjectMcpDialog: vi.fn(() => null),
 }))
 
-vi.mock('@/components/repo/ResetPermissionsDialog', () => ({
-  ResetPermissionsDialog: vi.fn(() => null),
+vi.mock('@/components/project/ProjectLspDialog', () => ({
+  ProjectLspDialog: vi.fn(() => null),
 }))
 
-vi.mock('@/components/repo/RepoLspDialog', () => ({
-  RepoLspDialog: vi.fn(() => null),
-}))
-
-vi.mock('@/components/repo/RepoSkillsDialog', () => ({
-  RepoSkillsDialog: vi.fn(() => null),
-}))
-
-vi.mock('@/components/source-control', () => ({
-  SourceControlPanel: vi.fn(() => null),
+vi.mock('@/components/project/ProjectSkillsDialog', () => ({
+  ProjectSkillsDialog: vi.fn(() => null),
 }))
 
 vi.mock('@/components/session/QuestionPrompt', () => ({

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getRepo } from "@/api/repos";
+import { getProject } from "@/api/projects";
 import { MessageThread } from "@/components/message/MessageThread";
 import { PromptInput, type PromptInputHandle } from "@/components/message/PromptInput";
 import { FloatingTTSButton } from '@/components/message/FloatingTTSButton'
@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ContextUsageIndicator } from "@/components/session/ContextUsageIndicator";
 import { useSession, useAbortSession, useUpdateSession, useMessages, useCreateSession } from "@/hooks/useOpenCode";
-import { useRepoActivity } from "@/hooks/useRepoActivity";
+import { useProjectActivity } from "@/hooks/useProjectActivity";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { useSSE } from "@/hooks/useSSE";
 import { useUIState } from "@/stores/uiStateStore";
@@ -34,11 +34,6 @@ import { exportSession, downloadMarkdown } from "@/lib/exportSession";
 import type { MessageWithParts } from "@/api/types";
 import { getMessagesContentVersion } from "./sessionContentVersion";
 import { showToast } from "@/lib/toast";
-import { getRepoDisplayName } from "@/lib/utils";
-import { RepoMcpDialog } from "@/components/repo/RepoMcpDialog";
-import { ResetPermissionsDialog } from "@/components/repo/ResetPermissionsDialog";
-import { RepoLspDialog } from "@/components/repo/RepoLspDialog";
-import { RepoSkillsDialog } from "@/components/repo/RepoSkillsDialog";
 import { createOpenCodeClient } from "@/api/opencode";
 import { usePermissions, useQuestions } from "@/contexts/EventContext";
 import { useSessionStatusForSession } from "@/stores/sessionStatusStore";
@@ -46,7 +41,6 @@ import type { QuestionRequest } from "@/api/types";
 import { QuestionPrompt } from "@/components/session/QuestionPrompt";
 import { MinimizedQuestionIndicator } from "@/components/session/MinimizedQuestionIndicator";
 import { PendingActionsGroup } from "@/components/notifications/PendingActionsGroup";
-import { SourceControlPanel } from "@/components/source-control";
 import { SessionSendErrorBanner } from "@/components/session/SessionSendErrorBanner";
 import { SessionTodoDisplay } from "@/components/message/SessionTodoDisplay";
 import { useDialogParam } from "@/hooks/useDialogParam";
@@ -74,11 +68,6 @@ export function SessionDetail() {
   const promptInputRef = useRef<PromptInputHandle>(null);
   const [sessionsDialogOpen, setSessionsDialogOpen] = useState(false);
   const [fileBrowserOpen, setFileBrowserOpen] = useDialogParam('files');
-  const [lspDialogOpen, setLspDialogOpen] = useDialogParam('lsp');
-  const [mcpDialogOpen, setMcpDialogOpen] = useDialogParam('mcp');
-  const [skillsDialogOpen, setSkillsDialogOpen] = useDialogParam('skills');
-  const [sourceControlOpen, setSourceControlOpen] = useDialogParam('sourceControl');
-  const [resetPermissionsOpen, setResetPermissionsOpen] = useDialogParam('resetPermissions');
   const [selectedFilePath, setSelectedFilePath] = useState<string | undefined>();
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [hasPromptContent, setHasPromptContent] = useState(false);
@@ -109,11 +98,11 @@ export function SessionDetail() {
 
   const { data: repo, isLoading: repoLoading } = useQuery({
     queryKey: ["repo", repoId],
-    queryFn: () => getRepo(repoId),
+    queryFn: () => getProject(repoId),
     enabled: id !== undefined,
   });
 
-  useRepoActivity(repoId, Boolean(repo));
+  useProjectActivity(repoId, Boolean(repo));
 
   const opcodeUrl = OPENCODE_API_ENDPOINT;
   
@@ -405,16 +394,14 @@ export function SessionDetail() {
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background via-background to-background">
         <div className="flex flex-col items-center gap-2">
           <div className="w-8 h-8 animate-spin rounded-full border-2 border-muted border-t-foreground" />
-          <span className="text-muted-foreground">Loading repository...</span>
+          <span className="text-muted-foreground">Loading project...</span>
         </div>
       </div>
     );
   }
 
-  const workspaceDisplayName = repo
-    ? getRepoDisplayName(repo.repoUrl, repo.localPath, repo.sourcePath)
-    : 'Workspace';
-  const tabFromUrl = new URLSearchParams(location.search).get('repoTab') ?? undefined;
+  const workspaceDisplayName = repo?.name || repo?.directory.split('/').pop() || repo?.directory || 'Workspace';
+  const tabFromUrl = new URLSearchParams(location.search).get('projectTab') ?? undefined;
   const sessionBackPath = getSessionListPath(repoId, tabFromUrl);
 
   return (
@@ -589,45 +576,6 @@ export function SessionDetail() {
         repoName={workspaceDisplayName}
         repoId={repoId}
         initialSelectedFile={selectedFilePath}
-      />
-
-      <RepoLspDialog
-        open={lspDialogOpen}
-        onOpenChange={setLspDialogOpen}
-        opcodeUrl={opcodeUrl}
-        directory={repoDirectory}
-      />
-
-      {opcodeUrl && sessionId && (
-        <RepoSkillsDialog
-          open={skillsDialogOpen}
-          onOpenChange={setSkillsDialogOpen}
-          repoId={repoId}
-          sessionId={sessionId}
-          opcodeUrl={opcodeUrl}
-          directory={repoDirectory}
-          onSkillLoaded={(skill) => showToast.success(`Loaded skill: ${skill.name}`)}
-        />
-      )}
-
-      <RepoMcpDialog
-        open={mcpDialogOpen}
-        onOpenChange={setMcpDialogOpen}
-        directory={repoDirectory}
-      />
-
-      <SourceControlPanel
-        repoId={repoId}
-        isOpen={sourceControlOpen}
-        onClose={() => setSourceControlOpen(false)}
-        currentBranch={repo?.currentBranch || repo?.branch || "main"}
-        repoName={workspaceDisplayName}
-      />
-
-      <ResetPermissionsDialog
-        open={resetPermissionsOpen}
-        onOpenChange={setResetPermissionsOpen}
-        repoId={repoId}
       />
     </div>
   );

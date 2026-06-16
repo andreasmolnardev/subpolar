@@ -17,8 +17,8 @@ const mocks = vi.hoisted(() => ({
   getHealth: vi.fn(),
 }))
 
-vi.mock('@/api/repos', () => ({
-  listRepos: mocks.listRepos,
+vi.mock('@/api/projects', () => ({
+  listProjects: mocks.listRepos,
 }))
 
 vi.mock('@/api/opencode', () => ({
