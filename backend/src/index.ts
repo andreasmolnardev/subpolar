@@ -40,6 +40,7 @@ import { createOpenCodeClient } from './services/opencode/client'
 import { NotificationService } from './services/notification'
 import { AutomationRunner, AutomationService } from './services/automations'
 import { migrateGlobalSkills } from './services/skills'
+import { ensureGeneralChatProject } from './db/projects'
 import { installAssistantWorkspace } from './services/assistant-mode'
 import { getOpenCodeImportStatus, syncOpenCodeImport } from './services/opencode-import'
 import { OpenCodeSupervisor } from './services/opencode-supervisor'
@@ -91,6 +92,7 @@ let settingsService: SettingsService | undefined
 
 async function initializeApp() {
   db = await initializeDatabase()
+  await ensureGeneralChatProject(db!).catch((err) => logger.warn('Failed to ensure general chat project:', err))
   requireAuth = createAuthMiddleware()
   openCodeClient = createOpenCodeClient(async () => new SettingsService(db!).getOpenCodeServerPassword())
 }

@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Send } from "lucide-react";
+import { FolderKanban, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -18,6 +18,7 @@ import { getProviders } from "@/api/providers";
 import { listProjects } from "@/api/projects";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { showToast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 
 const PERMISSION_OPTIONS = [
   { value: "default", label: "Default Permissions" },
@@ -42,6 +43,7 @@ export function ChatInputBar(
   const selectedAgentRef = useRef<string>("__default__");
   const selectedModelRef = useRef<string>("__auto__");
   const selectedPermissionRef = useRef<string>("default");
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   const opcodeUrl = OPENCODE_API_ENDPOINT;
 
@@ -161,9 +163,13 @@ export function ChatInputBar(
     }
   }, [createSession, navigate, onSend]);
 
+  const selectedProjectName = selectedProjectId
+    ? projects.find((p) => p.id === selectedProjectId)?.name
+    : null;
+
   return (
     <div className="w-full max-w-3xl mx-auto">
-      <div className="relative backdrop-blur-md bg-muted/50 rounded-xl p-2 shadow-lg">
+      <div className="relative backdrop-blur-md bg-muted/50 rounded-xl p-4 shadow-lg">
         <textarea
           ref={textareaRef}
           onChange={handleTextareaInput}
@@ -171,99 +177,100 @@ export function ChatInputBar(
           placeholder={placeholder}
           rows={1}
           style={{ height: "auto", overflow: "hidden" }}
-          className="w-full bg-transparent px-3 py-2.5 text-[16px] text-foreground placeholder-muted-foreground focus:outline-none focus:bg-muted/70 resize-none md:text-sm rounded-lg"
+          className="w-full bg-transparent text-[18px] text-foreground placeholder-muted-foreground focus:outline-none resize-none rounded-lg"
         />
 
         <div className="flex mt-3 items-center">
           {/* Project */}
-          <div className="flex items-center gap-1.5">
-            <div>
-              <Select
-                onValueChange={(v) => (selectedProjectIdRef.current = v)}
-              >
-                <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0  gap-2">
-                  <SelectValue placeholder="Project" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <Select
+            onValueChange={(v) => {
+              selectedProjectIdRef.current = v;
+              setSelectedProjectId(v);
+            }}
+          >
+            <SelectTrigger
+              className={cn(
+                "h-8 flex-shrink-0 border-0 focus:ring-0 focus:ring-offset-0 text-xs gap-1.5 rounded-md [&>svg:last-child]:hidden",
+                selectedProjectId
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90 w-auto px-2"
+                  : "bg-muted hover:bg-muted/80 w-8 px-0 justify-center",
+              )}
+            >
+              <FolderKanban className="h-4 w-4 flex-shrink-0" />
+              {selectedProjectName && (
+                <span className="max-w-[80px] truncate">{selectedProjectName}</span>
+              )}
+            </SelectTrigger>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* Agent */}
-          <div className="flex items-center gap-1.5">
-            <div>
-              <Select
-                defaultValue="__default__"
-                onValueChange={(v) => (selectedAgentRef.current = v)}
-              >
-                <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0  gap-2">
-                  <SelectValue placeholder="Agent" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
-                  <SelectItem value="__default__">Agent</SelectItem>
-                  {agents.map((agent) => (
-                    <SelectItem key={agent.name} value={agent.name}>
-                      {agent.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <Select
+            defaultValue="__default__"
+            onValueChange={(v) => (selectedAgentRef.current = v)}
+          >
+            <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0 gap-2">
+              <SelectValue placeholder="Agent" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
+              <SelectItem value="__default__">Agent</SelectItem>
+              {agents.map((agent) => (
+                <SelectItem key={agent.name} value={agent.name}>
+                  {agent.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* Model */}
-          <div className="flex items-center gap-1.5">
-            <div>
-              <Select onValueChange={handleModelChange}>
-                <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0 gap-2">
-                  <SelectValue placeholder="Model" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
-                  <SelectItem value="__auto__">Auto</SelectItem>
-                  <SelectSeparator />
-                  {Array.from(modelsByProvider.entries()).map((
-                    [providerName, providerModels],
-                    index,
-                  ) => (
-                    <SelectGroup key={providerName}>
-                      {index > 0 && <SelectSeparator />}
-                      <SelectLabel>{providerName}</SelectLabel>
-                      {providerModels.map((model) => (
-                        <SelectItem key={model.id} value={model.id}>
-                          {model.name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Permissions */}
-              <Select
-                defaultValue="default"
-                onValueChange={(v) => (selectedPermissionRef.current = v)}
-              >
-                <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0 w-fit gap-2">
-                  <SelectValue placeholder="Permissions" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
-                  {PERMISSION_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+          <Select onValueChange={handleModelChange}>
+            <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0 gap-2">
+              <SelectValue placeholder="Model" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
+              <SelectItem value="__auto__">Auto</SelectItem>
+              <SelectSeparator />
+              {Array.from(modelsByProvider.entries()).map((
+                [providerName, providerModels],
+                index,
+              ) => (
+                <SelectGroup key={providerName}>
+                  {index > 0 && <SelectSeparator />}
+                  <SelectLabel>{providerName}</SelectLabel>
+                  {providerModels.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.name}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <span className="w-full"/>
+          {/* Permissions */}
+          <Select
+            defaultValue="default"
+            onValueChange={(v) => (selectedPermissionRef.current = v)}
+          >
+            <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0 w-fit gap-2">
+              <SelectValue placeholder="Permissions" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
+              {PERMISSION_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <span className="w-full" />
 
           {/* Send */}
           <Button
