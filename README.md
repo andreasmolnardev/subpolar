@@ -1,10 +1,14 @@
 <p align="center">
-    <img src=".github/social-preview.png" alt="Subpolar" width="600" style="border: none" />
+    <img src="frontend/public/subpolar-logo-text-dark.png" alt="Subpolar" width="600" style="border: none" />
 </p>
 
 <p align="center">
     A UI for agents focused on improving your personal life
 </p>
+
+
+> [!IMPORTANT]  
+> This is vibecoded. Proceed with caution.
 
 ## Quick Start
 
