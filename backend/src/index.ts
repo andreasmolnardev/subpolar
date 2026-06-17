@@ -377,7 +377,7 @@ if (isProduction) {
   app.get('/', async (c) => {
     const version = await getAppVersion()
     return c.json({
-      name: 'OpenCode WebUI',
+      name: 'Subpolar',
       version,
       status: 'running',
       endpoints: {
@@ -451,4 +451,4 @@ serve({
   hostname: HOST,
 })
 
-logger.info(`🚀 OpenCode WebUI API running on http://${HOST}:${PORT}`)
+logger.info(`🚀 Subpolar API running on http://${HOST}:${PORT}`)

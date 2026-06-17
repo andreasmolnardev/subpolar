@@ -1,4 +1,4 @@
-# OpenCode WebUI - Agent Guidelines
+# Subpolar - Agent Guidelines
 
 ## Commands
 
