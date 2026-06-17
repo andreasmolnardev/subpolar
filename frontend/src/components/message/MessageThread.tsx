@@ -90,6 +90,14 @@ function hasTextContent(parts: Part[]): boolean {
   return parts.some(p => p.type === 'text' && !!(p.text && p.text.trim()))
 }
 
+function isBubblePart(part: Part): boolean {
+  return part.type === 'text' && !part.synthetic && !!part.text?.trim()
+}
+
+function isBelowBubblePart(part: Part): boolean {
+  return part.type === 'step-finish' || part.type === 'retry'
+}
+
 function isIgnorableSubAgentMessagePart(part: Part): boolean {
   if (part.type === 'step-start' || part.type === 'step-finish' || part.type === 'compaction') {
     return true
@@ -191,6 +199,11 @@ const MessageRow = memo(function MessageRow({
   const hasContent = hasRenderableContent(msg.role, parts, simpleChatMode, showReasoning)
   const hasError = msg.role === 'assistant' && 'error' in msg && msg.error
   const standaloneSubAgentMessage = isStandaloneSubAgentMessage(msg.role, parts)
+  const bubbleParts = parts.filter(isBubblePart)
+  const aboveBubbleParts = parts.filter(part => !isBubblePart(part) && !isBelowBubblePart(part))
+  const belowBubbleParts = parts.filter(isBelowBubblePart)
+  const messageAlignment = msg.role === 'user' ? 'items-end' : 'items-start'
+  const messageWidth = msg.role === 'user' ? 'max-w-[80%]' : 'w-full'
 
   if (!hasContent && !hasError) {
     return null
@@ -224,20 +237,10 @@ const MessageRow = memo(function MessageRow({
   return (
     <div
       key={msg.id}
-      className="flex flex-col group"
+      className={`flex flex-col group ${messageAlignment}`}
     >
-      <div
-        className={`w-full rounded-lg p-1.5 ${
-          msg.role === 'user'
-            ? isQueued 
-              ? 'bg-amber-500/10 border border-amber-500/30'
-              : isEditingThisMessage
-                ? 'bg-blue-600/30 border border-blue-600/50'
-                : 'bg-blue-600/20 border border-blue-600/30'
-            : 'bg-card/50 border border-border'
-        } ${streaming ? 'animate-pulse-subtle' : ''}`}
-      >
-        <div className="flex items-center justify-between gap-2 mb-1">
+      <div className={`flex flex-col gap-1 ${messageWidth}`}>
+        <div className="flex items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">
               {msg.role === 'user' ? 'You' : (msg.role === 'assistant' && 'modelID' in msg ? msg.modelID : 'Assistant')}
@@ -274,49 +277,99 @@ const MessageRow = memo(function MessageRow({
             />
           )}
         </div>
-        
-        <div className="space-y-2">
-          {msg.role === 'user' && isEditingThisMessage && editingForAssistantId ? (
-            <EditableUserMessage
-              opcodeUrl={opcodeUrl}
-              sessionId={sessionID}
-              directory={directory}
-              content={messageTextContent}
-              assistantMessageId={editingForAssistantId}
-              onCancel={handleCancelEdit}
-              model={model}
-            />
-          ) : msg.role === 'user' && canEditUserMessage && nextAssistantMsg ? (
-            <ClickableUserMessage
-              content={messageTextContent}
-              onClick={() => handleStartEditUserMessage(msg.id, nextAssistantMsg.id)}
-              isEditable={false}
-            />
-          ) : msg.role === 'user' && simpleChatMode ? (
-            <ClickableUserMessage
-              content={messageTextContent}
-              onClick={() => {}}
-              isEditable={false}
-            />
-          ) : parts.length > 0 ? (
-            parts.map((part: Part, partIndex: number) => (
+
+        {aboveBubbleParts.length > 0 && (
+          <div className="space-y-2">
+            {aboveBubbleParts.map((part: Part, partIndex: number) => (
               <div key={`${msg.id}-${part.id}-${partIndex}`}>
                 <MessagePart
                   part={part}
                   role={msg.role}
                   allParts={parts}
-                  partIndex={partIndex}
+                  partIndex={parts.indexOf(part)}
                   onFileClick={onFileClick}
                   onChildSessionClick={onChildSessionClick}
                   messageTextContent={msg.role === 'assistant' ? messageTextContent : undefined}
                 />
               </div>
-            ))
-          ) : null}
-          {hasError && (
-            <MessageError error={msg.error as OpenCodeError} />
-          )}
-        </div>
+            ))}
+          </div>
+        )}
+
+        {(bubbleParts.length > 0 || (msg.role === 'user' && isEditingThisMessage && editingForAssistantId) || hasError) && (
+          <div
+            className={`rounded-lg p-1.5 ${
+              msg.role === 'user'
+                ? isQueued
+                  ? 'bg-amber-500/10 border border-amber-500/30'
+                  : isEditingThisMessage
+                    ? 'bg-blue-600/30 border border-blue-600/50'
+                    : 'bg-blue-600/20 border border-blue-600/30'
+                : 'bg-card/50 border border-border'
+            } ${streaming ? 'animate-pulse-subtle' : ''}`}
+          >
+            <div className="space-y-2">
+              {msg.role === 'user' && isEditingThisMessage && editingForAssistantId ? (
+                <EditableUserMessage
+                  opcodeUrl={opcodeUrl}
+                  sessionId={sessionID}
+                  directory={directory}
+                  content={messageTextContent}
+                  assistantMessageId={editingForAssistantId}
+                  onCancel={handleCancelEdit}
+                  model={model}
+                />
+              ) : msg.role === 'user' && canEditUserMessage && nextAssistantMsg ? (
+                <ClickableUserMessage
+                  content={messageTextContent}
+                  onClick={() => handleStartEditUserMessage(msg.id, nextAssistantMsg.id)}
+                  isEditable={false}
+                />
+              ) : msg.role === 'user' && simpleChatMode ? (
+                <ClickableUserMessage
+                  content={messageTextContent}
+                  onClick={() => {}}
+                  isEditable={false}
+                />
+              ) : bubbleParts.length > 0 ? (
+                bubbleParts.map((part: Part, partIndex: number) => (
+                  <div key={`${msg.id}-${part.id}-${partIndex}`}>
+                    <MessagePart
+                      part={part}
+                      role={msg.role}
+                      allParts={parts}
+                      partIndex={parts.indexOf(part)}
+                      onFileClick={onFileClick}
+                      onChildSessionClick={onChildSessionClick}
+                      messageTextContent={msg.role === 'assistant' ? messageTextContent : undefined}
+                    />
+                  </div>
+                ))
+              ) : null}
+              {hasError && (
+                <MessageError error={msg.error as OpenCodeError} />
+              )}
+            </div>
+          </div>
+        )}
+
+        {belowBubbleParts.length > 0 && (
+          <div className="space-y-2">
+            {belowBubbleParts.map((part: Part, partIndex: number) => (
+              <div key={`${msg.id}-${part.id}-${partIndex}`}>
+                <MessagePart
+                  part={part}
+                  role={msg.role}
+                  allParts={parts}
+                  partIndex={parts.indexOf(part)}
+                  onFileClick={onFileClick}
+                  onChildSessionClick={onChildSessionClick}
+                  messageTextContent={msg.role === 'assistant' ? messageTextContent : undefined}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

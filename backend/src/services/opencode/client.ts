@@ -101,6 +101,9 @@ export class FetchOpenCodeClient implements OpenCodeClient {
       }
 
       const body = await response.text()
+      if (!response.ok) {
+        logger.warn(`OpenCode upstream ${req.method} ${url.pathname}${url.search} returned ${response.status}: ${body || response.statusText}`)
+      }
       return new Response(body, {
         status: response.status,
         statusText: response.statusText,

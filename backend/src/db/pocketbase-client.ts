@@ -18,21 +18,38 @@ export async function getPocketBaseClient(): Promise<PocketBase> {
   const client = new PocketBase(baseUrl)
 
   try {
-    await client.collection('_superusers').authWithPassword(email, password)
+    await authenticatePocketBaseAdmin(client, email, password)
     logger.info('PocketBase: Connected with superuser authentication')
   } catch (superuserError) {
-    logger.warn('PocketBase: Superuser auth failed, trying user auth:', superuserError)
-    try {
-      await client.collection('users').authWithPassword(email, password)
-      logger.info('PocketBase: Connected with user authentication')
-    } catch (userError) {
-      logger.error('PocketBase: All authentication attempts failed:', userError)
-      throw new Error('Failed to authenticate with PocketBase')
-    }
+    logger.error('PocketBase: Superuser authentication failed:', superuserError)
+    throw new Error('Failed to authenticate with PocketBase superuser credentials')
   }
 
   pbClient = client
   return client
+}
+
+async function authenticatePocketBaseAdmin(client: PocketBase, email: string, password: string): Promise<void> {
+  try {
+    await client.collection('_superusers').authWithPassword(email, password)
+  } catch (superuserError) {
+    const response = await fetch(`${client.baseUrl}/api/admins/auth-with-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identity: email, password }),
+    }).catch(() => null)
+
+    if (!response?.ok) {
+      throw superuserError
+    }
+
+    const auth = await response.json() as { token?: string; admin?: unknown }
+    if (!auth.token) {
+      throw superuserError
+    }
+
+    client.authStore.save(auth.token, auth.admin)
+  }
 }
 
 export async function closePocketBaseClient(): Promise<void> {

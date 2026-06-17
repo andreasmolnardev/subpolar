@@ -28,6 +28,7 @@ function SidebarSection({
   collapsed,
   expanded,
   onToggle,
+  active,
   action,
   children,
 }: {
@@ -36,6 +37,7 @@ function SidebarSection({
   collapsed: boolean;
   expanded: boolean;
   onToggle: () => void;
+  active?: boolean;
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -43,17 +45,22 @@ function SidebarSection({
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center justify-between px-3 py-2">
+      <div className="flex items-center gap-1">
         <button
           type="button"
           onClick={onToggle}
-          className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors text-left",
+            active
+              ? "bg-accent text-accent-foreground font-medium"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+          )}
         >
+          {Icon && <Icon className="h-4 w-4 flex-shrink-0" />}
+          <span className="truncate">{label}</span>
           {expanded
-            ? <ChevronDown className="h-3 w-3" />
-            : <ChevronRight className="h-3 w-3" />}
-          {Icon && <Icon className="h-3.5 w-3.5" />}
-          {label}
+            ? <ChevronDown className="h-3 w-3 flex-shrink-0" />
+            : <ChevronRight className="h-3 w-3 flex-shrink-0" />}
         </button>
         {action}
       </div>
@@ -129,6 +136,7 @@ export function DesktopSidebar() {
   const [agentsExpanded, setAgentsExpanded] = useState(true);
   const [projectsExpanded, setProjectsExpanded] = useState(true);
   const [automationsExpanded, setAutomationsExpanded] = useState(true);
+  const [historyExpanded, setHistoryExpanded] = useState(true);
   const [isCreateAgentDialogOpen, setIsCreateAgentDialogOpen] = useState(false);
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] = useState(false);
   const { data: projects } = useQuery({
@@ -234,6 +242,7 @@ export function DesktopSidebar() {
             collapsed={collapsed}
             expanded={agentsExpanded}
             onToggle={() => setAgentsExpanded(!agentsExpanded)}
+            active={isActive("/agents")}
             action={
               <button
                 type="button"
@@ -275,6 +284,7 @@ export function DesktopSidebar() {
             collapsed={collapsed}
             expanded={projectsExpanded}
             onToggle={() => setProjectsExpanded(!projectsExpanded)}
+            active={isActive("/projects")}
             action={
               <button
                 type="button"
@@ -306,6 +316,7 @@ export function DesktopSidebar() {
             collapsed={collapsed}
             expanded={automationsExpanded}
             onToggle={() => setAutomationsExpanded(!automationsExpanded)}
+            active={isActive("/automations")}
           >
             <SidebarNavItem
               label="All Automations"
@@ -320,8 +331,9 @@ export function DesktopSidebar() {
             label="History"
             icon={History}
             collapsed={collapsed}
-            expanded={true}
-            onToggle={() => {}}
+            expanded={historyExpanded}
+            onToggle={() => setHistoryExpanded(!historyExpanded)}
+            active={isActive("/history")}
           >
             <SidebarNavItem
               label="All Sessions"

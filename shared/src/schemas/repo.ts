@@ -117,6 +117,30 @@ export const GeneralChatStatusSchema = z.object({
     path: z.string(),
     created: z.boolean(),
   }).optional(),
+  subpolarContextSkill: z.object({
+    path: z.string(),
+    created: z.boolean(),
+  }).optional(),
+  opencodeContextSkill: z.object({
+    path: z.string(),
+    created: z.boolean(),
+  }).optional(),
+  calendarCliSkill: z.object({
+    path: z.string(),
+    created: z.boolean(),
+  }).optional(),
+  mailCliSkill: z.object({
+    path: z.string(),
+    created: z.boolean(),
+  }).optional(),
+  todoCliSkill: z.object({
+    path: z.string(),
+    created: z.boolean(),
+  }).optional(),
+  notesCliSkill: z.object({
+    path: z.string(),
+    created: z.boolean(),
+  }).optional(),
   defaultAgent: AgentFileInfoSchema.optional(),
 })
 

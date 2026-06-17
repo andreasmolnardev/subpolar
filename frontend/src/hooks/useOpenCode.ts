@@ -174,6 +174,7 @@ export const useCreateSession = (
     },
     onSuccess: (session) => {
       invalidateSessionListCaches(queryClient, opcodeUrl);
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
       onSuccess?.(session);
     },
     onError: (error) => {
@@ -279,6 +280,7 @@ export const useDeleteSession = (opcodeUrl: string | null | undefined, directory
     },
     onSettled: () => {
       invalidateSessionListCaches(queryClient, opcodeUrl);
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
   });
 };
@@ -296,6 +298,7 @@ export const useUpdateSession = (opcodeUrl: string | null | undefined, directory
       const { sessionID } = variables;
       queryClient.invalidateQueries({ queryKey: ["opencode", "session", opcodeUrl, sessionID, directory] });
       invalidateSessionListCaches(queryClient, opcodeUrl);
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
   });
 };

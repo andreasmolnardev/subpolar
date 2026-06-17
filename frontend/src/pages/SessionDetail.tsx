@@ -5,7 +5,7 @@ import { getProject } from "@/api/projects";
 import { MessageThread } from "@/components/message/MessageThread";
 import { ChatInputBar, type ChatInputBarHandle } from "@/components/chat/ChatInputBar";
 import { FloatingTTSButton } from '@/components/message/FloatingTTSButton'
-import { X, CornerUpLeft } from "lucide-react";
+import { CornerUpLeft } from "lucide-react";
 import { Header } from "@/components/ui/header";
 import { SessionList } from "@/components/session/SessionList";
 import { getSessionListPath } from '@/lib/navigation'
@@ -349,14 +349,6 @@ export function SessionDetail() {
     promptInputRef.current?.setPromptValue(restoredPrompt)
   }, []);
 
-  const handleClearPrompt = useCallback(() => {
-    promptInputRef.current?.clearPrompt()
-  }, []);
-
-  
-
-  
-
   if (!sessionId) {
     return <Navigate to="/" replace />;
   }
@@ -398,12 +390,12 @@ export function SessionDetail() {
                   <CornerUpLeft className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline text-xs">Parent</span>
                 </Button>
-                <div className="hidden sm:block">
-                  <Header.BackButton to={sessionBackPath} className="text-xs sm:text-sm" />
+                <div className="sm:hidden">
+                  <Header.BackButton to={sessionBackPath} className="text-xs" />
                 </div>
               </>
             ) : (
-              <Header.BackButton to={sessionBackPath} className="text-xs sm:text-sm" />
+              <Header.BackButton to={sessionBackPath} className="text-xs sm:hidden" />
             )}
             <Header.EditableTitle
               value={session?.title || "Untitled Session"}
@@ -462,21 +454,6 @@ export function SessionDetail() {
                     content={latestPlayableAssistant.text}
                   />
                 )}
-                {hasPromptContent && !isSessionActive && (
-                  <button
-                    onMouseDown={(e) => e.preventDefault()}
-                    onTouchEnd={(e) => {
-                      e.preventDefault()
-                      handleClearPrompt()
-                    }}
-                    onClick={handleClearPrompt}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-br from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-destructive-foreground border border-red-500/60 hover:border-red-400 shadow-md shadow-red-500/30 hover:shadow-red-500/50 backdrop-blur-md transition-all duration-200 active:scale-95 hover:scale-105 ring-1 ring-red-500/20 hover:ring-red-500/40"
-                    aria-label="Clear"
-                  >
-                    <X className="w-5 h-5" />
-                    <span className="text-sm font-medium hidden sm:inline">Clear</span>
-                  </button>
-                )}
               </div>
               {leaderActive && (
                 <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-primary/90 text-primary-foreground border border-primary shadow-lg backdrop-blur-md animate-pulse">
@@ -508,7 +485,7 @@ export function SessionDetail() {
                 defaultModel={sessionAgent.model ? `${sessionAgent.model.providerID}/${sessionAgent.model.modelID}` : "__auto__"}
                 sessionID={sessionId}
                 disabled={!isConnected}
-                isSessionActive={isSessionActive}
+                isSessionActive={isStreamingResponse}
                 onScrollToBottom={scrollToBottom}
                 onPromptChange={setHasPromptContent}
               />

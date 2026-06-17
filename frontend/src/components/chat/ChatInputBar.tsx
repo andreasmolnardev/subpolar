@@ -1,7 +1,8 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { FolderKanban, Paperclip, Send, Square } from "lucide-react";
+import { FolderKanban, Paperclip, Send, Square, X } from "lucide-react";
+import { GENERAL_CHAT_PROJECT_ID } from "@subpolar/shared/utils";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -19,7 +20,6 @@ import { listProjects } from "@/api/projects";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { showToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import { useSessionStatusForSession } from "@/stores/sessionStatusStore";
 
 export interface ChatInputBarHandle {
   setPromptValue: (value: string) => void;
@@ -78,21 +78,28 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const [selectedModel, setSelectedModel] = useState(defaultModel);
   const [selectedPermission, setSelectedPermission] = useState(defaultPermission);
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
+  const [hasPromptContent, setHasPromptContent] = useState(false);
 
   const opcodeUrl = OPENCODE_API_ENDPOINT;
 
-  const { data: agents = [] } = useAgents(opcodeUrl);
-  const { data: config } = useConfig(opcodeUrl);
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: listProjects,
+  });
+
+  const selectedProject = selectedProjectId
+    ? projects.find((p) => p.id.toString() === selectedProjectId)
+    : undefined;
+  const isGeneralChatProject = selectedProjectId === GENERAL_CHAT_PROJECT_ID.toString();
+  const selectedDirectory = sessionID ? directory : sendImmediately ? selectedProject?.fullPath : undefined;
+
+  const { data: agents = [] } = useAgents(opcodeUrl, selectedDirectory);
+  const { data: config } = useConfig(opcodeUrl, selectedDirectory);
 
   const { data: providersData } = useQuery({
     queryKey: ["opencode", "providers", opcodeUrl],
     queryFn: () => getProviders(),
     staleTime: 30000,
-  });
-
-  const { data: projects = [] } = useQuery({
-    queryKey: ["projects"],
-    queryFn: listProjects,
   });
 
   const models = useMemo(() => {
@@ -149,16 +156,15 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     return map;
   }, [models]);
 
-  const selectedProject = selectedProjectId
-    ? projects.find((p) => p.id.toString() === selectedProjectId)
-    : undefined;
-  const selectedDirectory = sessionID ? directory : sendImmediately ? selectedProject?.fullPath : undefined;
+  const selectedAgentForRequest = selectedAgent === "__default__" || !agents.some((agent) => agent.name === selectedAgent)
+    ? undefined
+    : selectedAgent;
 
   const createSession = useCreateSession(opcodeUrl, selectedDirectory);
   const sendPrompt = useSendPrompt(opcodeUrl, selectedDirectory);
   const abortSession = useAbortSession(opcodeUrl, selectedDirectory, sessionID ?? activeSessionId);
-  const activeSessionStatus = useSessionStatusForSession(sessionID ?? activeSessionId);
-  const isWaitingForAnswer = isSessionActive || activeSessionStatus.type === "busy" || sendPrompt.isPending;
+  const isGeneratingMessage = isSessionActive;
+  const isWaitingForAnswer = isGeneratingMessage || sendPrompt.isPending;
 
   useEffect(() => {
     setSelectedProjectId(defaultProjectId ?? null);
@@ -183,13 +189,16 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
       textareaRef.current.focus();
-      onPromptChange?.(value.trim().length > 0);
+      const hasContent = value.trim().length > 0;
+      setHasPromptContent(hasContent);
+      onPromptChange?.(hasContent);
     },
     clearPrompt: () => {
       if (!textareaRef.current) return;
       textareaRef.current.value = "";
       textareaRef.current.style.height = "auto";
       textareaRef.current.focus();
+      setHasPromptContent(false);
       onPromptChange?.(false);
     },
     triggerFileUpload: () => {
@@ -201,7 +210,9 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       e.target.style.height = "auto";
       e.target.style.height = `${e.target.scrollHeight}px`;
-      onPromptChange?.(e.target.value.trim().length > 0);
+      const hasContent = e.target.value.trim().length > 0;
+      setHasPromptContent(hasContent);
+      onPromptChange?.(hasContent);
     },
     [onPromptChange],
   );
@@ -209,10 +220,12 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const handleSubmit = useCallback(async () => {
     const targetSessionId = sessionID ?? activeSessionId;
 
-    if (isWaitingForAnswer && targetSessionId) {
+    if (isGeneratingMessage && targetSessionId) {
       abortSession.mutate(targetSessionId);
       return;
     }
+
+    if (sendPrompt.isPending) return;
 
     const prompt = textareaRef.current?.value.trim();
     if (!prompt) return;
@@ -224,13 +237,14 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     if (sessionID) {
       textareaRef.current!.value = "";
       textareaRef.current!.style.height = "auto";
+      setHasPromptContent(false);
       onPromptChange?.(false);
       sendPrompt.mutate(
         {
           sessionID,
           prompt,
           model: selectedModel === "__auto__" ? undefined : selectedModel,
-          agent: selectedAgent === "__default__" ? undefined : selectedAgent,
+          agent: selectedAgentForRequest,
         },
         {
           onSuccess: () => {
@@ -249,11 +263,12 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
         setActiveSessionId(session.id);
         textareaRef.current!.value = "";
         textareaRef.current!.style.height = "auto";
+        setHasPromptContent(false);
         await sendPrompt.mutateAsync({
           sessionID: session.id,
           prompt,
           model: selectedModel === "__auto__" ? undefined : selectedModel,
-          agent: selectedAgent === "__default__" ? undefined : selectedAgent,
+          agent: selectedAgentForRequest,
         });
         navigate(`/projects/${selectedProjectId}/sessions/${session.id}`);
         onSend?.();
@@ -263,12 +278,13 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       setActiveSessionId(session.id);
       textareaRef.current!.value = "";
       textareaRef.current!.style.height = "auto";
+      setHasPromptContent(false);
       onPromptChange?.(false);
       await sendPrompt.mutateAsync({
         sessionID: session.id,
         prompt,
         model: selectedModel === "__auto__" ? undefined : selectedModel,
-        agent: selectedAgent === "__default__" ? undefined : selectedAgent,
+        agent: selectedAgentForRequest,
       });
 
       navigate(`/repos/0/sessions/${session.id}`);
@@ -282,12 +298,13 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     activeSessionId,
     createSession,
     sessionID,
-    isWaitingForAnswer,
+    isGeneratingMessage,
     navigate,
     onPromptChange,
     onScrollToBottom,
     onSend,
     selectedAgent,
+    selectedAgentForRequest,
     selectedModel,
     selectedProject,
     selectedProjectId,
@@ -297,7 +314,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      if (e.key === "Enter" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
@@ -305,7 +322,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     [handleSubmit],
   );
 
-  const selectedProjectName = selectedProject?.name ?? null;
+  const selectedProjectName = isGeneralChatProject ? null : selectedProject?.name ?? null;
 
   return (
     <div className="w-full max-w-3xl mx-auto">
@@ -332,7 +349,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             <SelectTrigger
               className={cn(
                 "h-8 flex-shrink-0 border-0 focus:ring-0 focus:ring-offset-0 text-xs gap-1.5 rounded-md [&>svg:last-child]:hidden",
-                selectedProjectId
+                selectedProjectId && !isGeneralChatProject
                   ? "bg-primary text-primary-foreground hover:bg-primary/90 w-auto px-2"
                   : "bg-muted hover:bg-muted/80 w-8 px-0 justify-center",
               )}
@@ -419,13 +436,33 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
 
           <span className="w-full" />
 
+          {hasPromptContent && !isWaitingForAnswer && (
+            <Button
+              type="button"
+              onClick={() => {
+                if (!textareaRef.current) return;
+                textareaRef.current.value = "";
+                textareaRef.current.style.height = "auto";
+                textareaRef.current.focus();
+                setHasPromptContent(false);
+                onPromptChange?.(false);
+              }}
+              size="icon"
+              variant="ghost"
+              className="absolute right-4 bottom-14 h-7 w-7 rounded-full bg-muted/90 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Clear message"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+
           <Button
             onClick={handleSubmit}
-            disabled={disabled || createSession.isPending || abortSession.isPending}
+            disabled={disabled || createSession.isPending || abortSession.isPending || (sendPrompt.isPending && !isGeneratingMessage)}
             size="icon"
             className="h-8 w-8 flex-shrink-0"
           >
-            {isWaitingForAnswer ? <Square className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+            {isGeneratingMessage ? <Square className="h-4 w-4" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
       </div>

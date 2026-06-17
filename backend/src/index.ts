@@ -30,6 +30,7 @@ import { createAuthRoutes, createAuthInfoRoutes } from './routes/auth'
 import { createAuthMiddleware } from './auth/middleware'
 import { createPromptTemplateRoutes } from './routes/prompt-templates'
 import { createProjectRoutes } from './routes/projects'
+import { createSessionRoutes } from './routes/sessions'
 import { createInternalRoutes } from './routes/internal'
 import { createOpenCodeProxyRoutes } from './routes/opencode-proxy'
 import { sseAggregator } from './services/sse-aggregator'
@@ -41,6 +42,7 @@ import { NotificationService } from './services/notification'
 import { AutomationRunner, AutomationService } from './services/automations'
 import { migrateGlobalSkills } from './services/skills'
 import { ensureGeneralChatProject } from './db/projects'
+import { deleteSessionRecord, upsertSessionRecord } from './db/sessions'
 import { installAssistantWorkspace } from './services/general-chat'
 import { getOpenCodeImportStatus, syncOpenCodeImport } from './services/opencode-import'
 import { OpenCodeSupervisor } from './services/opencode-supervisor'
@@ -68,6 +70,30 @@ import {
 const { PORT, HOST } = ENV.SERVER
 
 const app = new Hono()
+
+app.use('/*', async (c, next) => {
+  const startedAt = performance.now()
+  const requestId = crypto.randomUUID()
+  const url = new URL(c.req.url)
+  const target = `${url.pathname}${url.search}`
+  const origin = c.req.header('origin') ?? '-'
+  const userAgent = c.req.header('user-agent') ?? '-'
+
+  c.header('x-request-id', requestId)
+  logger.info(`Request ${requestId} -> ${c.req.method} ${target} origin=${origin} userAgent="${userAgent}"`)
+
+  try {
+    await next()
+  } catch (error) {
+    const durationMs = Math.round(performance.now() - startedAt)
+    logger.error(`Request ${requestId} !! ${c.req.method} ${target} failed after ${durationMs}ms`, error)
+    throw error
+  }
+
+  const durationMs = Math.round(performance.now() - startedAt)
+  const level = c.res.status >= 500 ? 'error' : c.res.status >= 400 ? 'warn' : 'info'
+  logger[level](`Request ${requestId} <- ${c.req.method} ${target} ${c.res.status} ${durationMs}ms`)
+})
 
 app.use('/*', cors({
   origin: (origin) => {
@@ -330,6 +356,7 @@ protectedApi.route('/sse', createSSERoutes())
 protectedApi.route('/notifications', createNotificationRoutes(notificationService!))
 protectedApi.route('/prompt-templates', createPromptTemplateRoutes(db!))
 protectedApi.route('/automations', createAutomationRoutes(automationService!))
+protectedApi.route('/sessions', createSessionRoutes(db!))
 
 app.route('/api', protectedApi)
 
@@ -346,8 +373,66 @@ app.post('/api/opencode/mcp/:name/auth/authenticate', requireAuth!, async (c) =>
 })
 
 app.all('/api/opencode/*', requireAuth!, async (c) => {
-  return openCodeClient!.forwardRaw(c.req.raw)
+  const request = c.req.raw.clone()
+  const response = await openCodeClient!.forwardRaw(c.req.raw)
+  await persistOpenCodeSessionRequest(db!, request, response.clone())
+  return response
 })
+
+async function persistOpenCodeSessionRequest(db: Database, request: Request, response: Response): Promise<void> {
+  if (!response.ok) return
+
+  try {
+    const url = new URL(request.url)
+    const path = url.pathname.replace(/^\/api\/opencode/, '') || '/'
+    const directory = url.searchParams.get('directory')
+    const requestBodyText = request.method !== 'GET' && request.method !== 'HEAD'
+      ? await request.text()
+      : undefined
+
+    if (request.method === 'POST' && path === '/session') {
+      const session = await response.json() as { id?: string; title?: string }
+      if (!session.id) return
+      await upsertSessionRecord(db, {
+        sessionId: session.id,
+        directory,
+        title: session.title ?? getOpenCodeRequestTitle(requestBodyText),
+      })
+      return
+    }
+
+    const sessionMatch = path.match(/^\/session\/([^/]+)$/)
+    const rawSessionId = sessionMatch?.[1]
+    if (!rawSessionId) return
+
+    const sessionId = decodeURIComponent(rawSessionId)
+    if (request.method === 'PATCH') {
+      await upsertSessionRecord(db, {
+        sessionId,
+        directory,
+        title: getOpenCodeRequestTitle(requestBodyText),
+      })
+      return
+    }
+
+    if (request.method === 'DELETE') {
+      await deleteSessionRecord(db, sessionId)
+    }
+  } catch (error) {
+    logger.warn('Failed to persist OpenCode session request:', error)
+  }
+}
+
+function getOpenCodeRequestTitle(requestBodyText: string | undefined): string | null {
+  if (!requestBodyText) return null
+
+  try {
+    const body = JSON.parse(requestBodyText) as { title?: unknown }
+    return typeof body.title === 'string' ? body.title : null
+  } catch {
+    return null
+  }
+}
 
 const isProduction = ENV.SERVER.NODE_ENV === 'production'
 

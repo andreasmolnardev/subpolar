@@ -72,7 +72,7 @@ function toLegacySession(session: SessionV2Info, directory?: string): LegacySess
       id: session.id,
       projectID: session.projectID,
       workspaceID: session.location.workspaceID,
-      directory: directory ?? session.location.directory ?? '',
+      directory: session.location.directory ?? directory ?? '',
       parentID: session.parentID,
       title: session.title || 'Untitled Session',
       version: 'v2',
@@ -120,7 +120,7 @@ export class OpenCodeClient {
   async listSessionsPage(params?: SessionPageParams): Promise<SessionPage> {
     const isCursorRequest = params?.cursor !== undefined
     const queryParams = isCursorRequest
-      ? { cursor: params.cursor }
+      ? this.getParams({ cursor: params.cursor })
       : this.getParams({
           ...(params?.limit !== undefined && { limit: params.limit }),
           ...(params?.order !== undefined && { order: params.order }),

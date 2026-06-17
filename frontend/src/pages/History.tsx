@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getProject, listProjects } from '@/api/projects'
+import { listStoredSessions } from '@/api/sessions'
 import { SessionList } from '@/components/session/SessionList'
 import { Header } from '@/components/ui/header'
 import { Button } from '@/components/ui/button'
@@ -23,17 +24,30 @@ export function History() {
     queryFn: () => getProject(GENERAL_CHAT_PROJECT_ID),
   })
 
+  const { data: storedSessions, isLoading: sessionsLoading } = useQuery({
+    queryKey: ['sessions'],
+    queryFn: listStoredSessions,
+  })
+
   const historyProjects = useMemo(() => {
     return [generalChat, ...(projects ?? [])].filter((project): project is NonNullable<typeof project> => Boolean(project?.fullPath))
   }, [generalChat, projects])
 
   const directories = useMemo(() => {
-    return historyProjects.map(project => project.fullPath)
-  }, [historyProjects])
+    return Array.from(new Set([
+      ...historyProjects.map(project => project.fullPath),
+      ...(storedSessions ?? []).map(session => session.directory).filter((directory): directory is string => Boolean(directory)),
+    ]))
+  }, [historyProjects, storedSessions])
 
   const projectIdsByDirectory = useMemo(() => {
-    return new Map(historyProjects.map(project => [project.fullPath, project.id]))
-  }, [historyProjects])
+    return new Map([
+      ...historyProjects.map(project => [project.fullPath, project.id] as const),
+      ...(storedSessions ?? [])
+        .filter((session): session is typeof session & { directory: string } => Boolean(session.directory))
+        .map(session => [session.directory, session.projectId ?? GENERAL_CHAT_PROJECT_ID] as const),
+    ])
+  }, [historyProjects, storedSessions])
 
   const opcodeUrl = OPENCODE_API_ENDPOINT
   const primaryDirectory = generalChat?.fullPath ?? directories[0]
@@ -51,7 +65,7 @@ export function History() {
     await createSession.mutateAsync({ agent: undefined })
   }
 
-  if (projectsLoading || generalChatLoading) {
+  if (projectsLoading || generalChatLoading || sessionsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="text-muted-foreground">Loading...</div>
