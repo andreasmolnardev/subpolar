@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getProject } from '@/api/projects'
 import { SessionList } from '@/components/session/SessionList'
+import { ChatInputBar } from '@/components/chat/ChatInputBar'
 import { FileBrowserSheet } from '@/components/file-browser/FileBrowserSheet'
 import { Header } from '@/components/ui/header'
 import { ProjectConfigDialog } from '@/components/project/ProjectConfigDialog'
@@ -122,6 +123,10 @@ export function ProjectDetail() {
             onSelectSession={handleSelectSession}
           />
         )}
+      </div>
+
+      <div className="px-4 pb-4 pt-2">
+        <ChatInputBar defaultProjectId={projectId.toString()} sendImmediately />
       </div>
 
       <FileBrowserSheet

@@ -2,12 +2,12 @@
 
 The Assistant Internal API provides capabilities for OpenCode agents to interact with the manager backend via a secure bearer-token API.
 
-> For a user-facing overview of how to use and set up general chat, see [Assistant Mode](general-chat.md).
+> For a user-facing overview of how to use and set up general chat, see [General Chat](general-chat.md).
 
 ## Authentication
 
 All endpoints require a bearer token. The token can be found at:
-- `.opencode/internal-token` (relative to the assistant workspace cwd)
+- `.opencode/internal-token` (relative to the general chat workspace cwd)
 
 Include the token in requests:
 ```
@@ -132,7 +132,7 @@ Returns the updated settings object.
 
 **POST `/api/internal/assistant/reload`**
 
-Reload the assistant workspace by disposing the current OpenCode instance. Use this after editing `.opencode/agents/assistant.md` or `opencode.json` so changes take effect on the next message.
+Reload the general chat workspace by disposing the current OpenCode instance. Use this after editing `.opencode/agents/auto.md` or `opencode.json` so changes take effect on the next message.
 
 **Rate Limiting:** 5 requests per minute per token. Returns `429 Too Many Requests` with `Retry-After` header when exceeded.
 
@@ -188,7 +188,7 @@ Retrieve a list of all managed repositories, ordered by the user's repo preferen
 
 ## Skills
 
-The assistant workspace includes four skills that document these capabilities:
+The general chat workspace includes four skills that document these capabilities:
 
 1. **automation Management** (`.opencode/skills/automation-management/SKILL.md`)
 2. **Notifications** (`.opencode/skills/notifications/SKILL.md`)

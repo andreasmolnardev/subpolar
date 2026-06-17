@@ -435,9 +435,9 @@ function buildAgentContent(agentName: string): string {
 // --- Legacy Support ---
 
 function buildLegacyAssistantAgentsMd(): string {
-  return `# Assistant Mode Workspace
+  return `# General Chat Workspace
 
-This directory is the shared Assistant Mode workspace for subpolar.
+This directory is the shared General Chat workspace for subpolar.
 
 ## Directory Contents
 
@@ -477,7 +477,7 @@ permission:
   external_directory: ${permission.external_directory}
 ---
 
-You are the default Assistant Mode agent for subpolar.
+You are the default General Chat agent for subpolar.
 
 This workspace is the shared general chat workspace. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.
 
@@ -520,9 +520,9 @@ function containsLegacyAssistantAgentsGuidance(content: string): boolean {
 }
 
 export function buildAssistantAgentsMd(): string {
-  return `# Assistant Mode Workspace
+  return `# General Chat Workspace
 
-This directory is the shared Assistant Mode workspace for subpolar.
+This directory is the shared General Chat workspace for subpolar.
 
 ## Directory Contents
 
@@ -543,7 +543,7 @@ Agent-specific instructions belong in their respective \`.opencode/agents/<name>
 
 function buildAssistantAgentPrompt(): string {
   return [
-    'You are the default Assistant Mode agent for subpolar.',
+    'You are the default General Chat agent for subpolar.',
     '',
     'This workspace is the shared general chat workspace for subpolar. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.',
     '',
@@ -1386,7 +1386,7 @@ export async function ensureGeneralChat(
         {
           code: 'assistant-agents-md-preserved',
           path: agentsMdPath,
-          message: 'Some Assistant Mode instruction updates were not applied because AGENTS.md appears to contain customized legacy assistant instructions. To regenerate the default workspace explanation, manually delete AGENTS.md and initialize Assistant Mode again.',
+          message: 'Some general chat instruction updates were not applied because AGENTS.md appears to contain customized legacy assistant instructions. To regenerate the default workspace explanation, manually delete AGENTS.md and initialize General Chat again.',
         },
       ]
     : undefined

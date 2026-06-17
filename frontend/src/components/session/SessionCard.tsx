@@ -13,7 +13,7 @@ interface SessionCardProps {
   isActive: boolean;
   manageMode: boolean;
   workspaceLabel?: string;
-  onSelect: (sessionID: string) => void;
+  onSelect: (sessionID: string, directory?: string) => void;
   onToggleSelection: (selected: boolean) => void;
   onDelete: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }
@@ -75,7 +75,7 @@ export const SessionCard = ({
               if (manageMode) {
                 onToggleSelection(!isSelected);
               } else {
-                onSelect(session.id);
+                onSelect(session.id, session.directory);
               }
             }
           }}

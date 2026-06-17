@@ -1,49 +1,57 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { listProjects } from '@/api/projects'
-import { useSessionsAcrossDirectories } from '@/hooks/useOpenCode'
+import { getProject, listProjects } from '@/api/projects'
 import { SessionList } from '@/components/session/SessionList'
 import { Header } from '@/components/ui/header'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Plus, Search } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { OPENCODE_API_ENDPOINT } from '@/config'
 import { useCreateSession } from '@/hooks/useOpenCode'
+import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
 
 export function History() {
   const navigate = useNavigate()
-  const [searchQuery, setSearchQuery] = useState('')
 
-  const { data: repos, isLoading: reposLoading } = useQuery({
-    queryKey: ['repos'],
+  const { data: projects, isLoading: projectsLoading } = useQuery({
+    queryKey: ['projects'],
     queryFn: listProjects,
   })
 
+  const { data: generalChat, isLoading: generalChatLoading } = useQuery({
+    queryKey: ['project', GENERAL_CHAT_PROJECT_ID],
+    queryFn: () => getProject(GENERAL_CHAT_PROJECT_ID),
+  })
+
+  const historyProjects = useMemo(() => {
+    return [generalChat, ...(projects ?? [])].filter((project): project is NonNullable<typeof project> => Boolean(project?.fullPath))
+  }, [generalChat, projects])
+
   const directories = useMemo(() => {
-    return repos?.map(r => r.fullPath).filter(Boolean) ?? []
-  }, [repos])
+    return historyProjects.map(project => project.fullPath)
+  }, [historyProjects])
+
+  const projectIdsByDirectory = useMemo(() => {
+    return new Map(historyProjects.map(project => [project.fullPath, project.id]))
+  }, [historyProjects])
 
   const opcodeUrl = OPENCODE_API_ENDPOINT
-  const primaryDirectory = directories[0]
+  const primaryDirectory = generalChat?.fullPath ?? directories[0]
 
-  const handleSelectSession = useCallback((sessionId: string) => {
-    // Find which repo this session belongs to
-    // For now, navigate to the first repo's session detail
-    if (directories.length > 0) {
-      navigate(`/repos/0/sessions/${sessionId}`)
-    }
-  }, [navigate, directories])
+  const handleSelectSession = useCallback((sessionId: string, directory?: string) => {
+    const projectId = directory ? projectIdsByDirectory.get(directory) : GENERAL_CHAT_PROJECT_ID
+    navigate(`/projects/${projectId ?? GENERAL_CHAT_PROJECT_ID}/sessions/${sessionId}`)
+  }, [navigate, projectIdsByDirectory])
 
   const createSession = useCreateSession(opcodeUrl, primaryDirectory, (newSession) => {
-    navigate(`/repos/0/sessions/${newSession.id}`)
+    navigate(`/projects/${GENERAL_CHAT_PROJECT_ID}/sessions/${newSession.id}`)
   })
 
   const handleCreateSession = async () => {
     await createSession.mutateAsync({ agent: undefined })
   }
 
-  if (reposLoading) {
+  if (projectsLoading || generalChatLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="text-muted-foreground">Loading...</div>
@@ -70,19 +78,6 @@ export function History() {
       
       <div className="flex-1 p-4">
         <div className="max-w-6xl mx-auto">
-          <div className="mb-4">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Search sessions..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
-              />
-            </div>
-          </div>
-          
           {directories.length > 0 ? (
             <SessionList
               opcodeUrl={opcodeUrl}
@@ -92,7 +87,7 @@ export function History() {
             />
           ) : (
             <div className="text-center text-muted-foreground py-8">
-              No repositories available. Add a repository to see session history.
+              No projects available. Add a project to see session history.
             </div>
           )}
         </div>

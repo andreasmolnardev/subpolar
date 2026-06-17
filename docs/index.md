@@ -46,7 +46,7 @@ Subpolar runs as a pnpm workspace:
 - **Chat & Sessions** — Real-time SSE streaming, slash commands, `@file` mentions, Plan/Build modes, Mermaid diagrams — [Learn more](features/chat.md)
 - **Files** — Directory browser with tree view, syntax highlighting, create/rename/delete, ZIP download — [Learn more](features/files.md)
 - **automations** — Recurring repo jobs with reusable prompts, run history, linked sessions — [Learn more](features/automations.md)
-- **Assistant Mode** — Dedicated AI workspace with auto-provisioned skills for automation management, notifications, settings, and repo listing — [Learn more](features/general-chat.md)
+- **General Chat** — Dedicated AI workspace with auto-provisioned skills for automation management, notifications, settings, and repo listing — [Learn more](features/general-chat.md)
 - **AI Configuration** — Model/provider setup, OAuth for Anthropic/GitHub Copilot, custom agents — [Learn more](features/ai-config.md)
 - **MCP Servers** — Add local or remote MCP servers with OAuth support — [Learn more](features/mcp.md)
 - **Skills** — Skill support for extended agent capabilities — [Learn more](features/skills.md)

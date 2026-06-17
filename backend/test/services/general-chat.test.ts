@@ -440,7 +440,7 @@ describe('ensureGeneralChat', () => {
     expect(opencodeJson.agent?.plan).toEqual({ disable: true })
 
     const agentsMdContent = await readFile(agentsMdPath, 'utf8')
-    expect(agentsMdContent).toContain('Assistant Mode Workspace')
+    expect(agentsMdContent).toContain('General Chat Workspace')
     expect(agentsMdContent).toContain('- `auto.md`')
     expect(agentsMdContent).not.toContain('Self-Editing Rules')
     expect(agentsMdContent).not.toContain('automation Management')
@@ -592,7 +592,7 @@ describe('ensureGeneralChat', () => {
     const agentsMdPath = path.join(ws.assistantDir, 'AGENTS.md')
     const autoAgentPath = path.join(ws.assistantDir, '.opencode/agents/auto.md')
 
-    await writeFile(agentsMdPath, `# Assistant Mode Instructions
+    await writeFile(agentsMdPath, `# General Chat Instructions
 
 This folder is the shared General chat workspace for subpolar.
 
@@ -614,7 +614,7 @@ permission:
   external_directory: ask
 ---
 
-You are the default Assistant Mode agent for subpolar.
+You are the default General Chat agent for subpolar.
 
 This workspace is the shared assistant workspace. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.
 
@@ -648,7 +648,7 @@ Ask before destructive operations or changes outside this assistant workspace.
     const result = await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl }, { overwriteAgentsMd: true })
 
     const updatedContent = await readFile(agentsMdPath, 'utf8')
-    expect(updatedContent).toContain('Assistant Mode Workspace')
+    expect(updatedContent).toContain('General Chat Workspace')
     expect(updatedContent).toContain('- `auto.md`')
     expect(updatedContent).not.toBe(customContent)
     expect(result.files.agentsMd?.created).toBe(true)
@@ -718,7 +718,7 @@ describe('installAssistantWorkspace', () => {
     expect(JSON.parse(opencodeJson).default_agent).toBe('auto')
 
     const agentsMd = await readFile(path.join(ws.assistantDir, 'AGENTS.md'), 'utf8')
-    expect(agentsMd).toContain('Assistant Mode Workspace')
+    expect(agentsMd).toContain('General Chat Workspace')
 
     const autoAgent = await readFile(path.join(ws.assistantDir, '.opencode/agents/auto.md'), 'utf8')
     expect(autoAgent).toContain('mode: primary')

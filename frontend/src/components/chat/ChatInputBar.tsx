@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { FolderKanban, Send } from "lucide-react";
+import { FolderKanban, Paperclip, Send, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -13,12 +13,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAgents, useConfig, useCreateSession } from "@/hooks/useOpenCode";
+import { useAgents, useAbortSession, useConfig, useCreateSession, useSendPrompt } from "@/hooks/useOpenCode";
 import { getProviders } from "@/api/providers";
 import { listProjects } from "@/api/projects";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { showToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { useSessionStatusForSession } from "@/stores/sessionStatusStore";
+
+export interface ChatInputBarHandle {
+  setPromptValue: (value: string) => void;
+  clearPrompt: () => void;
+  triggerFileUpload: () => void;
+}
 
 const PERMISSION_OPTIONS = [
   { value: "default", label: "Default Permissions" },
@@ -30,20 +37,47 @@ const PERMISSION_OPTIONS = [
 interface ChatInputBarProps {
   placeholder?: string;
   onSend?: () => void;
+  defaultProjectId?: string;
+  defaultAgent?: string;
+  defaultModel?: string;
+  defaultPermission?: string;
+  sendImmediately?: boolean;
+  sessionID?: string;
+  directory?: string;
+  disabled?: boolean;
+  isSessionActive?: boolean;
+  onPromptChange?: (hasContent: boolean) => void;
+  onScrollToBottom?: () => void;
 }
 
-export function ChatInputBar(
-  { placeholder = "Send a message...", onSend }: ChatInputBarProps,
+export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(function ChatInputBar(
+  {
+    placeholder = "Send a message...",
+    onSend,
+    defaultProjectId,
+    defaultAgent = "__default__",
+    defaultModel = "__auto__",
+    defaultPermission = "default",
+    sendImmediately = false,
+    sessionID,
+    directory,
+    disabled = false,
+    isSessionActive = false,
+    onPromptChange,
+    onScrollToBottom,
+  }: ChatInputBarProps,
+  ref,
 ) {
   const navigate = useNavigate();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const selectedProjectIdRef = useRef<string>("general");
-  const selectedAgentRef = useRef<string>("__default__");
-  const selectedModelRef = useRef<string>("__auto__");
-  const selectedPermissionRef = useRef<string>("default");
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(defaultProjectId ?? null);
+  const [selectedAgent, setSelectedAgent] = useState(defaultAgent);
+  const [selectedModel, setSelectedModel] = useState(defaultModel);
+  const [selectedPermission, setSelectedPermission] = useState(defaultPermission);
+  const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
 
   const opcodeUrl = OPENCODE_API_ENDPOINT;
 
@@ -115,7 +149,151 @@ export function ChatInputBar(
     return map;
   }, [models]);
 
-  const createSession = useCreateSession(opcodeUrl, undefined);
+  const selectedProject = selectedProjectId
+    ? projects.find((p) => p.id.toString() === selectedProjectId)
+    : undefined;
+  const selectedDirectory = sessionID ? directory : sendImmediately ? selectedProject?.fullPath : undefined;
+
+  const createSession = useCreateSession(opcodeUrl, selectedDirectory);
+  const sendPrompt = useSendPrompt(opcodeUrl, selectedDirectory);
+  const abortSession = useAbortSession(opcodeUrl, selectedDirectory, sessionID ?? activeSessionId);
+  const activeSessionStatus = useSessionStatusForSession(sessionID ?? activeSessionId);
+  const isWaitingForAnswer = isSessionActive || activeSessionStatus.type === "busy" || sendPrompt.isPending;
+
+  useEffect(() => {
+    setSelectedProjectId(defaultProjectId ?? null);
+  }, [defaultProjectId]);
+
+  useEffect(() => {
+    setSelectedAgent(defaultAgent);
+  }, [defaultAgent]);
+
+  useEffect(() => {
+    setSelectedModel(defaultModel);
+  }, [defaultModel]);
+
+  useEffect(() => {
+    setSelectedPermission(defaultPermission);
+  }, [defaultPermission]);
+
+  useImperativeHandle(ref, () => ({
+    setPromptValue: (value: string) => {
+      if (!textareaRef.current) return;
+      textareaRef.current.value = value;
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+      textareaRef.current.focus();
+      onPromptChange?.(value.trim().length > 0);
+    },
+    clearPrompt: () => {
+      if (!textareaRef.current) return;
+      textareaRef.current.value = "";
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.focus();
+      onPromptChange?.(false);
+    },
+    triggerFileUpload: () => {
+      fileInputRef.current?.click();
+    },
+  }), [onPromptChange]);
+
+  const handleTextareaInput = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      e.target.style.height = "auto";
+      e.target.style.height = `${e.target.scrollHeight}px`;
+      onPromptChange?.(e.target.value.trim().length > 0);
+    },
+    [onPromptChange],
+  );
+
+  const handleSubmit = useCallback(async () => {
+    const targetSessionId = sessionID ?? activeSessionId;
+
+    if (isWaitingForAnswer && targetSessionId) {
+      abortSession.mutate(targetSessionId);
+      return;
+    }
+
+    const prompt = textareaRef.current?.value.trim();
+    if (!prompt) return;
+    if (sendImmediately && !selectedProject) {
+      showToast.error("Select a project before sending");
+      return;
+    }
+
+    if (sessionID) {
+      textareaRef.current!.value = "";
+      textareaRef.current!.style.height = "auto";
+      onPromptChange?.(false);
+      sendPrompt.mutate(
+        {
+          sessionID,
+          prompt,
+          model: selectedModel === "__auto__" ? undefined : selectedModel,
+          agent: selectedAgent === "__default__" ? undefined : selectedAgent,
+        },
+        {
+          onSuccess: () => {
+            onScrollToBottom?.();
+            onSend?.();
+          },
+        },
+      );
+      return;
+    }
+
+    try {
+      const session = await createSession.mutateAsync({});
+
+      if (sendImmediately) {
+        setActiveSessionId(session.id);
+        textareaRef.current!.value = "";
+        textareaRef.current!.style.height = "auto";
+        await sendPrompt.mutateAsync({
+          sessionID: session.id,
+          prompt,
+          model: selectedModel === "__auto__" ? undefined : selectedModel,
+          agent: selectedAgent === "__default__" ? undefined : selectedAgent,
+        });
+        navigate(`/projects/${selectedProjectId}/sessions/${session.id}`);
+        onSend?.();
+        return;
+      }
+
+      setActiveSessionId(session.id);
+      textareaRef.current!.value = "";
+      textareaRef.current!.style.height = "auto";
+      onPromptChange?.(false);
+      await sendPrompt.mutateAsync({
+        sessionID: session.id,
+        prompt,
+        model: selectedModel === "__auto__" ? undefined : selectedModel,
+        agent: selectedAgent === "__default__" ? undefined : selectedAgent,
+      });
+
+      navigate(`/repos/0/sessions/${session.id}`);
+
+      onSend?.();
+    } catch {
+      showToast.error("Failed to create session");
+    }
+  }, [
+    abortSession,
+    activeSessionId,
+    createSession,
+    sessionID,
+    isWaitingForAnswer,
+    navigate,
+    onPromptChange,
+    onScrollToBottom,
+    onSend,
+    selectedAgent,
+    selectedModel,
+    selectedProject,
+    selectedProjectId,
+    sendImmediately,
+    sendPrompt,
+  ]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -124,67 +302,30 @@ export function ChatInputBar(
         handleSubmit();
       }
     },
-    [],
+    [handleSubmit],
   );
 
-  const handleTextareaInput = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      e.target.style.height = "auto";
-      e.target.style.height = `${e.target.scrollHeight}px`;
-    },
-    [],
-  );
-
-  const handleModelChange = useCallback(
-    (value: string) => {
-      selectedModelRef.current = value;
-    },
-    [],
-  );
-
-  const handleSubmit = useCallback(async () => {
-    const prompt = textareaRef.current?.value.trim();
-    if (!prompt) return;
-
-    try {
-      const session = await createSession.mutateAsync({
-        agent: selectedAgentRef.current === "__default__"
-          ? undefined
-          : selectedAgentRef.current,
-      });
-
-      navigate(`/repos/0/sessions/${session.id}`, {
-        state: { initialPrompt: prompt },
-      });
-
-      onSend?.();
-    } catch {
-      showToast.error("Failed to create session");
-    }
-  }, [createSession, navigate, onSend]);
-
-  const selectedProjectName = selectedProjectId
-    ? projects.find((p) => p.id === selectedProjectId)?.name
-    : null;
+  const selectedProjectName = selectedProject?.name ?? null;
 
   return (
     <div className="w-full max-w-3xl mx-auto">
       <div className="relative backdrop-blur-md bg-muted/50 rounded-xl p-4 shadow-lg">
-        <textarea
-          ref={textareaRef}
-          onChange={handleTextareaInput}
-          onKeyDown={handleKeyDown}
+          <textarea
+            ref={textareaRef}
+            onChange={handleTextareaInput}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
           placeholder={placeholder}
           rows={1}
           style={{ height: "auto", overflow: "hidden" }}
-          className="w-full bg-transparent text-[18px] text-foreground placeholder-muted-foreground focus:outline-none resize-none rounded-lg"
-        />
+            className="w-full bg-transparent text-[18px] text-foreground placeholder-muted-foreground focus:outline-none resize-none rounded-lg"
+          />
+        <input ref={fileInputRef} type="file" className="hidden" />
 
         <div className="flex mt-3 items-center">
-          {/* Project */}
           <Select
+            value={selectedProjectId ?? undefined}
             onValueChange={(v) => {
-              selectedProjectIdRef.current = v;
               setSelectedProjectId(v);
             }}
           >
@@ -203,17 +344,25 @@ export function ChatInputBar(
             </SelectTrigger>
             <SelectContent className="max-h-[300px] overflow-y-auto">
               {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
+                <SelectItem key={project.id} value={project.id.toString()}>
                   {project.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          {/* Agent */}
+          <Button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            size="icon"
+            className="h-8 w-8 flex-shrink-0 border-0 bg-muted hover:bg-muted/80 text-foreground ml-2"
+          >
+            <Paperclip className="h-4 w-4" />
+          </Button>
+
           <Select
-            defaultValue="__default__"
-            onValueChange={(v) => (selectedAgentRef.current = v)}
+            value={selectedAgent}
+            onValueChange={setSelectedAgent}
           >
             <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0 gap-2">
               <SelectValue placeholder="Agent" />
@@ -228,13 +377,12 @@ export function ChatInputBar(
             </SelectContent>
           </Select>
 
-          {/* Model */}
-          <Select onValueChange={handleModelChange}>
+          <Select value={selectedModel} onValueChange={setSelectedModel}>
             <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0 gap-2">
               <SelectValue placeholder="Model" />
             </SelectTrigger>
             <SelectContent className="max-h-[300px] overflow-y-auto">
-              <SelectItem value="__auto__">Auto</SelectItem>
+              <SelectItem value="__auto__">Auto Model</SelectItem>
               <SelectSeparator />
               {Array.from(modelsByProvider.entries()).map((
                 [providerName, providerModels],
@@ -253,10 +401,9 @@ export function ChatInputBar(
             </SelectContent>
           </Select>
 
-          {/* Permissions */}
           <Select
-            defaultValue="default"
-            onValueChange={(v) => (selectedPermissionRef.current = v)}
+            value={selectedPermission}
+            onValueChange={setSelectedPermission}
           >
             <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0 w-fit gap-2">
               <SelectValue placeholder="Permissions" />
@@ -272,17 +419,16 @@ export function ChatInputBar(
 
           <span className="w-full" />
 
-          {/* Send */}
           <Button
             onClick={handleSubmit}
-            disabled={createSession.isPending}
+            disabled={disabled || createSession.isPending || abortSession.isPending}
             size="icon"
             className="h-8 w-8 flex-shrink-0"
           >
-            <Send className="h-4 w-4" />
+            {isWaitingForAnswer ? <Square className="h-4 w-4" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
       </div>
     </div>
   );
-}
+});

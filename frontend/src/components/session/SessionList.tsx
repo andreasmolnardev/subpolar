@@ -15,7 +15,7 @@ interface SessionListProps {
   createDirectory?: string;
   directoryLabels?: Record<string, string>;
   activeSessionID?: string;
-  onSelectSession: (sessionID: string) => void;
+  onSelectSession: (sessionID: string, directory?: string) => void;
 }
 
 export const SessionList = ({

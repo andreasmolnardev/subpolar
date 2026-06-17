@@ -96,7 +96,7 @@ Subpolar provides a comprehensive web interface for managing OpenCode AI agents.
 
 [Learn more →](notifications.md)
 
-### Assistant Mode
+### General Chat
 
 - **Dedicated AI Workspace** — Isolated assistant directory with managed configuration and a built-in bearer-token API
 - **Auto-Provisioned Skills** — automation management, notifications, settings, and repo listing skills available out of the box

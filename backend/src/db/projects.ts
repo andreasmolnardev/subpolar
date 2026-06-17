@@ -1,6 +1,8 @@
 import type PocketBase from 'pocketbase'
 import type { Project } from '@subpolar/shared/types'
 import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
+import { getWorkspacePath } from '@subpolar/shared/config/env'
+import path from 'path'
 
 export interface ProjectRecord {
   id: string
@@ -37,11 +39,12 @@ async function withExistingProjectFields<T extends Record<string, unknown>>(pb: 
 function rowToProject(row: ProjectRecord): Project {
   const isGeneralChat = row.is_general_chat ?? (row.user_id === 'default' && row.name === 'General Chat')
   const numId = isGeneralChat ? GENERAL_CHAT_PROJECT_ID : parseInt(row.id, 10)
+  const fullPath = isGeneralChat ? path.join(getWorkspacePath(), 'general-chat') : row.full_path ?? row.directory
   return {
     id: numId,
     name: row.name,
     directory: row.directory || '',
-    fullPath: row.full_path ?? row.directory,
+    fullPath,
     openCodeConfigName: row.opencode_config_name,
     status: (row.status as Project['status']) || 'ready',
     isGeneralChat,
@@ -107,7 +110,7 @@ export async function ensureGeneralChatProject(pb: PocketBase): Promise<Project>
     user_id: 'default',
     name: 'General Chat',
     directory: 'general-chat',
-    full_path: 'general-chat',
+    full_path: path.join(getWorkspacePath(), 'general-chat'),
     status: 'ready',
     is_general_chat: true,
     is_temporary: false,

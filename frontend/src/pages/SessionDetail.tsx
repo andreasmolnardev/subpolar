@@ -3,7 +3,7 @@ import { useParams, useNavigate, Navigate, useLocation } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query";
 import { getProject } from "@/api/projects";
 import { MessageThread } from "@/components/message/MessageThread";
-import { PromptInput, type PromptInputHandle } from "@/components/message/PromptInput";
+import { ChatInputBar, type ChatInputBarHandle } from "@/components/chat/ChatInputBar";
 import { FloatingTTSButton } from '@/components/message/FloatingTTSButton'
 import { X, CornerUpLeft } from "lucide-react";
 import { Header } from "@/components/ui/header";
@@ -19,8 +19,8 @@ import { useProjectActivity } from "@/hooks/useProjectActivity";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { useSSE } from "@/hooks/useSSE";
 import { useUIState } from "@/stores/uiStateStore";
-import { useSettings } from "@/hooks/useSettings";
 import { useModelSelection } from "@/hooks/useModelSelection";
+import { useSessionAgent } from "@/hooks/useSessionAgent";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useSettingsDialog } from "@/hooks/useSettingsDialog";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
@@ -30,8 +30,6 @@ import { useTTS } from "@/hooks/useTTS";
 import { getAssistantText, getLatestPlayableAssistantMessage, useAutoPlayLastResponse } from "@/hooks/useAutoPlayLastResponse";
 import { useEffect, useRef, useCallback, useMemo } from "react";
 import { MessageSkeleton } from "@/components/message/MessageSkeleton";
-import { exportSession, downloadMarkdown } from "@/lib/exportSession";
-import type { MessageWithParts } from "@/api/types";
 import { getMessagesContentVersion } from "./sessionContentVersion";
 import { showToast } from "@/lib/toast";
 import { createOpenCodeClient } from "@/api/opencode";
@@ -62,14 +60,12 @@ export function SessionDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const repoId = Number(id) || 0;
-  const { preferences, updateSettings } = useSettings();
   const { open: openSettings } = useSettingsDialog();
   const messageContainerRef = useRef<HTMLDivElement>(null);
-  const promptInputRef = useRef<PromptInputHandle>(null);
+  const promptInputRef = useRef<ChatInputBarHandle>(null);
   const [sessionsDialogOpen, setSessionsDialogOpen] = useState(false);
   const [fileBrowserOpen, setFileBrowserOpen] = useDialogParam('files');
   const [selectedFilePath, setSelectedFilePath] = useState<string | undefined>();
-  const [showScrollButton, setShowScrollButton] = useState(false);
   const [hasPromptContent, setHasPromptContent] = useState(false);
   const [minimizedQuestion, setMinimizedQuestion] = useState<QuestionRequest | null>(null);
 
@@ -125,10 +121,6 @@ export function SessionDetail() {
     return rawMessages.filter(msgWithParts => compareMessageIds(msgWithParts.info.id, revertMessageID) < 0)
   }, [rawMessages, session?.revert?.messageID]);
 
-  const getMessagesWithParts = useCallback((): MessageWithParts[] | undefined => {
-    return messages
-  }, [messages])
-
   const messagesContentVersion = useMemo(() => getMessagesContentVersion(messages), [messages]);
 
   const { scrollToBottom } = useAutoScroll({
@@ -136,12 +128,13 @@ export function SessionDetail() {
     messages: messages?.map(m => m.info),
     sessionId,
     contentVersion: messagesContentVersion,
-    onScrollStateChange: setShowScrollButton
+    onScrollStateChange: () => {}
   });
   const abortSession = useAbortSession(opcodeUrl, repoDirectory, sessionId);
   const updateSession = useUpdateSession(opcodeUrl, repoDirectory);
   const createSession = useCreateSession(opcodeUrl, repoDirectory);
   const { model, modelString } = useModelSelection(opcodeUrl, repoDirectory);
+  const sessionAgent = useSessionAgent(opcodeUrl, sessionId, repoDirectory);
   const isEditingMessage = useUIState((state) => state.isEditingMessage);
   const setActivePromptFileBasePath = useUIState((state) => state.setActivePromptFileBasePath);
   const { isEnabled: ttsEnabled } = useTTS();
@@ -177,9 +170,6 @@ export function SessionDetail() {
     lastAssistantText,
     isStreamingResponse,
   });
-
-  const handleShowSessionsDialog = useCallback(() => setSessionsDialogOpen(true), []);
-  const handleShowHelpDialog = useCallback(() => openSettings(), [openSettings]);
 
   const handleMinimizeQuestion = useCallback((question: QuestionRequest) => {
     setMinimizedQuestion(question)
@@ -355,24 +345,6 @@ export function SessionDetail() {
     }
   }, [navigate, repoId, session?.parentID, sessionRouteSuffix]);
 
-  const handleToggleDetails = useCallback(() => {
-    const newValue = !preferences?.expandToolCalls
-    updateSettings({ expandToolCalls: newValue })
-    return newValue
-  }, [preferences?.expandToolCalls, updateSettings]);
-
-  const handleExportSession = useCallback(() => {
-    const data = getMessagesWithParts()
-    if (!data || !session) {
-      showToast.error('No session data to export')
-      return
-    }
-    
-    const { filename, content } = exportSession(data, session)
-    downloadMarkdown(content, filename)
-    showToast.success(`Exported to ${filename}`)
-  }, [getMessagesWithParts, session]);
-
   const handleUndoMessage = useCallback((restoredPrompt: string) => {
     promptInputRef.current?.setPromptValue(restoredPrompt)
   }, []);
@@ -528,20 +500,16 @@ export function SessionDetail() {
                 />
               )}
               <SessionSendErrorBanner sessionId={sessionId} />
-              <PromptInput
+              <ChatInputBar
                 ref={promptInputRef}
-                opcodeUrl={opcodeUrl}
                 directory={repoDirectory}
+                defaultProjectId={repoId.toString()}
+                defaultAgent={sessionAgent.agent ? sessionAgent.agent : "__default__"}
+                defaultModel={sessionAgent.model ? `${sessionAgent.model.providerID}/${sessionAgent.model.modelID}` : "__auto__"}
                 sessionID={sessionId}
                 disabled={!isConnected}
-                showScrollButton={showScrollButton && !hasPromptContent}
                 isSessionActive={isSessionActive}
-                isStreamingResponse={isStreamingResponse}
                 onScrollToBottom={scrollToBottom}
-                onShowSessionsDialog={handleShowSessionsDialog}
-                onShowHelpDialog={handleShowHelpDialog}
-                onToggleDetails={handleToggleDetails}
-                onExportSession={handleExportSession}
                 onPromptChange={setHasPromptContent}
               />
             </div>
