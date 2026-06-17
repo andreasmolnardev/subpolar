@@ -16,7 +16,7 @@ The assistant workspace is a special repository-like directory managed and maint
 
 ## Skills Provided
 
-Four skills are provisioned automatically when assistant mode is initialized:
+Four skills are provisioned automatically when general chat is initialized:
 
 | Skill | What it teaches |
 |-------|----------------|

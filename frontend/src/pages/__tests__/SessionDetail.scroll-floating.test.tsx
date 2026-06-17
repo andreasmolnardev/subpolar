@@ -143,7 +143,7 @@ vi.mock('@/api/projects', () => ({
     updatedAt: 0,
   })),
   touchProjectActivity: vi.fn(),
-  initializeAssistantMode: vi.fn(() => Promise.resolve({ directory: '/test/repo' })),
+  initializeGeneralChat: vi.fn(() => Promise.resolve({ directory: '/test/repo' })),
 }))
 
 vi.mock('@/components/session/SessionList', () => ({

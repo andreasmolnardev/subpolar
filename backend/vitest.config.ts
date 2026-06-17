@@ -9,7 +9,7 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-      'test/services/assistant-mode.test.ts',
+      'test/services/general-chat.test.ts',
       'test/services/internal-token.test.ts',
       'test/auth/internal-token-middleware.test.ts',
       'test/routes/internal-automations.test.ts',

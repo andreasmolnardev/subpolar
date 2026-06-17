@@ -1,23 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  getAssistantModeStatus,
-  initializeAssistantMode,
+  getGeneralChatStatus,
+  initializeGeneralChat,
 } from '@/api/projects'
 import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
-import type { AssistantModeStatus, AssistantModeInitRequest } from '@subpolar/shared/types'
+import type { GeneralChatStatus, GeneralChatInitRequest } from '@subpolar/shared/types'
 
 export function useWorkspaceMode(repoId?: number) {
   const queryClient = useQueryClient()
 
-  const statusQuery = useQuery<AssistantModeStatus>({
+  const statusQuery = useQuery<GeneralChatStatus>({
     queryKey: ['workspace-mode'],
-    queryFn: () => getAssistantModeStatus(GENERAL_CHAT_PROJECT_ID),
+    queryFn: () => getGeneralChatStatus(GENERAL_CHAT_PROJECT_ID),
     enabled: repoId === GENERAL_CHAT_PROJECT_ID,
   })
 
   const initializeMutation = useMutation({
-    mutationFn: (options?: AssistantModeInitRequest) =>
-      initializeAssistantMode(GENERAL_CHAT_PROJECT_ID, options),
+    mutationFn: (options?: GeneralChatInitRequest) =>
+      initializeGeneralChat(GENERAL_CHAT_PROJECT_ID, options),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ['workspace-mode'],

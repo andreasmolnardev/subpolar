@@ -40,7 +40,7 @@ import type { OpenCodeClient } from './opencode/client'
 import { sseAggregator, type SSEEvent } from './sse-aggregator'
 import { getErrorMessage } from '../utils/error-utils'
 import { logger } from '../utils/logger'
-import { buildGeneralChatProject } from './assistant-mode'
+import { buildGeneralChatProject } from './general-chat'
 import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
 
 class AutomationServiceError extends Error {

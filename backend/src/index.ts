@@ -41,7 +41,7 @@ import { NotificationService } from './services/notification'
 import { AutomationRunner, AutomationService } from './services/automations'
 import { migrateGlobalSkills } from './services/skills'
 import { ensureGeneralChatProject } from './db/projects'
-import { installAssistantWorkspace } from './services/assistant-mode'
+import { installAssistantWorkspace } from './services/general-chat'
 import { getOpenCodeImportStatus, syncOpenCodeImport } from './services/opencode-import'
 import { OpenCodeSupervisor } from './services/opencode-supervisor'
 import { OpenCodeConfigSchema } from '@subpolar/shared/schemas'
@@ -95,6 +95,7 @@ async function initializeApp() {
   await ensureGeneralChatProject(db!).catch((err) => logger.warn('Failed to ensure general chat project:', err))
   requireAuth = createAuthMiddleware()
   openCodeClient = createOpenCodeClient(async () => new SettingsService(db!).getOpenCodeServerPassword())
+  opencodeServerManager.setOpenCodeClient(openCodeClient)
 }
 
 import { DEFAULT_AGENTS_MD } from './constants'

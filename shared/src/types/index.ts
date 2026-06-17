@@ -16,8 +16,8 @@ import {
   CreateProjectRequestSchema,
   UpdateProjectRequestSchema,
   ProjectStatusSchema,
-  AssistantModeStatusSchema,
-  AssistantModeInitRequestSchema,
+  GeneralChatStatusSchema,
+  GeneralChatInitRequestSchema,
 } from '../schemas/project'
 import {
   FileInfoSchema,
@@ -61,8 +61,8 @@ export type Project = z.infer<typeof ProjectSchema>
 export type CreateProjectRequest = z.infer<typeof CreateProjectRequestSchema>
 export type UpdateProjectRequest = z.infer<typeof UpdateProjectRequestSchema>
 export type ProjectStatus = z.infer<typeof ProjectStatusSchema>
-export type AssistantModeStatus = z.infer<typeof AssistantModeStatusSchema>
-export type AssistantModeInitRequest = z.infer<typeof AssistantModeInitRequestSchema>
+export type GeneralChatStatus = z.infer<typeof GeneralChatStatusSchema>
+export type GeneralChatInitRequest = z.infer<typeof GeneralChatInitRequestSchema>
 
 export type FileInfo = z.infer<typeof FileInfoSchema>
 export type CreateFileRequest = z.infer<typeof CreateFileRequestSchema>

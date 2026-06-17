@@ -1,73 +1,44 @@
 import { describe, it, expect } from 'vitest'
 import {
-  isAssistantRepoId,
-  automationTargetFromRepo,
-  automationTargetFromAssistant,
+  isGeneralChatId,
+  automationTargetFromProject,
 } from './automation-target'
-import type { AssistantModeStatus } from '@subpolar/shared/types'
 
-describe('isAssistantRepoId', () => {
+describe('isGeneralChatId', () => {
   it('returns true for repoId 0', () => {
-    expect(isAssistantRepoId(0)).toBe(true)
+    expect(isGeneralChatId(0)).toBe(true)
   })
 
   it('returns false for positive repoId', () => {
-    expect(isAssistantRepoId(5)).toBe(false)
+    expect(isGeneralChatId(5)).toBe(false)
   })
 
   it('returns false for undefined', () => {
-    expect(isAssistantRepoId(undefined)).toBe(false)
+    expect(isGeneralChatId(undefined)).toBe(false)
   })
 })
 
-describe('automationTargetFromRepo', () => {
-  it('returns correct automation target for a repo', () => {
-    const repo = {
+describe('automationTargetFromProject', () => {
+  it('returns correct automation target for a project', () => {
+    const project = {
       id: 5,
-      repoUrl: 'https://x/y',
-      localPath: 'y',
+      name: 'y',
+      directory: 'y',
       fullPath: '/abs/y',
-      sourcePath: undefined,
-      defaultBranch: 'main',
-      cloneStatus: 'ready' as const,
-      clonedAt: 0,
+      status: 'ready' as const,
+      createdAt: 0,
+      updatedAt: 0,
     }
 
-    const target = automationTargetFromRepo(repo)
+    const target = automationTargetFromProject(project)
 
     expect(target).toEqual({
-      repoId: 5,
-      kind: 'repo',
+      projectId: 5,
+      kind: 'project',
       name: 'y',
       subtitle: 'y',
       fullPath: '/abs/y',
-      backHref: '/repos/5',
-    })
-  })
-})
-
-describe('automationTargetFromAssistant', () => {
-  it('returns correct automation target for assistant', () => {
-    const status: AssistantModeStatus = {
-      repoId: 0,
-      directory: '/abs/assistant',
-      relativePath: 'repos/assistant',
-      files: {
-        agentsMd: { path: '', exists: false, created: false },
-        opencodeJson: { path: '', exists: false, created: false },
-      },
-      automationsSkill: { path: '', exists: false, created: false },
-    }
-
-    const target = automationTargetFromAssistant(status)
-
-    expect(target).toEqual({
-      repoId: 0,
-      kind: 'assistant',
-      name: 'Assistant',
-      subtitle: 'Built-in assistant',
-      fullPath: '/abs/assistant',
-      backHref: '/assistant',
+      backHref: '/projects/5',
     })
   })
 })

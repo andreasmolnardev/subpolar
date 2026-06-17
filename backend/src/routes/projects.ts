@@ -139,36 +139,36 @@ export function createProjectRoutes(database: PocketBase) {
     }
   })
 
-  app.get('/:id/assistant-mode', async (c) => {
+  app.get('/:id/general-chat', async (c) => {
     try {
       const id = c.req.param('id')
-      if (id !== '0') throw new ProjectServiceError('Assistant mode is only available for the General Chat project', 404)
-      const { getAssistantModeStatus } = await import('../services/assistant-mode')
-      const { buildGeneralChatProject } = await import('../services/assistant-mode')
+      if (id !== '0') throw new ProjectServiceError('General chat is only available for the General Chat project', 404)
+      const { getGeneralChatStatus } = await import('../services/general-chat')
+      const { buildGeneralChatProject } = await import('../services/general-chat')
       const project = buildGeneralChatProject()
-      const status = await getAssistantModeStatus(project)
+      const status = await getGeneralChatStatus(project)
       return c.json(status)
     } catch (error) {
-      return handleServiceError(c, error, 'Failed to get assistant mode status', ProjectServiceError)
+      return handleServiceError(c, error, 'Failed to get general chat status', ProjectServiceError)
     }
   })
 
-  app.post('/:id/assistant-mode', async (c) => {
+  app.post('/:id/general-chat', async (c) => {
     try {
       const id = c.req.param('id')
-      if (id !== '0') throw new ProjectServiceError('Assistant mode is only available for the General Chat project', 404)
-      const { ensureAssistantMode, buildGeneralChatProject } = await import('../services/assistant-mode')
-      const { AssistantModeInitRequestSchema } = await import('@subpolar/shared/schemas')
+      if (id !== '0') throw new ProjectServiceError('General chat is only available for the General Chat project', 404)
+      const { ensureGeneralChat, buildGeneralChatProject } = await import('../services/general-chat')
+      const { GeneralChatInitRequestSchema } = await import('@subpolar/shared/schemas')
       const project = buildGeneralChatProject()
       const body = await c.req.json().catch(() => ({}))
-      const options = AssistantModeInitRequestSchema.parse(body)
+      const options = GeneralChatInitRequestSchema.parse(body)
       const protocol = c.req.header('x-forwarded-proto') || 'http'
       const host = c.req.header('host') || 'localhost:5003'
       const apiBaseUrl = `${protocol}://${host}/api/internal`
-      const status = await ensureAssistantMode(project, { db: database, apiBaseUrl }, options)
+      const status = await ensureGeneralChat(project, { db: database, apiBaseUrl }, options)
       return c.json(status)
     } catch (error) {
-      return handleServiceError(c, error, 'Failed to initialize assistant mode', ProjectServiceError)
+      return handleServiceError(c, error, 'Failed to initialize general chat', ProjectServiceError)
     }
   })
 

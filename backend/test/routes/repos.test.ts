@@ -26,10 +26,10 @@ vi.mock('../../src/services/repo', () => ({
   getCurrentBranch: vi.fn(),
 }))
 
-vi.mock('../../src/services/assistant-mode', () => ({
-  getAssistantModeStatus: vi.fn(),
-  ensureAssistantMode: vi.fn(),
-  getAssistantModeDirectory: vi.fn(),
+vi.mock('../../src/services/general-chat', () => ({
+  getGeneralChatStatus: vi.fn(),
+  ensureGeneralChat: vi.fn(),
+  getGeneralChatDirectory: vi.fn(),
   buildAssistantOpenCodeConfig: vi.fn(),
 }))
 
@@ -45,8 +45,8 @@ import { createRepoRoutes } from '../../src/routes/repos'
 import { opencodeServerManager } from '../../src/services/opencode-single-server'
 import type { GitAuthService } from '../../src/services/git-auth'
 import type { AutomationService } from '../../src/services/automations'
-import type { AssistantModeStatus } from '@subpolar/shared/types'
-import { getAssistantModeStatus, ensureAssistantMode } from '../../src/services/assistant-mode'
+import type { GeneralChatStatus } from '@subpolar/shared/types'
+import { getGeneralChatStatus, ensureGeneralChat } from '../../src/services/general-chat'
 
 const mockGitAuthService = {
   getGitEnvironment: vi.fn().mockReturnValue({}),
@@ -121,19 +121,19 @@ describe('Repo Routes', () => {
     })
   })
 
-  describe('GET /:id/assistant-mode', () => {
+  describe('GET /:id/general-chat', () => {
     it('should return 404 when repo not found', async () => {
       vi.mocked(db.getRepoById).mockResolvedValue(null)
 
       const app = createRepoRoutes(mockPb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
-      const res = await app.request('/1/assistant-mode', { method: 'GET' })
+      const res = await app.request('/1/general-chat', { method: 'GET' })
 
       expect(res.status).toBe(404)
       const body = await res.json() as { error: string }
       expect(body.error).toBe('Repo not found')
     })
 
-    it('should call getAssistantModeStatus and return status', async () => {
+    it('should call getGeneralChatStatus and return status', async () => {
       const mockRepo = {
         id: 1,
         repoUrl: 'https://github.com/test/repo',
@@ -148,7 +148,7 @@ describe('Repo Routes', () => {
       }
       vi.mocked(db.getRepoById).mockResolvedValue(mockRepo)
 
-      const mockStatus: AssistantModeStatus = {
+      const mockStatus: GeneralChatStatus = {
         repoId: 1,
         directory: '/tmp/workspace/repos/assistant',
         relativePath: 'repos/assistant',
@@ -158,26 +158,26 @@ describe('Repo Routes', () => {
         },
       }
 
-      vi.mocked(getAssistantModeStatus).mockResolvedValue(mockStatus)
+      vi.mocked(getGeneralChatStatus).mockResolvedValue(mockStatus)
 
       const app = createRepoRoutes(mockPb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
-      const res = await app.request('/1/assistant-mode', { method: 'GET' })
+      const res = await app.request('/1/general-chat', { method: 'GET' })
 
       expect(res.status).toBe(200)
       const body = await res.json() as typeof mockStatus
       expect(body.repoId).toBe(1)
       expect(body.relativePath).toBe('repos/assistant')
 
-      expect(ensureAssistantMode).not.toHaveBeenCalled()
+      expect(ensureGeneralChat).not.toHaveBeenCalled()
     })
   })
 
-  describe('POST /:id/assistant-mode', () => {
+  describe('POST /:id/general-chat', () => {
     it('should return 404 when repo not found', async () => {
       vi.mocked(db.getRepoById).mockResolvedValue(null)
 
       const app = createRepoRoutes(mockPb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
-      const res = await app.request('/1/assistant-mode', {
+      const res = await app.request('/1/general-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -188,7 +188,7 @@ describe('Repo Routes', () => {
       expect(body.error).toBe('Repo not found')
     })
 
-    it('should validate body and call ensureAssistantMode', async () => {
+    it('should validate body and call ensureGeneralChat', async () => {
       const mockRepo = {
         id: 1,
         repoUrl: 'https://github.com/test/repo',
@@ -203,7 +203,7 @@ describe('Repo Routes', () => {
       }
       vi.mocked(db.getRepoById).mockResolvedValue(mockRepo)
 
-      const mockStatus: AssistantModeStatus = {
+      const mockStatus: GeneralChatStatus = {
         repoId: 1,
         directory: '/tmp/workspace/repos/assistant',
         relativePath: 'repos/assistant',
@@ -213,10 +213,10 @@ describe('Repo Routes', () => {
         },
       }
 
-      vi.mocked(ensureAssistantMode).mockResolvedValue(mockStatus)
+      vi.mocked(ensureGeneralChat).mockResolvedValue(mockStatus)
 
       const app = createRepoRoutes(mockPb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
-      const res = await app.request('/1/assistant-mode', {
+      const res = await app.request('/1/general-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ overwriteAgentsMd: true }),
@@ -227,8 +227,8 @@ describe('Repo Routes', () => {
       const body = await res.json() as typeof mockStatus
       expect(body).toEqual(mockStatus)
 
-      expect(ensureAssistantMode).toHaveBeenCalledTimes(1)
-      expect(ensureAssistantMode).toHaveBeenCalledWith(
+      expect(ensureGeneralChat).toHaveBeenCalledTimes(1)
+      expect(ensureGeneralChat).toHaveBeenCalledWith(
         expect.objectContaining({ id: 1, localPath: 'repos/test-repo' }),
         expect.objectContaining({ db: mockPb, apiBaseUrl: 'http://localhost:5003/api/internal' }),
         expect.objectContaining({ overwriteAgentsMd: true }),
@@ -238,7 +238,7 @@ describe('Repo Routes', () => {
       expect(opencodeServerManager.restart).not.toHaveBeenCalled()
     })
 
-    it('should handle errors from ensureAssistantMode', async () => {
+    it('should handle errors from ensureGeneralChat', async () => {
       const mockRepo = {
         id: 1,
         repoUrl: 'https://github.com/test/repo',
@@ -253,10 +253,10 @@ describe('Repo Routes', () => {
       }
       vi.mocked(db.getRepoById).mockResolvedValue(mockRepo)
 
-      vi.mocked(ensureAssistantMode).mockRejectedValue(new Error('Test error'))
+      vi.mocked(ensureGeneralChat).mockRejectedValue(new Error('Test error'))
 
       const app = createRepoRoutes(mockPb, mockGitAuthService, mockautomationservice, createStubOpenCodeClient())
-      const res = await app.request('/1/assistant-mode', {
+      const res = await app.request('/1/general-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),

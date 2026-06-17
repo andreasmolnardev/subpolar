@@ -1,5 +1,6 @@
 import type PocketBase from 'pocketbase'
 import type { Project } from '@subpolar/shared/types'
+import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
 
 export interface ProjectRecord {
   id: string
@@ -16,8 +17,26 @@ export interface ProjectRecord {
   last_accessed_at?: number
 }
 
+let projectFieldNames: Set<string> | null = null
+
+async function getProjectFieldNames(pb: PocketBase): Promise<Set<string>> {
+  if (projectFieldNames) return projectFieldNames
+
+  const collection = await pb.collections.getOne('projects') as unknown as { fields?: Array<{ name: string }> }
+  projectFieldNames = new Set((collection.fields ?? []).map((field) => field.name))
+  return projectFieldNames
+}
+
+async function withExistingProjectFields<T extends Record<string, unknown>>(pb: PocketBase, data: T): Promise<Partial<T>> {
+  const fields = await getProjectFieldNames(pb)
+  return Object.fromEntries(
+    Object.entries(data).filter(([key]) => fields.has(key)),
+  ) as Partial<T>
+}
+
 function rowToProject(row: ProjectRecord): Project {
-  const numId = parseInt(row.id, 10)
+  const isGeneralChat = row.is_general_chat ?? (row.user_id === 'default' && row.name === 'General Chat')
+  const numId = isGeneralChat ? GENERAL_CHAT_PROJECT_ID : parseInt(row.id, 10)
   return {
     id: numId,
     name: row.name,
@@ -25,7 +44,7 @@ function rowToProject(row: ProjectRecord): Project {
     fullPath: row.full_path ?? row.directory,
     openCodeConfigName: row.opencode_config_name,
     status: (row.status as Project['status']) || 'ready',
-    isGeneralChat: row.is_general_chat ?? false,
+    isGeneralChat,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastAccessedAt: row.last_accessed_at,
@@ -38,11 +57,19 @@ export async function listProjects(pb: PocketBase, userId: string): Promise<Proj
     filter: `user_id = "${userId}"`,
   })
   return (result as unknown as ProjectRecord[])
-    .filter((r) => !r.is_general_chat)
+    .filter((r) => !isGeneralChatRecord(r))
     .map(rowToProject)
 }
 
+function isGeneralChatRecord(row: ProjectRecord): boolean {
+  return row.is_general_chat === true || row.name === 'General Chat' || row.directory === 'general-chat'
+}
+
 export async function getProjectById(pb: PocketBase, id: string): Promise<Project | null> {
+  if (id === String(GENERAL_CHAT_PROJECT_ID)) {
+    return getGeneralChatProject(pb)
+  }
+
   try {
     const record = await pb.collection('projects').getOne(id)
     return rowToProject(record as unknown as ProjectRecord)
@@ -51,14 +78,32 @@ export async function getProjectById(pb: PocketBase, id: string): Promise<Projec
   }
 }
 
+async function findGeneralChatRecord(pb: PocketBase): Promise<ProjectRecord | null> {
+  const fields = await getProjectFieldNames(pb)
+  const filters = fields.has('is_general_chat')
+    ? ['is_general_chat = true', 'user_id = "default" && name = "General Chat"', 'name = "General Chat"']
+    : ['user_id = "default" && name = "General Chat"', 'name = "General Chat"']
+
+  for (const filter of filters) {
+    const record = await pb.collection('projects').getFirstListItem(filter, { sort: 'created_at' }).catch(() => null)
+    if (record) return record as unknown as ProjectRecord
+  }
+
+  return null
+}
+
+export async function getGeneralChatProject(pb: PocketBase): Promise<Project | null> {
+  const record = await findGeneralChatRecord(pb)
+  return record ? rowToProject(record) : null
+}
+
 export async function ensureGeneralChatProject(pb: PocketBase): Promise<Project> {
-  const existing = await pb.collection('projects').getFirstListItem('is_general_chat = true').catch(() => null)
+  const existing = await findGeneralChatRecord(pb)
   if (existing) {
-    return rowToProject(existing as unknown as ProjectRecord)
+    return rowToProject(existing)
   }
   const now = Date.now()
-  const record = await pb.collection('projects').create({
-    id: '0',
+  const record = await pb.collection('projects').create(await withExistingProjectFields(pb, {
     user_id: 'default',
     name: 'General Chat',
     directory: 'general-chat',
@@ -69,7 +114,7 @@ export async function ensureGeneralChatProject(pb: PocketBase): Promise<Project>
     created_at: now,
     updated_at: now,
     last_accessed_at: now,
-  })
+  }))
   return rowToProject(record as unknown as ProjectRecord)
 }
 
@@ -86,7 +131,7 @@ export async function createProject(
 ): Promise<Project> {
   const now = Date.now()
   const dir = data.directory ?? data.name
-  const record = await pb.collection('projects').create({
+  const record = await pb.collection('projects').create(await withExistingProjectFields(pb, {
     user_id: data.userId,
     name: data.name,
     directory: dir,
@@ -97,7 +142,7 @@ export async function createProject(
     is_general_chat: false,
     created_at: now,
     updated_at: now,
-  })
+  }))
   return rowToProject(record as unknown as ProjectRecord)
 }
 
@@ -141,7 +186,8 @@ export async function deleteProject(pb: PocketBase, id: string): Promise<boolean
 
 export async function updateProjectLastAccessed(pb: PocketBase, id: string): Promise<void> {
   try {
-    await pb.collection('projects').update(id, { last_accessed_at: Date.now() })
+    const recordId = await resolveProjectRecordId(pb, id)
+    await pb.collection('projects').update(recordId, await withExistingProjectFields(pb, { last_accessed_at: Date.now() }))
   } catch {
     throw new Error(`Project with id ${id} not found`)
   }
@@ -149,8 +195,16 @@ export async function updateProjectLastAccessed(pb: PocketBase, id: string): Pro
 
 export async function updateProjectConfigName(pb: PocketBase, id: string, configName: string): Promise<void> {
   try {
-    await pb.collection('projects').update(id, { opencode_config_name: configName })
+    const recordId = await resolveProjectRecordId(pb, id)
+    await pb.collection('projects').update(recordId, await withExistingProjectFields(pb, { opencode_config_name: configName }))
   } catch {
     throw new Error(`Project with id ${id} not found`)
   }
+}
+
+async function resolveProjectRecordId(pb: PocketBase, id: string): Promise<string> {
+  if (id !== String(GENERAL_CHAT_PROJECT_ID)) return id
+  const record = await findGeneralChatRecord(pb)
+  if (!record) throw new Error(`Project with id ${id} not found`)
+  return record.id
 }

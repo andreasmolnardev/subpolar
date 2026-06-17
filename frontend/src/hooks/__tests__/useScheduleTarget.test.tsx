@@ -2,16 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAutomationTarget } from '../useAutomationTarget'
-import type { AssistantModeStatus } from '@subpolar/shared/types'
+import type { GeneralChatStatus } from '@subpolar/shared/types'
 
 const mocks = vi.hoisted(() => ({
   getProject: vi.fn(),
-  getAssistantModeStatus: vi.fn(),
+  getGeneralChatStatus: vi.fn(),
 }))
 
 vi.mock('@/api/projects', () => ({
   getProject: mocks.getProject,
-  getAssistantModeStatus: mocks.getAssistantModeStatus,
+  getGeneralChatStatus: mocks.getGeneralChatStatus,
 }))
 
 const createWrapper = () => {
@@ -30,9 +30,9 @@ describe('useAutomationTarget', () => {
     vi.clearAllMocks()
   })
 
-  describe('repoId === 0 (assistant)', () => {
-    it('returns assistant automation target with correct properties', async () => {
-      const mockStatus: AssistantModeStatus = {
+  describe('repoId === 0 (general chat)', () => {
+    it('returns general chat automation target with correct properties', async () => {
+      const mockStatus: GeneralChatStatus = {
         repoId: 0,
         directory: '/abs/assistant',
         relativePath: 'repos/assistant',
@@ -44,7 +44,7 @@ describe('useAutomationTarget', () => {
         automationsSkill: { path: '', exists: false, created: false },
       }
 
-      mocks.getAssistantModeStatus.mockResolvedValue(mockStatus)
+      mocks.getGeneralChatStatus.mockResolvedValue(mockStatus)
 
       const { result } = renderHook(() => useAutomationTarget(0), { wrapper: createWrapper() })
 
@@ -60,8 +60,8 @@ describe('useAutomationTarget', () => {
       expect(result.current.isError).toBe(false)
     })
 
-    it('does not call getRepo for assistant', async () => {
-      mocks.getAssistantModeStatus.mockResolvedValue({
+    it('does not call getRepo for general chat', async () => {
+      mocks.getGeneralChatStatus.mockResolvedValue({
         directory: '/abs/assistant',
         relativePath: 'repos/assistant',
         files: { agentsMd: { path: '', exists: false, created: false }, opencodeJson: { path: '', exists: false, created: false } },
@@ -104,7 +104,7 @@ describe('useAutomationTarget', () => {
       expect(result.current.automationTarget?.backHref).toBe('/projects/5')
     })
 
-    it('does not call getAssistantModeStatus for project', async () => {
+    it('does not call getGeneralChatStatus for project', async () => {
       const mockProject = {
         id: 5,
         name: 'my-project',
@@ -120,7 +120,7 @@ describe('useAutomationTarget', () => {
       renderHook(() => useAutomationTarget(5), { wrapper: createWrapper() })
 
       await vi.waitFor(() => {
-        expect(mocks.getAssistantModeStatus).not.toHaveBeenCalled()
+        expect(mocks.getGeneralChatStatus).not.toHaveBeenCalled()
       })
     })
   })

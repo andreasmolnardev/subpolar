@@ -1,6 +1,6 @@
 import path from 'path'
 import { createHash } from 'node:crypto'
-import type { Project, AssistantModeStatus, OpenCodeConfigInput, AgentFileInfo } from '@subpolar/shared/types'
+import type { Project, GeneralChatStatus, OpenCodeConfigInput, AgentFileInfo } from '@subpolar/shared/types'
 import {
   readFileContent,
   writeFileContent,
@@ -12,10 +12,11 @@ import { GENERAL_CHAT_PROJECT_ID, GENERAL_CHAT_PROJECT_PATH } from '@subpolar/sh
 import { getWorkspacePath, ENV } from '@subpolar/shared/config/env'
 import type { Database } from '../db/schema'
 import { ensureGeneralChatProject } from '../db/projects'
+import { getOrCreateInternalToken } from './internal-token'
 
 
-const ASSISTANT_MODE_DIR = GENERAL_CHAT_PROJECT_PATH
-const ASSISTANT_MODE_RELATIVE_PATH = 'general-chat'
+const GENERAL_CHAT_DIR = GENERAL_CHAT_PROJECT_PATH
+const GENERAL_CHAT_RELATIVE_PATH = 'general-chat'
 const ASSISTANT_AGENTS_MD_FILENAME = 'AGENTS.md'
 const ASSISTANT_OPENCODE_CONFIG_FILENAME = 'opencode.json'
 const ASSISTANT_OPENCODE_DIR = '.opencode'
@@ -58,25 +59,25 @@ const SKILL_DIRS = [
   SKILL_RESEARCH_WEB_DIR,
 ] as const
 
-export function getAssistantModeDirectory(): string {
+export function getGeneralChatDirectory(): string {
   const workspacePath = getWorkspacePath()
-  const assistantDir = path.join(workspacePath, ASSISTANT_MODE_DIR)
+  const generalChatDir = path.join(workspacePath, GENERAL_CHAT_DIR)
   const resolvedWorkspaceRoot = path.resolve(workspacePath)
-  const resolvedAssistantDir = path.resolve(assistantDir)
+  const resolvedGeneralChatDir = path.resolve(generalChatDir)
 
-  if (!resolvedAssistantDir.startsWith(resolvedWorkspaceRoot)) {
-    throw new Error('Assistant mode directory must be within workspace root')
+  if (!resolvedGeneralChatDir.startsWith(resolvedWorkspaceRoot)) {
+    throw new Error('General chat directory must be within workspace root')
   }
 
-  return resolvedAssistantDir
+  return resolvedGeneralChatDir
 }
 
 export function buildGeneralChatProject(): Project {
   return {
     id: GENERAL_CHAT_PROJECT_ID,
     name: 'General Chat',
-    directory: ASSISTANT_MODE_DIR,
-    fullPath: getAssistantModeDirectory(),
+    directory: GENERAL_CHAT_DIR,
+    fullPath: getGeneralChatDirectory(),
     status: 'ready',
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -84,16 +85,16 @@ export function buildGeneralChatProject(): Project {
   }
 }
 
-function getInternalTokenPath(assistantDir: string): string {
-  return path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_INTERNAL_TOKEN_FILENAME)
+function getInternalTokenPath(generalChatDir: string): string {
+  return path.join(generalChatDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_INTERNAL_TOKEN_FILENAME)
 }
 
-function getAgentPath(assistantDir: string, agentName: string): string {
-  return path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_AGENTS_DIR, `${agentName}.md`)
+function getAgentPath(generalChatDir: string, agentName: string): string {
+  return path.join(generalChatDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_AGENTS_DIR, `${agentName}.md`)
 }
 
-function getSkillPath(assistantDir: string, skillDir: string): string {
-  return path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, skillDir, ASSISTANT_SKILL_FILENAME)
+function getSkillPath(generalChatDir: string, skillDir: string): string {
+  return path.join(generalChatDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, skillDir, ASSISTANT_SKILL_FILENAME)
 }
 
 function hashContent(content: string): string {
@@ -276,7 +277,7 @@ function buildCodeBuildMasterAgentPrompt(): string {
     '',
     '## Self-Editing Rules',
     '',
-    'This workspace is the shared assistant workspace. Durable agent instructions belong in `.opencode/agents/`.',
+    'This workspace is the shared general chat workspace. Durable agent instructions belong in `.opencode/agents/`.',
     'Preserve user-customized workspace files unless the user explicitly asks you to change them.',
     'Ask before destructive operations or changes outside this workspace.',
   ].join('\n')
@@ -464,7 +465,7 @@ function buildAssistantAgentPermission(): Record<string, string> {
 function buildLegacyAssistantDefaultAgentMd(): string {
   const permission = buildAssistantAgentPermission()
   return `---
-description: Default subpolar assistant workspace agent
+description: Default subpolar general chat workspace agent
 mode: primary
 permission:
   read: ${permission.read}
@@ -478,7 +479,7 @@ permission:
 
 You are the default Assistant Mode agent for subpolar.
 
-This workspace is the shared assistant workspace. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.
+This workspace is the shared general chat workspace. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.
 
 Use the workspace skills when relevant:
 - Load repo-management before automation-management when you need a repo ID.
@@ -487,7 +488,7 @@ Use the workspace skills when relevant:
 - Load manager-settings when reading or safely updating UI preferences.
 
 Preserve user-customized workspace files unless the user explicitly asks you to change them.
-Ask before destructive operations or changes outside this assistant workspace.
+Ask before destructive operations or changes outside this general chat workspace.
 `
 }
 
@@ -544,7 +545,7 @@ function buildAssistantAgentPrompt(): string {
   return [
     'You are the default Assistant Mode agent for subpolar.',
     '',
-    'This workspace is the shared assistant workspace for subpolar. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.',
+    'This workspace is the shared general chat workspace for subpolar. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.',
     '',
     '## Self-Editing Rules',
     '',
@@ -569,7 +570,7 @@ function buildAssistantAgentPrompt(): string {
 function buildAssistantDefaultAgentMdFromPrompt(prompt: string): string {
   const permission = buildAssistantAgentPermission()
   return `---
-description: Default subpolar assistant workspace agent
+description: Default subpolar general chat workspace agent
 mode: primary
 permission:
   read: ${permission.read}
@@ -613,7 +614,7 @@ Load this skill when the user asks about managing automations, automation jobs, 
 
 ## Authentication
 
-All API calls require a bearer token. Read the token from \`.opencode/internal-token\` (relative to the assistant workspace cwd) and pass it as:
+All API calls require a bearer token. Read the token from \`.opencode/internal-token\` (relative to the general chat workspace cwd) and pass it as:
 
 \`\`\`
 Authorization: Bearer <token>
@@ -625,7 +626,7 @@ Authorization: Bearer <token>
 
 ## Assistant Automations
 
-Use repo ID \`0\` for the built-in Assistant. For example, use \`/repos/0/automations\` to list or create automation jobs that run in the Assistant workspace.
+Use repo ID \`0\` for the General Chat. For example, use \`/repos/0/automations\` to list or create automation jobs that run in the General chat workspace.
 
 ## Endpoints
 
@@ -738,7 +739,7 @@ Load this skill when you need to notify the user about important events, complet
 
 ## Authentication
 
-All API calls require a bearer token. Read the token from \`.opencode/internal-token\` (relative to the assistant workspace cwd) and pass it as:
+All API calls require a bearer token. Read the token from \`.opencode/internal-token\` (relative to the general chat workspace cwd) and pass it as:
 
 \`\`\`
 Authorization: Bearer <token>
@@ -812,7 +813,7 @@ Load this skill when you need to inspect or update the user's UI preferences, th
 
 ## Authentication
 
-All API calls require a bearer token. Read the token from \`.opencode/internal-token\` (relative to the assistant workspace cwd) and pass it as:
+All API calls require a bearer token. Read the token from \`.opencode/internal-token\` (relative to the general chat workspace cwd) and pass it as:
 
 \`\`\`
 Authorization: Bearer <token>
@@ -902,7 +903,7 @@ Returns the updated settings object with the same structure as GET.
 
 ### POST /assistant/reload
 
-Reload the assistant workspace by disposing the current OpenCode instance. Use this after editing agent files or \`opencode.json\` so changes take effect on the next message.
+Reload the general chat workspace by disposing the current OpenCode instance. Use this after editing agent files or \`opencode.json\` so changes take effect on the next message.
 
 **Note:** Always confirm with the user before reloading, as it re-bootstraps the workspace.
 
@@ -941,7 +942,7 @@ Load this skill when you need to discover repos, look up repo IDs, or need to re
 
 ## Authentication
 
-All API calls require a bearer token. Read the token from \`.opencode/internal-token\` (relative to the assistant workspace cwd) and pass it as:
+All API calls require a bearer token. Read the token from \`.opencode/internal-token\` (relative to the general chat workspace cwd) and pass it as:
 
 \`\`\`
 Authorization: Bearer <token>
@@ -1206,19 +1207,19 @@ async function writeFileIfChanged(filePath: string, content: string, existingCon
   return true
 }
 
-async function ensureSkillDirectories(assistantDir: string): Promise<void> {
+async function ensureSkillDirectories(generalChatDir: string): Promise<void> {
   for (const skillDir of SKILL_DIRS) {
     await ensureDirectoryExists(
-      path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, skillDir),
+      path.join(generalChatDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, skillDir),
     )
   }
 }
 
-async function writeAgentFiles(assistantDir: string): Promise<AgentFileInfo[]> {
+async function writeAgentFiles(generalChatDir: string): Promise<AgentFileInfo[]> {
   const agentInfos: AgentFileInfo[] = []
 
   for (const agentName of AGENT_NAMES) {
-    const agentPath = getAgentPath(assistantDir, agentName)
+    const agentPath = getAgentPath(generalChatDir, agentName)
     const content = buildAgentContent(agentName)
     const exists = await fileExists(agentPath)
     const existingContent = exists ? await readFileContent(agentPath) : undefined
@@ -1238,14 +1239,14 @@ async function writeAgentFiles(assistantDir: string): Promise<AgentFileInfo[]> {
   return agentInfos
 }
 
-async function handleLegacyAssistantAgent(assistantDir: string): Promise<void> {
-  const assistantAgentPath = getAgentPath(assistantDir, 'assistant')
+async function handleLegacyAssistantAgent(generalChatDir: string): Promise<void> {
+  const assistantAgentPath = getAgentPath(generalChatDir, 'assistant')
   if (await fileExists(assistantAgentPath)) {
     const existingContent = await readFileContent(assistantAgentPath)
     if (matchesGeneratedAgentMd(AGENT_AUTO, existingContent) || matchesLegacyAssistantDefaultAgentMd(existingContent)) {
       return
     }
-    const autoAgentPath = getAgentPath(assistantDir, AGENT_AUTO)
+    const autoAgentPath = getAgentPath(generalChatDir, AGENT_AUTO)
     const autoExists = await fileExists(autoAgentPath)
     if (!autoExists) {
       await writeFileContent(autoAgentPath, buildAutoAgentMd())
@@ -1253,18 +1254,18 @@ async function handleLegacyAssistantAgent(assistantDir: string): Promise<void> {
   }
 }
 
-export async function ensureAssistantMode(
+export async function ensureGeneralChat(
   project: Project,
   deps: { db: Database; apiBaseUrl: string },
   options?: { overwriteAgentsMd?: boolean; overwriteOpenCodeConfig?: boolean },
-): Promise<AssistantModeStatus> {
-  const assistantDir = getAssistantModeDirectory()
+): Promise<GeneralChatStatus> {
+  const generalChatDir = getGeneralChatDirectory()
 
-  await ensureDirectoryExists(assistantDir)
+  await ensureDirectoryExists(generalChatDir)
 
-  const agentsMdPath = path.join(assistantDir, ASSISTANT_AGENTS_MD_FILENAME)
-  const opencodeJsonPath = path.join(assistantDir, ASSISTANT_OPENCODE_CONFIG_FILENAME)
-  const tokenPath = getInternalTokenPath(assistantDir)
+  const agentsMdPath = path.join(generalChatDir, ASSISTANT_AGENTS_MD_FILENAME)
+  const opencodeJsonPath = path.join(generalChatDir, ASSISTANT_OPENCODE_CONFIG_FILENAME)
+  const tokenPath = getInternalTokenPath(generalChatDir)
 
   const existingAgentsMdContent = await fileExists(agentsMdPath) ? await readFileContent(agentsMdPath) : undefined
   const existingOpenCodeJsonContent = await fileExists(opencodeJsonPath) ? await readFileContent(opencodeJsonPath) : undefined
@@ -1334,9 +1335,9 @@ export async function ensureAssistantMode(
     }
   }
 
-  await ensureDirectoryExists(path.join(assistantDir, ASSISTANT_OPENCODE_DIR))
-  await ensureDirectoryExists(path.join(assistantDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_AGENTS_DIR))
-  await ensureSkillDirectories(assistantDir)
+  await ensureDirectoryExists(path.join(generalChatDir, ASSISTANT_OPENCODE_DIR))
+  await ensureDirectoryExists(path.join(generalChatDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_AGENTS_DIR))
+  await ensureSkillDirectories(generalChatDir)
 
   const token = await getOrCreateInternalToken(deps.db)
   const existingTokenContent = await fileExists(tokenPath) ? await readFileContent(tokenPath) : undefined
@@ -1345,13 +1346,13 @@ export async function ensureAssistantMode(
     await writeFileContent(tokenPath, token)
   }
 
-  const automationsSkillPath = getSkillPath(assistantDir, SKILL_AUTOMATIONS_DIR)
-  const notificationsSkillPath = getSkillPath(assistantDir, SKILL_NOTIFICATIONS_DIR)
-  const settingsSkillPath = getSkillPath(assistantDir, SKILL_SETTINGS_DIR)
-  const reposSkillPath = getSkillPath(assistantDir, SKILL_REPOS_DIR)
-  const codeReviewSkillPath = getSkillPath(assistantDir, SKILL_CODE_REVIEW_DIR)
-  const codeAnalysisSkillPath = getSkillPath(assistantDir, SKILL_CODE_ANALYSIS_DIR)
-  const researchWebSkillPath = getSkillPath(assistantDir, SKILL_RESEARCH_WEB_DIR)
+  const automationsSkillPath = getSkillPath(generalChatDir, SKILL_AUTOMATIONS_DIR)
+  const notificationsSkillPath = getSkillPath(generalChatDir, SKILL_NOTIFICATIONS_DIR)
+  const settingsSkillPath = getSkillPath(generalChatDir, SKILL_SETTINGS_DIR)
+  const reposSkillPath = getSkillPath(generalChatDir, SKILL_REPOS_DIR)
+  const codeReviewSkillPath = getSkillPath(generalChatDir, SKILL_CODE_REVIEW_DIR)
+  const codeAnalysisSkillPath = getSkillPath(generalChatDir, SKILL_CODE_ANALYSIS_DIR)
+  const researchWebSkillPath = getSkillPath(generalChatDir, SKILL_RESEARCH_WEB_DIR)
 
   const existingAutomationsSkillContent = await fileExists(automationsSkillPath) ? await readFileContent(automationsSkillPath) : undefined
   const existingNotificationsSkillContent = await fileExists(notificationsSkillPath) ? await readFileContent(notificationsSkillPath) : undefined
@@ -1369,12 +1370,12 @@ export async function ensureAssistantMode(
   const codeAnalysisSkillCreated = await writeFileIfChanged(codeAnalysisSkillPath, buildCodeAnalysisSkill(), existingCodeAnalysisSkillContent)
   const researchWebSkillCreated = await writeFileIfChanged(researchWebSkillPath, buildResearchWebSkill(), existingResearchWebSkillContent)
 
-  const agents = await writeAgentFiles(assistantDir)
-  await handleLegacyAssistantAgent(assistantDir)
+  const agents = await writeAgentFiles(generalChatDir)
+  await handleLegacyAssistantAgent(generalChatDir)
 
   const defaultAgentInfo: AgentFileInfo = {
     name: AGENT_AUTO,
-    path: getAgentPath(assistantDir, AGENT_AUTO),
+    path: getAgentPath(generalChatDir, AGENT_AUTO),
     exists: true,
     created: agents.find(a => a.name === AGENT_AUTO)?.created ?? false,
   }
@@ -1392,8 +1393,8 @@ export async function ensureAssistantMode(
 
   return {
     repoId: project.id,
-    directory: assistantDir,
-    relativePath: ASSISTANT_MODE_RELATIVE_PATH,
+    directory: generalChatDir,
+    relativePath: GENERAL_CHAT_RELATIVE_PATH,
     warnings,
     files: {
       agentsMd: {
@@ -1542,26 +1543,26 @@ async function isLegacyAssistantOpenCodeConfig(opencodeJsonPath: string): Promis
   }
 }
 
-export async function getAssistantModeStatus(project: Project): Promise<AssistantModeStatus> {
-  const assistantDir = getAssistantModeDirectory()
+export async function getGeneralChatStatus(project: Project): Promise<GeneralChatStatus> {
+  const generalChatDir = getGeneralChatDirectory()
 
-  const agentsMdPath = path.join(assistantDir, ASSISTANT_AGENTS_MD_FILENAME)
-  const opencodeJsonPath = path.join(assistantDir, ASSISTANT_OPENCODE_CONFIG_FILENAME)
-  const tokenPath = getInternalTokenPath(assistantDir)
-  const automationsSkillPath = getSkillPath(assistantDir, SKILL_AUTOMATIONS_DIR)
-  const notificationsSkillPath = getSkillPath(assistantDir, SKILL_NOTIFICATIONS_DIR)
-  const settingsSkillPath = getSkillPath(assistantDir, SKILL_SETTINGS_DIR)
-  const reposSkillPath = getSkillPath(assistantDir, SKILL_REPOS_DIR)
-  const codeReviewSkillPath = getSkillPath(assistantDir, SKILL_CODE_REVIEW_DIR)
-  const codeAnalysisSkillPath = getSkillPath(assistantDir, SKILL_CODE_ANALYSIS_DIR)
-  const researchWebSkillPath = getSkillPath(assistantDir, SKILL_RESEARCH_WEB_DIR)
+  const agentsMdPath = path.join(generalChatDir, ASSISTANT_AGENTS_MD_FILENAME)
+  const opencodeJsonPath = path.join(generalChatDir, ASSISTANT_OPENCODE_CONFIG_FILENAME)
+  const tokenPath = getInternalTokenPath(generalChatDir)
+  const automationsSkillPath = getSkillPath(generalChatDir, SKILL_AUTOMATIONS_DIR)
+  const notificationsSkillPath = getSkillPath(generalChatDir, SKILL_NOTIFICATIONS_DIR)
+  const settingsSkillPath = getSkillPath(generalChatDir, SKILL_SETTINGS_DIR)
+  const reposSkillPath = getSkillPath(generalChatDir, SKILL_REPOS_DIR)
+  const codeReviewSkillPath = getSkillPath(generalChatDir, SKILL_CODE_REVIEW_DIR)
+  const codeAnalysisSkillPath = getSkillPath(generalChatDir, SKILL_CODE_ANALYSIS_DIR)
+  const researchWebSkillPath = getSkillPath(generalChatDir, SKILL_RESEARCH_WEB_DIR)
 
   const agentsMdExists = await fileExists(agentsMdPath)
   const opencodeJsonExists = await fileExists(opencodeJsonPath)
 
   const agents: AgentFileInfo[] = []
   for (const agentName of AGENT_NAMES) {
-    const agentPath = getAgentPath(assistantDir, agentName)
+    const agentPath = getAgentPath(generalChatDir, agentName)
     agents.push({
       name: agentName,
       path: agentPath,
@@ -1570,12 +1571,12 @@ export async function getAssistantModeStatus(project: Project): Promise<Assistan
     })
   }
 
-  const defaultAgentPath = getAgentPath(assistantDir, AGENT_AUTO)
+  const defaultAgentPath = getAgentPath(generalChatDir, AGENT_AUTO)
 
   return {
     repoId: project.id,
-    directory: assistantDir,
-    relativePath: ASSISTANT_MODE_RELATIVE_PATH,
+    directory: generalChatDir,
+    relativePath: GENERAL_CHAT_RELATIVE_PATH,
     files: {
       agentsMd: {
         path: agentsMdPath,
@@ -1633,10 +1634,10 @@ export async function getAssistantModeStatus(project: Project): Promise<Assistan
 export async function installAssistantWorkspace(deps: {
   db: Database
   apiBaseUrl: string
-}): Promise<AssistantModeStatus> {
+}): Promise<GeneralChatStatus> {
   const project = await ensureGeneralChatProject(deps.db)
 
-  return ensureAssistantMode(project, {
+  return ensureGeneralChat(project, {
     db: deps.db,
     apiBaseUrl: deps.apiBaseUrl,
   })

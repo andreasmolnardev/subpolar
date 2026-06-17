@@ -4,8 +4,8 @@ import { readFile, stat, writeFile } from 'fs/promises'
 import { Hono } from 'hono'
 import type PocketBase from 'pocketbase'
 import {
-  ensureAssistantMode,
-  getAssistantModeStatus,
+  ensureGeneralChat,
+  getGeneralChatStatus,
   buildAutomationsSkill,
   buildReposSkill,
   buildSettingsSkill,
@@ -16,7 +16,7 @@ import {
   buildCodeReviewSkill,
   buildCodeAnalysisSkill,
   buildResearchWebSkill,
-} from '../../src/services/assistant-mode'
+} from '../../src/services/general-chat'
 import { createTempAssistantWorkspace, mockRepo } from '../helpers/assistant-workspace'
 import { createInternalRoutes } from '../../src/routes/internal'
 import { AutomationService } from '../../src/services/automations'
@@ -302,7 +302,7 @@ describe('buildResearchWebSkill', () => {
   })
 })
 
-describe('ensureAssistantMode', () => {
+describe('ensureGeneralChat', () => {
   let ws: Awaited<ReturnType<typeof createTempAssistantWorkspace>>
   let pb: PocketBase
   const apiBaseUrl = 'http://example.test:5003/api/internal'
@@ -315,7 +315,7 @@ describe('ensureAssistantMode', () => {
   afterEach(async () => { await ws.cleanup() })
 
   it('creates AGENTS.md, opencode.json, internal-token, and all skills on first run', async () => {
-    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const agentsMd = await readFile(path.join(ws.assistantDir, 'AGENTS.md'), 'utf8')
     const opencodeJson = await readFile(path.join(ws.assistantDir, 'opencode.json'), 'utf8')
     const token = await readFile(path.join(ws.assistantDir, '.opencode/internal-token'), 'utf8')
@@ -348,7 +348,7 @@ describe('ensureAssistantMode', () => {
   })
 
   it('creates all 6 agent files', async () => {
-    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const agentNames = [
       'auto',
       'code-build-sandbox',
@@ -364,7 +364,7 @@ describe('ensureAssistantMode', () => {
   })
 
   it('creates all 7 skill files', async () => {
-    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const skillDirs = [
       'automation-management',
       'notifications',
@@ -381,14 +381,14 @@ describe('ensureAssistantMode', () => {
   })
 
   it('does not rewrite the token file on a second run with the same db', async () => {
-    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const tokenPath = path.join(ws.assistantDir, '.opencode/internal-token')
     const firstToken = await readFile(tokenPath, 'utf8')
     const firstStat = await stat(tokenPath)
 
     await new Promise(r => setTimeout(r, 10))
 
-    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    const result = await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const secondToken = await readFile(tokenPath, 'utf8')
     const secondStat = await stat(tokenPath)
 
@@ -400,7 +400,7 @@ describe('ensureAssistantMode', () => {
   })
 
   it('writes all files needed before OpenCode assistant session launch', async () => {
-    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    const result = await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
 
     const opencodeJsonPath = path.join(ws.assistantDir, 'opencode.json')
     const agentsMdPath = path.join(ws.assistantDir, 'AGENTS.md')
@@ -498,7 +498,7 @@ describe('ensureAssistantMode', () => {
   })
 
   it('returns agents array with all 6 agents', async () => {
-    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    const result = await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     expect(result.agents).toHaveLength(6)
     const agentNames = result.agents.map(a => a.name)
     expect(agentNames).toContain('auto')
@@ -509,10 +509,10 @@ describe('ensureAssistantMode', () => {
     expect(agentNames).toContain('research')
   })
 
-  it('reports skill status from getAssistantModeStatus', async () => {
-    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+  it('reports skill status from getGeneralChatStatus', async () => {
+    await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
 
-    const status = await getAssistantModeStatus(mockRepo)
+    const status = await getGeneralChatStatus(mockRepo)
 
     expect(status.repoManagementSkill?.path).toBe(path.join(ws.assistantDir, '.opencode/skills/repo-management/SKILL.md'))
     expect(status.repoManagementSkill?.created).toBe(false)
@@ -522,14 +522,14 @@ describe('ensureAssistantMode', () => {
     expect(status.agents).toHaveLength(6)
   })
 
-  it('preserves custom agent content on subsequent ensureAssistantMode calls', async () => {
-    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+  it('preserves custom agent content on subsequent ensureGeneralChat calls', async () => {
+    await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const autoAgentPath = path.join(ws.assistantDir, '.opencode/agents/auto.md')
 
     const customContent = '---\ndescription: Custom auto\ntools:\n  bash: false\n---\n\nCustom auto instructions.'
     await writeFile(autoAgentPath, customContent)
 
-    const result2 = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    const result2 = await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
 
     const preservedContent = await readFile(autoAgentPath, 'utf8')
     expect(preservedContent).toBe(customContent)
@@ -537,7 +537,7 @@ describe('ensureAssistantMode', () => {
   })
 
   it('repairs existing opencode config missing auto agent', async () => {
-    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const opencodeJsonPath = path.join(ws.assistantDir, 'opencode.json')
     await writeFile(opencodeJsonPath, JSON.stringify({
       model: 'provider/model',
@@ -549,7 +549,7 @@ describe('ensureAssistantMode', () => {
       skills: { paths: ['.opencode/skills'] },
     }, null, 2))
 
-    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    const result = await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const repaired = JSON.parse(await readFile(opencodeJsonPath, 'utf8'))
 
     expect(repaired.default_agent).toBe('auto')
@@ -562,7 +562,7 @@ describe('ensureAssistantMode', () => {
   })
 
   it('preserves custom auto config while making it selectable', async () => {
-    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const opencodeJsonPath = path.join(ws.assistantDir, 'opencode.json')
     await writeFile(opencodeJsonPath, JSON.stringify({
       default_agent: 'auto',
@@ -576,7 +576,7 @@ describe('ensureAssistantMode', () => {
       },
     }, null, 2))
 
-    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    const result = await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const repaired = JSON.parse(await readFile(opencodeJsonPath, 'utf8'))
 
     expect(repaired.agent.auto.prompt).toBe('Custom auto prompt')
@@ -588,13 +588,13 @@ describe('ensureAssistantMode', () => {
   })
 
   it('warns when managed updates apply but customized legacy AGENTS.md is preserved', async () => {
-    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const agentsMdPath = path.join(ws.assistantDir, 'AGENTS.md')
     const autoAgentPath = path.join(ws.assistantDir, '.opencode/agents/auto.md')
 
     await writeFile(agentsMdPath, `# Assistant Mode Instructions
 
-This folder is the shared Assistant mode workspace for subpolar.
+This folder is the shared General chat workspace for subpolar.
 
 ## Self-Editing Rules
 
@@ -628,7 +628,7 @@ Preserve user-customized workspace files unless the user explicitly asks you to 
 Ask before destructive operations or changes outside this assistant workspace.
 `)
 
-    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    const result = await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
 
     const preservedAgentsMd = await readFile(agentsMdPath, 'utf8')
     expect(preservedAgentsMd).toContain('Self-Editing Rules')
@@ -639,13 +639,13 @@ Ask before destructive operations or changes outside this assistant workspace.
   })
 
   it('overwrites custom AGENTS.md when overwriteAgentsMd is true', async () => {
-    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const agentsMdPath = path.join(ws.assistantDir, 'AGENTS.md')
 
     const customContent = '# Custom Assistant Workspace\n\nThis is my custom AGENTS.md content.'
     await writeFile(agentsMdPath, customContent)
 
-    const result = await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl }, { overwriteAgentsMd: true })
+    const result = await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl }, { overwriteAgentsMd: true })
 
     const updatedContent = await readFile(agentsMdPath, 'utf8')
     expect(updatedContent).toContain('Assistant Mode Workspace')
@@ -655,7 +655,7 @@ Ask before destructive operations or changes outside this assistant workspace.
   })
 })
 
-describe('assistant-mode end-to-end', () => {
+describe('general-chat end-to-end', () => {
   let ws: Awaited<ReturnType<typeof createTempAssistantWorkspace>>
   let pb: PocketBase
 
@@ -665,9 +665,9 @@ describe('assistant-mode end-to-end', () => {
   })
   afterEach(async () => { await ws.cleanup() })
 
-  it('token written by ensureAssistantMode authenticates a request to /api/internal/automations/all', async () => {
+  it('token written by ensureGeneralChat authenticates a request to /api/internal/automations/all', async () => {
     const apiBaseUrl = 'http://127.0.0.1:5003/api/internal'
-    await ensureAssistantMode(mockRepo, { db: pb, apiBaseUrl })
+    await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
 
     const token = (await readFile(path.join(ws.assistantDir, '.opencode/internal-token'), 'utf8')).trim()
 

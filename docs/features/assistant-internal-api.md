@@ -2,7 +2,7 @@
 
 The Assistant Internal API provides capabilities for OpenCode agents to interact with the manager backend via a secure bearer-token API.
 
-> For a user-facing overview of how to use and set up assistant mode, see [Assistant Mode](assistant-mode.md).
+> For a user-facing overview of how to use and set up general chat, see [Assistant Mode](general-chat.md).
 
 ## Authentication
 
@@ -195,4 +195,4 @@ The assistant workspace includes four skills that document these capabilities:
 3. **Manager Settings** (`.opencode/skills/manager-settings/SKILL.md`)
 4. **Repo Management** (`.opencode/skills/repo-management/SKILL.md`)
 
-These skills are automatically provisioned when assistant mode is initialized and contain detailed examples and usage patterns.
+These skills are automatically provisioned when general chat is initialized and contain detailed examples and usage patterns.

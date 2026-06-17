@@ -1,6 +1,6 @@
 import { fetchWrapper, fetchWrapperVoid } from './fetchWrapper'
 import { API_BASE_URL } from '@/config'
-import type { AssistantModeStatus, AssistantModeInitRequest } from '@subpolar/shared/types'
+import type { GeneralChatStatus, GeneralChatInitRequest } from '@subpolar/shared/types'
 
 export interface Project {
   id: number
@@ -21,7 +21,8 @@ export async function listProjects(): Promise<Project[]> {
 }
 
 export async function getProject(id: number): Promise<Project> {
-  return fetchWrapper(`${API_BASE_URL}/api/projects/${id}`)
+  const res = await fetchWrapper<{ project: Project }>(`${API_BASE_URL}/api/projects/${id}`)
+  return res.project
 }
 
 export async function createProject(data: {
@@ -67,17 +68,17 @@ export async function switchProjectConfig(id: number, configName: string): Promi
   })
 }
 
-export async function getAssistantModeStatus(projectId: number): Promise<AssistantModeStatus> {
-  return fetchWrapper(`${API_BASE_URL}/api/projects/${projectId}/assistant-mode`, {
+export async function getGeneralChatStatus(projectId: number): Promise<GeneralChatStatus> {
+  return fetchWrapper(`${API_BASE_URL}/api/projects/${projectId}/general-chat`, {
     method: 'GET',
   })
 }
 
-export async function initializeAssistantMode(
+export async function initializeGeneralChat(
   projectId: number,
-  options?: AssistantModeInitRequest,
+  options?: GeneralChatInitRequest,
 ): Promise<void> {
-  return fetchWrapperVoid(`${API_BASE_URL}/api/projects/${projectId}/assistant-mode`, {
+  return fetchWrapperVoid(`${API_BASE_URL}/api/projects/${projectId}/general-chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(options ?? {}),

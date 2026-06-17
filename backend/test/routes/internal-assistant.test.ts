@@ -6,7 +6,7 @@ import { AutomationService } from '../../src/services/automations'
 import { NotificationService } from '../../src/services/notification'
 import { SettingsService } from '../../src/services/settings'
 import { getOrCreateInternalToken } from '../../src/services/internal-token'
-import { getAssistantModeDirectory } from '../../src/services/assistant-mode'
+import { getGeneralChatDirectory } from '../../src/services/general-chat'
 import type { OpenCodeClient } from '../../src/services/opencode/client'
 
 function createMockPocketBase(): PocketBase {
@@ -102,7 +102,7 @@ describe('internal/assistant routes', () => {
     expect(forwardMock).toHaveBeenCalledWith({
       method: 'POST',
       path: '/instance/dispose',
-      directory: getAssistantModeDirectory(),
+      directory: getGeneralChatDirectory(),
     })
   })
 

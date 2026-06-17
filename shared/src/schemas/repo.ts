@@ -56,7 +56,7 @@ export const DiscoverReposResponseSchema = z.object({
   ),
 })
 
-export const AssistantModeFileSchema = z.object({
+export const GeneralChatFileSchema = z.object({
   path: z.string(),
   exists: z.boolean(),
   created: z.boolean(),
@@ -71,7 +71,7 @@ export const AgentFileInfoSchema = z.object({
 
 export type AgentFileInfo = z.infer<typeof AgentFileInfoSchema>
 
-export const AssistantModeStatusSchema = z.object({
+export const GeneralChatStatusSchema = z.object({
   repoId: z.number(),
   directory: z.string(),
   relativePath: z.literal('repos/assistant'),
@@ -81,8 +81,8 @@ export const AssistantModeStatusSchema = z.object({
     message: z.string(),
   })).optional(),
   files: z.object({
-    agentsMd: AssistantModeFileSchema,
-    opencodeJson: AssistantModeFileSchema,
+    agentsMd: GeneralChatFileSchema,
+    opencodeJson: GeneralChatFileSchema,
   }),
   agents: z.array(AgentFileInfoSchema),
   internalToken: z.object({
@@ -120,7 +120,7 @@ export const AssistantModeStatusSchema = z.object({
   defaultAgent: AgentFileInfoSchema.optional(),
 })
 
-export const AssistantModeInitRequestSchema = z.object({
+export const GeneralChatInitRequestSchema = z.object({
   overwriteAgentsMd: z.boolean().optional(),
   overwriteOpenCodeConfig: z.boolean().optional(),
 })

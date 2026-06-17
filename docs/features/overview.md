@@ -102,4 +102,4 @@ Subpolar provides a comprehensive web interface for managing OpenCode AI agents.
 - **Auto-Provisioned Skills** — automation management, notifications, settings, and repo listing skills available out of the box
 - **Session Continuity** — Navigating to the assistant always resumes the most recent session or creates one automatically
 
-[Learn more →](assistant-mode.md)
+[Learn more →](general-chat.md)
