@@ -5,8 +5,11 @@ import { useDesktop } from "@/hooks/useDesktop";
 import { useSidebarCollapsed } from "@/hooks/useSidebarCollapsed";
 import { useAuth } from "@/hooks/useAuth";
 import { useUrlParams } from "@/hooks/useUrlParams";
-import { listProjects, createProject } from "@/api/projects";
+import { getProject, listProjects, createProject } from "@/api/projects";
 import { settingsApi } from "@/api/settings";
+import { useAgents } from "@/hooks/useOpenCode";
+import { OPENCODE_API_ENDPOINT } from "@/config";
+import { GENERAL_CHAT_PROJECT_ID } from "@subpolar/shared/utils";
 import {
   Bot,
   ChevronDown,
@@ -144,6 +147,16 @@ export function DesktopSidebar() {
     queryFn: listProjects,
   });
 
+  const { data: generalChatProject } = useQuery({
+    queryKey: ["project", GENERAL_CHAT_PROJECT_ID],
+    queryFn: () => getProject(GENERAL_CHAT_PROJECT_ID),
+    enabled: isAuthenticated,
+  });
+
+  const generalChatDirectory = generalChatProject?.fullPath;
+
+  const { data: generalChatAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, generalChatDirectory);
+
   const { data: configs } = useQuery({
     queryKey: ["opencode-configs"],
     queryFn: () => settingsApi.getOpenCodeConfigs(),
@@ -158,10 +171,6 @@ export function DesktopSidebar() {
   const defaultConfig = configs?.defaultConfig;
   const rawContent = defaultConfig?.rawContent;
   const parsedConfig = rawContent ? tryParseJson(rawContent) : null;
-  const agents = parsedConfig?.agents as Record<string, Agent> | undefined;
-  const agentNames = agents
-    ? Object.keys(agents).filter((name) => !agents[name]?.disable)
-    : [];
 
   const queryClient = useQueryClient();
 
@@ -177,6 +186,9 @@ export function DesktopSidebar() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["opencode-configs"] });
+      queryClient.invalidateQueries({
+        queryKey: ["opencode", "agents", OPENCODE_API_ENDPOINT, generalChatDirectory],
+      });
     },
   });
 
@@ -210,6 +222,10 @@ export function DesktopSidebar() {
     return location.pathname.startsWith(path);
   };
 
+  const isAgentActive = (name: string) => {
+    return location.pathname === `/agents/${encodeURIComponent(name)}`;
+  };
+
   return (
     <>
       <Sidebar collapsed={collapsed} className="pt-0">
@@ -231,7 +247,7 @@ export function DesktopSidebar() {
           <SidebarNavItem
             icon={Home}
             label="Home"
-            active={isActive("/")}
+            active={isActive("/home")}
             onClick={() => navigate("/home")}
           />
 
@@ -258,19 +274,19 @@ export function DesktopSidebar() {
           >
             <SidebarNavItem
               label="All Agents"
-              active={isActive("/agents")}
+              active={location.pathname === "/agents"}
               onClick={() => navigate("/agents")}
               indent
             />
-            {agentNames.map((name) => {
-              const agent = agents[name];
-              const displayName = agent?.icon ? `${agent.icon} ${name}` : name;
+            {generalChatAgents.map((agent) => {
+              const name = agent.name;
               return (
                 <SidebarNavItem
                   key={name}
-                  label={displayName}
+                  label={name}
+                  active={isAgentActive(name)}
                   onClick={() =>
-                    navigate(`/?agent=${encodeURIComponent(name)}`)}
+                    navigate(`/agents/${encodeURIComponent(name)}`)}
                   indent
                 />
               );

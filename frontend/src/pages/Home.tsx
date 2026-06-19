@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { ChatInputBar } from '@/components/chat/ChatInputBar'
 import { Header } from '@/components/ui/header'
 import { Button } from '@/components/ui/button'
@@ -17,7 +18,9 @@ const MOTIVATIONAL_MESSAGES = [
 ]
 
 export function Home() {
+  const location = useLocation()
   const [messageIndex] = useState(() => Math.floor(Math.random() * MOTIVATIONAL_MESSAGES.length))
+  const selectedAgent = new URLSearchParams(location.search).get('agent') || '__default__'
 
   useSidebarAction('new-session', () => {})
 
@@ -33,7 +36,7 @@ export function Home() {
             </p>
           </div>
 
-          <ChatInputBar />
+          <ChatInputBar defaultAgent={selectedAgent} />
 
           <div className="pt-4">
             <Button variant="outline" size="sm" disabled className="opacity-50 cursor-not-allowed gap-2">
