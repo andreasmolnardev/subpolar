@@ -3,7 +3,7 @@ import { useParams, useNavigate, Navigate, useLocation } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query";
 import { getProject } from "@/api/projects";
 import { MessageThread } from "@/components/message/MessageThread";
-import { ChatInputBar, type ChatInputBarHandle } from "@/components/chat/ChatInputBar";
+import { ChatInputBar, type ChatInputBarHandle, type PendingSessionPrompt } from "@/components/chat/ChatInputBar";
 import { FloatingTTSButton } from '@/components/message/FloatingTTSButton'
 import { CornerUpLeft } from "lucide-react";
 import { Header } from "@/components/ui/header";
@@ -14,7 +14,7 @@ import { FileBrowserSheet } from "@/components/file-browser/FileBrowserSheet";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ContextUsageIndicator } from "@/components/session/ContextUsageIndicator";
-import { useSession, useAbortSession, useUpdateSession, useMessages, useCreateSession } from "@/hooks/useOpenCode";
+import { useSession, useAbortSession, useUpdateSession, useMessages, useCreateSession, useSendPrompt } from "@/hooks/useOpenCode";
 import { useProjectActivity } from "@/hooks/useProjectActivity";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { useSSE } from "@/hooks/useSSE";
@@ -55,6 +55,10 @@ const compareMessageIds = (id1: string, id2: string): number => {
 const PENDING_ACTION_SYNC_INTERVAL_MS = 30000
 const PROMPT_OVERLAY_CLEARANCE_PX = 16
 
+type PendingPromptLocationState = {
+  pendingPrompt?: PendingSessionPrompt
+}
+
 export function SessionDetail() {
   const { id, sessionId } = useParams<{ id: string; sessionId: string }>();
   const navigate = useNavigate();
@@ -63,6 +67,7 @@ export function SessionDetail() {
   const { open: openSettings } = useSettingsDialog();
   const messageContainerRef = useRef<HTMLDivElement>(null);
   const promptInputRef = useRef<ChatInputBarHandle>(null);
+  const consumedPendingPromptRef = useRef<string | null>(null);
   const [sessionsDialogOpen, setSessionsDialogOpen] = useState(false);
   const [fileBrowserOpen, setFileBrowserOpen] = useDialogParam('files');
   const [selectedFilePath, setSelectedFilePath] = useState<string | undefined>();
@@ -133,6 +138,7 @@ export function SessionDetail() {
   const abortSession = useAbortSession(opcodeUrl, repoDirectory, sessionId);
   const updateSession = useUpdateSession(opcodeUrl, repoDirectory);
   const createSession = useCreateSession(opcodeUrl, repoDirectory);
+  const sendPendingPrompt = useSendPrompt(opcodeUrl, repoDirectory);
   const { model, modelString } = useModelSelection(opcodeUrl, repoDirectory);
   const sessionAgent = useSessionAgent(opcodeUrl, sessionId, repoDirectory);
   const isEditingMessage = useUIState((state) => state.isEditingMessage);
@@ -155,6 +161,34 @@ export function SessionDetail() {
   const hasIncompleteMessages = lastAssistantMessage ? !('completed' in lastAssistantMessage.info.time && lastAssistantMessage.info.time.completed) : false;
   const isStreamingResponse = hasIncompleteMessages && isSessionActive;
   const workspaceBasePath = repo?.localPath;
+  const pendingPrompt = (location.state as PendingPromptLocationState | null)?.pendingPrompt;
+
+  useEffect(() => {
+    if (!pendingPrompt || !sessionId || !isConnected || messagesLoading) return
+
+    const pendingPromptKey = `${sessionId}:${pendingPrompt.prompt}`
+    if (consumedPendingPromptRef.current === pendingPromptKey) return
+    consumedPendingPromptRef.current = pendingPromptKey
+
+    sendPendingPrompt.mutate({
+      sessionID: sessionId,
+      prompt: pendingPrompt.prompt,
+      model: pendingPrompt.model,
+      agent: pendingPrompt.agent,
+      queued: true,
+    })
+
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
+  }, [
+    isConnected,
+    location.pathname,
+    location.search,
+    messagesLoading,
+    navigate,
+    pendingPrompt,
+    sendPendingPrompt,
+    sessionId,
+  ])
 
   useEffect(() => {
     setActivePromptFileBasePath(repoDirectory ? workspaceBasePath ?? null : null)

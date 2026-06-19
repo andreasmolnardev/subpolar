@@ -32,6 +32,8 @@ vi.mock('@/hooks/useOpenCode', () => ({
   useAbortSession: vi.fn(() => ({ mutate: vi.fn() })),
   useUpdateSession: vi.fn(() => ({ mutate: vi.fn() })),
   useCreateSession: vi.fn(() => ({ mutateAsync: vi.fn() })),
+  useSendPrompt: vi.fn(() => ({ mutate: vi.fn() })),
+  useAgents: vi.fn(() => ({ data: [], isSuccess: true })),
   useMessages: mocks.useMessages,
   useConfig: mocks.useConfig,
 }))

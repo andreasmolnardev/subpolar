@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { useAgents, useAbortSession, useConfig, useCreateSession, useSendPrompt } from "@/hooks/useOpenCode";
 import { getProviders } from "@/api/providers";
-import { listProjects } from "@/api/projects";
+import { getProject, listProjects } from "@/api/projects";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { showToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,12 @@ export interface ChatInputBarHandle {
   setPromptValue: (value: string) => void;
   clearPrompt: () => void;
   triggerFileUpload: () => void;
+}
+
+export interface PendingSessionPrompt {
+  prompt: string;
+  model?: string;
+  agent?: string;
 }
 
 const PERMISSION_OPTIONS = [
@@ -87,11 +93,17 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     queryFn: listProjects,
   });
 
-  const selectedProject = selectedProjectId
-    ? projects.find((p) => p.id.toString() === selectedProjectId)
-    : undefined;
-  const isGeneralChatProject = selectedProjectId === GENERAL_CHAT_PROJECT_ID.toString();
-  const selectedDirectory = sessionID ? directory : sendImmediately ? selectedProject?.fullPath : undefined;
+  const { data: generalChatProject } = useQuery({
+    queryKey: ["project", GENERAL_CHAT_PROJECT_ID],
+    queryFn: () => getProject(GENERAL_CHAT_PROJECT_ID),
+  });
+
+  const targetProjectId = selectedProjectId ?? GENERAL_CHAT_PROJECT_ID.toString();
+  const selectedProject = targetProjectId === GENERAL_CHAT_PROJECT_ID.toString()
+    ? generalChatProject
+    : projects.find((p) => p.id.toString() === targetProjectId);
+  const isGeneralChatProject = targetProjectId === GENERAL_CHAT_PROJECT_ID.toString();
+  const selectedDirectory = sessionID ? directory : selectedProject?.fullPath;
 
   const { data: agents = [] } = useAgents(opcodeUrl, selectedDirectory);
   const { data: config } = useConfig(opcodeUrl, selectedDirectory);
@@ -229,8 +241,8 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
 
     const prompt = textareaRef.current?.value.trim();
     if (!prompt) return;
-    if (sendImmediately && !selectedProject) {
-      showToast.error("Select a project before sending");
+    if (!sessionID && !selectedProject) {
+      showToast.error(sendImmediately ? "Select a project before sending" : "General chat is still loading");
       return;
     }
 
@@ -264,13 +276,16 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
         textareaRef.current!.value = "";
         textareaRef.current!.style.height = "auto";
         setHasPromptContent(false);
-        await sendPrompt.mutateAsync({
-          sessionID: session.id,
-          prompt,
-          model: selectedModel === "__auto__" ? undefined : selectedModel,
-          agent: selectedAgentForRequest,
+        onPromptChange?.(false);
+        navigate(`/projects/${targetProjectId}/sessions/${session.id}`, {
+          state: {
+            pendingPrompt: {
+              prompt,
+              model: selectedModel === "__auto__" ? undefined : selectedModel,
+              agent: selectedAgentForRequest,
+            } satisfies PendingSessionPrompt,
+          },
         });
-        navigate(`/projects/${selectedProjectId}/sessions/${session.id}`);
         onSend?.();
         return;
       }
@@ -280,14 +295,15 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       textareaRef.current!.style.height = "auto";
       setHasPromptContent(false);
       onPromptChange?.(false);
-      await sendPrompt.mutateAsync({
-        sessionID: session.id,
-        prompt,
-        model: selectedModel === "__auto__" ? undefined : selectedModel,
-        agent: selectedAgentForRequest,
+      navigate(`/projects/${targetProjectId}/sessions/${session.id}`, {
+        state: {
+          pendingPrompt: {
+            prompt,
+            model: selectedModel === "__auto__" ? undefined : selectedModel,
+            agent: selectedAgentForRequest,
+          } satisfies PendingSessionPrompt,
+        },
       });
-
-      navigate(`/repos/0/sessions/${session.id}`);
 
       onSend?.();
     } catch {
@@ -303,13 +319,12 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     onPromptChange,
     onScrollToBottom,
     onSend,
-    selectedAgent,
     selectedAgentForRequest,
     selectedModel,
     selectedProject,
-    selectedProjectId,
     sendImmediately,
     sendPrompt,
+    targetProjectId,
   ]);
 
   const handleKeyDown = useCallback(

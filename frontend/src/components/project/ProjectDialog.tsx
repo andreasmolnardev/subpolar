@@ -19,6 +19,8 @@ const projectFormSchema = z.object({
 
 type ProjectFormValues = z.infer<typeof projectFormSchema>
 
+const NO_OPEN_CODE_CONFIG = '__none__'
+
 interface ProjectDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -113,8 +115,8 @@ export function ProjectDialog({ open, onOpenChange }: ProjectDialogProps) {
                 <FormItem>
                   <FormLabel>OpenCode Config (optional)</FormLabel>
                   <Select
-                    value={field.value || ''}
-                    onValueChange={(value) => field.onChange(value || undefined)}
+                    value={field.value || NO_OPEN_CODE_CONFIG}
+                    onValueChange={(value) => field.onChange(value === NO_OPEN_CODE_CONFIG ? undefined : value)}
                     disabled={mutation.isPending}
                   >
                     <FormControl>
@@ -123,7 +125,7 @@ export function ProjectDialog({ open, onOpenChange }: ProjectDialogProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent className="bg-popover border-border">
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value={NO_OPEN_CODE_CONFIG}>None</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

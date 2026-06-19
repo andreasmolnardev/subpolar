@@ -23,6 +23,7 @@ type OperationGroup = {
 }
 
 export const DEFERRED_OPERATION_TTL_MS = 3000
+const DEFERRED_OPERATION_RETRY_MS = 50
 
 function groupKey(sessionID: string, directory?: string): string {
   return `${directory ?? ''}\0${sessionID}`
@@ -65,6 +66,7 @@ export function createPartsBatcher(
 ): PartsBatcher {
   const pendingOperations = new Map<string, OperationGroup>()
   let pendingFrameId: number | null = null
+  let pendingRetryId: ReturnType<typeof setTimeout> | null = null
 
   const automationFlush = () => {
     if (pendingFrameId !== null) return
@@ -72,6 +74,14 @@ export function createPartsBatcher(
       pendingFrameId = null
       flush()
     })
+  }
+
+  const scheduleRetry = () => {
+    if (pendingRetryId !== null) return
+    pendingRetryId = setTimeout(() => {
+      pendingRetryId = null
+      flush()
+    }, DEFERRED_OPERATION_RETRY_MS)
   }
 
   const flush = (target?: { sessionID?: string; directory?: string }) => {
@@ -263,6 +273,7 @@ export function createPartsBatcher(
       if (willRetain) {
         stampDeferred(group, now)
         group.operations = retainedUnapplied
+        scheduleRetry()
         continue
       }
 
@@ -301,6 +312,10 @@ export function createPartsBatcher(
     if (pendingFrameId !== null) {
       cancelAnimationFrame(pendingFrameId)
       pendingFrameId = null
+    }
+    if (pendingRetryId !== null) {
+      clearTimeout(pendingRetryId)
+      pendingRetryId = null
     }
     pendingOperations.clear()
   }
