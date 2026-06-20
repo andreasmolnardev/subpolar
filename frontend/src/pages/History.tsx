@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getProject, listProjects } from '@/api/projects'
 import { listStoredSessions } from '@/api/sessions'
-import { SessionList } from '@/components/session/SessionList'
 import { Header } from '@/components/ui/header'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Plus } from 'lucide-react'
 import { OPENCODE_API_ENDPOINT } from '@/config'
 import { useCreateSession } from '@/hooks/useOpenCode'
 import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
+import { formatDistanceToNow } from 'date-fns'
 
 export function History() {
   const navigate = useNavigate()
@@ -52,8 +53,8 @@ export function History() {
   const opcodeUrl = OPENCODE_API_ENDPOINT
   const primaryDirectory = generalChat?.fullPath ?? directories[0]
 
-  const handleSelectSession = useCallback((sessionId: string, directory?: string) => {
-    const projectId = directory ? projectIdsByDirectory.get(directory) : GENERAL_CHAT_PROJECT_ID
+  const handleSelectSession = useCallback((sessionId: string, directory: string | null, storedProjectId: number | null) => {
+    const projectId = storedProjectId ?? (directory ? projectIdsByDirectory.get(directory) : GENERAL_CHAT_PROJECT_ID)
     navigate(`/projects/${projectId ?? GENERAL_CHAT_PROJECT_ID}/sessions/${sessionId}`)
   }, [navigate, projectIdsByDirectory])
 
@@ -92,16 +93,28 @@ export function History() {
       
       <div className="flex-1 p-4">
         <div className="max-w-6xl mx-auto">
-          {directories.length > 0 ? (
-            <SessionList
-              opcodeUrl={opcodeUrl}
-              directories={directories}
-              createDirectory={primaryDirectory}
-              onSelectSession={handleSelectSession}
-            />
+          {(storedSessions?.length ?? 0) > 0 ? (
+            <div className="flex flex-col gap-3">
+              {storedSessions?.map((session) => (
+                <Card
+                  key={session.id}
+                  className="p-3 cursor-pointer transition-all bg-card border-border hover:bg-accent hover:border-border"
+                  onClick={() => handleSelectSession(session.id, session.directory, session.projectId)}
+                >
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-orange-600 dark:text-orange-400 truncate">
+                      {session.title || session.id}
+                    </h3>
+                    <div className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(session.updatedAt), { addSuffix: true })}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
           ) : (
             <div className="text-center text-muted-foreground py-8">
-              No projects available. Add a project to see session history.
+              No sessions yet.
             </div>
           )}
         </div>

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   listPendingQuestions: vi.fn(),
   replyToQuestion: vi.fn(),
   rejectQuestion: vi.fn(),
+  updateStoredSession: vi.fn(),
   subscribeGlobalMonitor: vi.fn(),
   getHealth: vi.fn(),
 }))
@@ -28,6 +29,10 @@ vi.mock('@/api/opencode', () => ({
     replyToQuestion: mocks.replyToQuestion,
     rejectQuestion: mocks.rejectQuestion,
   })),
+}))
+
+vi.mock('@/api/sessions', () => ({
+  updateStoredSession: mocks.updateStoredSession,
 }))
 
 vi.mock('@/lib/opencode-event-stream', () => ({
@@ -140,6 +145,7 @@ describe('EventProvider questions', () => {
     mocks.listPendingQuestions.mockResolvedValue([])
     mocks.replyToQuestion.mockResolvedValue(undefined)
     mocks.rejectQuestion.mockResolvedValue(undefined)
+    mocks.updateStoredSession.mockResolvedValue(undefined)
     mocks.getHealth.mockReturnValue({ isConnected: false, isHealthy: false, lastEventAt: null, isStalled: false })
     mocks.subscribeGlobalMonitor.mockReturnValue({
       dispose: vi.fn(),

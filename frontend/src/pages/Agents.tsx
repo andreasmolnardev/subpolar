@@ -2,11 +2,15 @@ import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { settingsApi } from '@/api/settings'
+import { getProject } from '@/api/projects'
 import { Header } from '@/components/ui/header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgentDialog } from '@/components/settings/AgentDialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { useAgents } from '@/hooks/useOpenCode'
+import { OPENCODE_API_ENDPOINT } from '@/config'
+import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
 import { Bot, Plus, Pencil, Trash2, ExternalLink } from 'lucide-react'
 
 interface Agent {
@@ -47,6 +51,14 @@ export function Agents() {
     queryFn: () => settingsApi.getOpenCodeConfigs(),
   })
 
+  const { data: generalChatProject } = useQuery({
+    queryKey: ['project', GENERAL_CHAT_PROJECT_ID],
+    queryFn: () => getProject(GENERAL_CHAT_PROJECT_ID),
+  })
+
+  const generalChatDirectory = generalChatProject?.fullPath
+  const { data: runtimeAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, generalChatDirectory)
+
   const { data: opencodeSkills } = useQuery({
     queryKey: ['managed-skills'],
     queryFn: () => settingsApi.listManagedSkills(),
@@ -56,11 +68,22 @@ export function Agents() {
   const defaultConfig = configs?.defaultConfig
   const rawContent = defaultConfig?.rawContent
   const parsedConfig = rawContent ? tryParseJson(rawContent) : null
-  const agents = parsedConfig?.agents as Record<string, Agent> | undefined
-  const agentNames = useMemo(
-    () => (agents ? Object.keys(agents).filter((name) => !agents[name]?.disable) : []),
-    [agents],
-  )
+  const configAgents = parsedConfig?.agents as Record<string, Agent> | undefined
+  const agents = useMemo(() => {
+    const runtimeAgentEntries = runtimeAgents
+      .filter((agent) => !agent.hidden)
+      .map((agent) => [
+        agent.name,
+        {
+          ...agent,
+          model: agent.model ? `${agent.model.providerID}/${agent.model.modelID}` : undefined,
+          ...configAgents?.[agent.name],
+        },
+      ] as const)
+
+    return Object.fromEntries(runtimeAgentEntries) as Record<string, Agent>
+  }, [configAgents, runtimeAgents])
+  const agentNames = useMemo(() => Object.keys(agents).filter((name) => !agents[name]?.disable), [agents])
 
   const [activeAgent, setActiveAgent] = useState('')
   const [editingAgent, setEditingAgent] = useState<{ name: string; agent: Agent } | null>(null)
@@ -80,6 +103,7 @@ export function Agents() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opencode-configs'] })
+      queryClient.invalidateQueries({ queryKey: ['opencode', 'agents', OPENCODE_API_ENDPOINT, generalChatDirectory] })
     },
   })
 

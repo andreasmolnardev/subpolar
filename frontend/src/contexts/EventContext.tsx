@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { OpenCodeClient } from '@/api/opencode'
 import { listProjects } from '@/api/projects'
+import { updateStoredSession } from '@/api/sessions'
 import type { PermissionRequest, PermissionResponse, QuestionRequest, SSEEvent, SSHHostKeyRequest, MessageWithParts } from '@/api/types'
 import { showToast } from '@/lib/toast'
 import { openCodeEventStream, type EventStreamHealthState } from '@/lib/opencode-event-stream'
@@ -502,6 +503,20 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
           queryClient.invalidateQueries({
             queryKey: ['opencode', 'lsp']
           })
+          break
+        case 'session.created':
+        case 'session.updated':
+          if ('info' in event.properties) {
+            const session = event.properties.info
+            rememberSessionDirectory(session.id, event.directory ?? session.directory)
+            void updateStoredSession(session.id, {
+              directory: event.directory ?? session.directory ?? null,
+              title: session.title ?? null,
+              projectId: session.projectID ?? null,
+            }).then(() => {
+              queryClient.invalidateQueries({ queryKey: ['sessions'] })
+            }).catch(() => undefined)
+          }
           break
       }
     }

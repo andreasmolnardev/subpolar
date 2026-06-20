@@ -6,6 +6,7 @@ import { useSidebarCollapsed } from "@/hooks/useSidebarCollapsed";
 import { useAuth } from "@/hooks/useAuth";
 import { useUrlParams } from "@/hooks/useUrlParams";
 import { getProject, listProjects, createProject } from "@/api/projects";
+import { listStoredSessions } from "@/api/sessions";
 import { settingsApi } from "@/api/settings";
 import { useAgents } from "@/hooks/useOpenCode";
 import { OPENCODE_API_ENDPOINT } from "@/config";
@@ -31,6 +32,7 @@ function SidebarSection({
   collapsed,
   expanded,
   onToggle,
+  onClick,
   active,
   action,
   children,
@@ -40,6 +42,7 @@ function SidebarSection({
   collapsed: boolean;
   expanded: boolean;
   onToggle: () => void;
+  onClick: () => void;
   active?: boolean;
   action?: React.ReactNode;
   children: React.ReactNode;
@@ -51,7 +54,7 @@ function SidebarSection({
       <div className="flex items-center gap-1">
         <button
           type="button"
-          onClick={onToggle}
+          onClick={onClick}
           className={cn(
             "flex min-w-0 flex-1 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors text-left",
             active
@@ -61,6 +64,13 @@ function SidebarSection({
         >
           {Icon && <Icon className="h-4 w-4 flex-shrink-0" />}
           <span className="truncate">{label}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+          aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
+        >
           {expanded
             ? <ChevronDown className="h-3 w-3 flex-shrink-0" />
             : <ChevronRight className="h-3 w-3 flex-shrink-0" />}
@@ -155,6 +165,11 @@ export function DesktopSidebar() {
 
   const generalChatDirectory = generalChatProject?.fullPath;
 
+  const { data: storedSessions } = useQuery({
+    queryKey: ["sessions"],
+    queryFn: listStoredSessions,
+  });
+
   const { data: generalChatAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, generalChatDirectory);
 
   const { data: configs } = useQuery({
@@ -226,6 +241,16 @@ export function DesktopSidebar() {
     return location.pathname === `/agents/${encodeURIComponent(name)}`;
   };
 
+  const getSessionProjectId = (directory: string | null, projectId: number | null) => {
+    if (projectId !== null) return projectId;
+    if (directory && directory === generalChatDirectory) return GENERAL_CHAT_PROJECT_ID;
+    return projects?.find((project) => project.fullPath === directory)?.id ?? GENERAL_CHAT_PROJECT_ID;
+  };
+
+  const isSessionActive = (sessionId: string) => {
+    return location.pathname.endsWith(`/sessions/${encodeURIComponent(sessionId)}`);
+  };
+
   return (
     <>
       <Sidebar collapsed={collapsed} className="pt-0">
@@ -258,7 +283,8 @@ export function DesktopSidebar() {
             collapsed={collapsed}
             expanded={agentsExpanded}
             onToggle={() => setAgentsExpanded(!agentsExpanded)}
-            active={isActive("/agents")}
+            onClick={() => navigate("/agents")}
+            active={location.pathname === "/agents"}
             action={
               <button
                 type="button"
@@ -272,12 +298,6 @@ export function DesktopSidebar() {
               </button>
             }
           >
-            <SidebarNavItem
-              label="All Agents"
-              active={location.pathname === "/agents"}
-              onClick={() => navigate("/agents")}
-              indent
-            />
             {generalChatAgents.map((agent) => {
               const name = agent.name;
               return (
@@ -300,7 +320,8 @@ export function DesktopSidebar() {
             collapsed={collapsed}
             expanded={projectsExpanded}
             onToggle={() => setProjectsExpanded(!projectsExpanded)}
-            active={isActive("/projects")}
+            onClick={() => navigate("/projects")}
+            active={location.pathname === "/projects"}
             action={
               <button
                 type="button"
@@ -332,31 +353,33 @@ export function DesktopSidebar() {
             collapsed={collapsed}
             expanded={automationsExpanded}
             onToggle={() => setAutomationsExpanded(!automationsExpanded)}
-            active={isActive("/automations")}
+            onClick={() => navigate("/automations")}
+            active={location.pathname === "/automations"}
           >
-            <SidebarNavItem
-              label="All Automations"
-              active={location.pathname === "/automations"}
-              onClick={() => navigate("/automations")}
-              indent
-            />
           </SidebarSection>
 
-          {/* History */}
+          {/* Sessions */}
           <SidebarSection
-            label="History"
+            label="Sessions"
             icon={History}
             collapsed={collapsed}
             expanded={historyExpanded}
             onToggle={() => setHistoryExpanded(!historyExpanded)}
-            active={isActive("/history")}
+            onClick={() => navigate("/history")}
+            active={location.pathname === "/history"}
           >
-            <SidebarNavItem
-              label="All Sessions"
-              active={isActive("/history")}
-              onClick={() => navigate("/history")}
-              indent
-            />
+            {storedSessions?.map((session) => {
+              const projectId = getSessionProjectId(session.directory, session.projectId);
+              return (
+                <SidebarNavItem
+                  key={session.id}
+                  label={session.title || session.id}
+                  active={isSessionActive(session.id)}
+                  onClick={() => navigate(`/projects/${projectId}/sessions/${encodeURIComponent(session.id)}`)}
+                  indent
+                />
+              );
+            })}
           </SidebarSection>
         </div>
 
