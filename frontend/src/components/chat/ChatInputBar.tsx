@@ -52,6 +52,7 @@ interface ChatInputBarProps {
   directory?: string;
   disabled?: boolean;
   isSessionActive?: boolean;
+  hideAgentSelect?: boolean;
   onPromptChange?: (hasContent: boolean) => void;
   onScrollToBottom?: () => void;
 }
@@ -69,6 +70,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     directory,
     disabled = false,
     isSessionActive = false,
+    hideAgentSelect = false,
     onPromptChange,
     onScrollToBottom,
   }: ChatInputBarProps,
@@ -168,7 +170,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     return map;
   }, [models]);
 
-  const selectedAgentForRequest = selectedAgent === "__default__" || !agents.some((agent) => agent.name === selectedAgent)
+  const selectedAgentForRequest = selectedAgent === "__default__" || (!hideAgentSelect && !agents.some((agent) => agent.name === selectedAgent))
     ? undefined
     : selectedAgent;
 
@@ -392,22 +394,24 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             <Paperclip className="h-4 w-4" />
           </Button>
 
-          <Select
-            value={selectedAgent}
-            onValueChange={setSelectedAgent}
-          >
-            <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0 gap-2">
-              <SelectValue placeholder="Agent" />
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px] overflow-y-auto">
-              <SelectItem value="__default__">Agent</SelectItem>
-              {agents.map((agent) => (
-                <SelectItem key={agent.name} value={agent.name}>
-                  {agent.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!hideAgentSelect && (
+            <Select
+              value={selectedAgent}
+              onValueChange={setSelectedAgent}
+            >
+              <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0 gap-2">
+                <SelectValue placeholder="Agent" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px] overflow-y-auto">
+                <SelectItem value="__default__">Agent</SelectItem>
+                {agents.map((agent) => (
+                  <SelectItem key={agent.name} value={agent.name}>
+                    {agent.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           <Select value={selectedModel} onValueChange={setSelectedModel}>
             <SelectTrigger className="h-8 text-xs border-0 bg-transparent focus:ring-0 focus:ring-offset-0 gap-2">

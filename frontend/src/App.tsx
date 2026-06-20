@@ -11,6 +11,7 @@ import { Automations } from './pages/Automations'
 import { GlobalAutomations } from './pages/GlobalAutomations'
 import { History } from './pages/History'
 import { Agents } from './pages/Agents'
+import { AgentChat } from './pages/AgentChat'
 import { Login } from './pages/Login'
 import { Register } from './pages/Register'
 import { Setup } from './pages/Setup'
@@ -224,6 +225,11 @@ const router = createBrowserRouter([
       {
         path: '/agents',
         element: <Agents />,
+        loader: protectedLoader,
+      },
+      {
+        path: '/agents/:agentName',
+        element: <AgentChat />,
         loader: protectedLoader,
       },
       {
