@@ -41,7 +41,7 @@ interface MockSettingsReturn {
     expandToolCalls: boolean
     expandDiffs: boolean
     autoScroll: boolean
-    theme: 'dark' | 'light' | 'system'
+    theme: string
     mode: 'plan' | 'build'
   } | undefined
   isLoading: boolean

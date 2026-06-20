@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { useUrlParams } from './useUrlParams'
 
-type Tab = 'account' | 'general' | 'notifications' | 'voice' | 'git' | 'shortcuts' | 'opencode' | 'providers' | 'menu'
+type Tab = 'account' | 'general' | 'chat' | 'appearance' | 'notifications' | 'voice' | 'git' | 'shortcuts' | 'opencode' | 'providers' | 'menu'
 
 interface UseSettingsDialogReturn {
   isOpen: boolean

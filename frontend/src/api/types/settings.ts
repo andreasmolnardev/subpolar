@@ -45,7 +45,7 @@ export interface GitIdentity {
 }
 
 export interface UserPreferences {
-  theme: 'dark' | 'light' | 'system'
+  theme: string
   mode: 'plan' | 'build'
   defaultModel?: string
   defaultAgent?: string

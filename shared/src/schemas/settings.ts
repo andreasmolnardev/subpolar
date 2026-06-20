@@ -132,7 +132,7 @@ export const DEFAULT_GIT_IDENTITY: GitIdentity = {
 };
 
 export const UserPreferencesSchema = z.object({
-  theme: z.enum(["dark", "light", "system"]),
+  theme: z.string().min(1),
   mode: z.enum(["plan", "build"]),
   defaultModel: z.string().optional(),
   defaultAgent: z.string().optional(),

@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
+import { AppearanceSettings } from '@/components/settings/AppearanceSettings'
+import { ChatSettings } from '@/components/settings/ChatSettings'
 import { GeneralSettings } from '@/components/settings/GeneralSettings'
 import { GitSettings } from '@/components/settings/GitSettings'
 import { KeyboardShortcuts } from '@/components/settings/KeyboardShortcuts'
@@ -13,11 +15,11 @@ import { VoiceSettings } from '@/components/settings/VoiceSettings'
 import { NotificationSettings } from '@/components/settings/NotificationSettings'
 import { VersionSelectDialog } from '@/components/settings/VersionSelectDialog'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { Settings2, Keyboard, Code, ChevronLeft, Key, GitBranch, User, Volume2, Bell, X } from 'lucide-react'
+import { Settings2, Keyboard, Code, ChevronLeft, Key, GitBranch, User, Volume2, Bell, X, MessageSquare, Palette } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSettingsDialog } from '@/hooks/useSettingsDialog'
 
-type SettingsView = 'menu' | 'general' | 'git' | 'shortcuts' | 'opencode' | 'providers' | 'account' | 'voice' | 'notifications'
+type SettingsView = 'menu' | 'general' | 'chat' | 'appearance' | 'git' | 'shortcuts' | 'opencode' | 'providers' | 'account' | 'voice' | 'notifications'
 
 export function SettingsDialog() {
   const { isOpen, close, activeTab, setActiveTab } = useSettingsDialog()
@@ -76,6 +78,8 @@ export function SettingsDialog() {
   const menuItems = [
     { id: 'account', icon: User, label: 'Account', description: 'Profile, passkeys, and sign out' },
     { id: 'general', icon: Settings2, label: 'General Settings', description: 'App preferences and behavior' },
+    { id: 'chat', icon: MessageSquare, label: 'Chat', description: 'Message display and chat behavior' },
+    { id: 'appearance', icon: Palette, label: 'Appearance', description: 'Theme and visual preferences' },
     { id: 'notifications', icon: Bell, label: 'Notifications', description: 'Push notification preferences' },
     { id: 'voice', icon: Volume2, label: 'Voice', description: 'Text-to-speech and speech-to-text settings' },
     { id: 'git', icon: GitBranch, label: 'Git', description: 'Git identity and credentials for repositories' },
@@ -135,6 +139,8 @@ export function SettingsDialog() {
               <div className="flex-1 overflow-y-auto p-6">
                 {activeTab === 'account' && <AccountSettings />}
                 {activeTab === 'general' && <GeneralSettings />}
+                {activeTab === 'chat' && <ChatSettings />}
+                {activeTab === 'appearance' && <AppearanceSettings />}
                 {activeTab === 'notifications' && <NotificationSettings />}
                 {activeTab === 'voice' && <VoiceSettings />}
                 {activeTab === 'git' && <GitSettings />}
@@ -203,9 +209,11 @@ export function SettingsDialog() {
                </div>
              )}
 
-             {mobileView === 'account' && <div key="account"><AccountSettings /></div>}
-             {mobileView === 'general' && <div key="general"><GeneralSettings /></div>}
-             {mobileView === 'notifications' && <div key="notifications"><NotificationSettings /></div>}
+              {mobileView === 'account' && <div key="account"><AccountSettings /></div>}
+              {mobileView === 'general' && <div key="general"><GeneralSettings /></div>}
+              {mobileView === 'chat' && <div key="chat"><ChatSettings /></div>}
+              {mobileView === 'appearance' && <div key="appearance"><AppearanceSettings /></div>}
+              {mobileView === 'notifications' && <div key="notifications"><NotificationSettings /></div>}
              {mobileView === 'voice' && <div key="voice"><VoiceSettings /></div>}
              {mobileView === 'git' && <div key="git"><GitSettings /></div>}
               {mobileView === 'shortcuts' && <div key="shortcuts"><KeyboardShortcuts /></div>}

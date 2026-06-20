@@ -7,6 +7,14 @@ vi.mock('@/components/settings/GeneralSettings', () => ({
   GeneralSettings: () => <div data-testid="general-settings">General Settings Content</div>,
 }))
 
+vi.mock('@/components/settings/ChatSettings', () => ({
+  ChatSettings: () => <div data-testid="chat-settings">Chat Settings Content</div>,
+}))
+
+vi.mock('@/components/settings/AppearanceSettings', () => ({
+  AppearanceSettings: () => <div data-testid="appearance-settings">Appearance Settings Content</div>,
+}))
+
 vi.mock('@/components/settings/GitSettings', () => ({
   GitSettings: () => <div data-testid="git-settings">Git Settings Content</div>,
 }))
@@ -114,6 +122,8 @@ describe('SettingsDialog', () => {
 
     expect(screen.getAllByText('Account').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('General').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Chat').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Appearance').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Git').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Shortcuts').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('OpenCode').length).toBeGreaterThanOrEqual(1)
