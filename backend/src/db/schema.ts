@@ -3,6 +3,7 @@ import type PocketBase from 'pocketbase'
 import { logger } from '../utils/logger'
 import { ENV } from '@subpolar/shared/config/env'
 import { DEFAULT_USER_PREFERENCES } from '@subpolar/shared/schemas'
+import { ensureSubpolarCollections } from './subpolar-schema'
 
 export type Database = PocketBase
 
@@ -13,6 +14,7 @@ export async function initializeDatabase(): Promise<Database> {
 
   try {
     const pb = await getPocketBaseClient()
+    await ensureSubpolarCollections(pb)
 
     const existing = await pb.collection('user_preferences').getFirstListItem('user_id = "default"').catch(() => null)
     if (!existing) {

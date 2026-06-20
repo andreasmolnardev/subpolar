@@ -3,6 +3,9 @@
   "version": "0.13.1",
   "private": false,
   "type": "module",
+  "bin": {
+    "subpolar-cli": "./scripts/subpolar-cli.ts"
+  },
   "packageManager": "pnpm@10.28.1",
   "scripts": {
     "predev": "bash scripts/setup-dev.sh",

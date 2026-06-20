@@ -103,6 +103,42 @@ export const GitIdentitySchema = z.object({
 
 export type GitIdentity = z.infer<typeof GitIdentitySchema>;
 
+const IntegrationBaseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  enabled: z.boolean(),
+});
+
+export const IntegrationConfigSchema = z.discriminatedUnion('type', [
+  IntegrationBaseSchema.extend({
+    type: z.literal('mcp'),
+    serverUrl: z.string(),
+    apiKey: z.string(),
+  }),
+  IntegrationBaseSchema.extend({
+    type: z.literal('caldav'),
+    serverUrl: z.string(),
+    username: z.string(),
+    password: z.string(),
+    calendarUrl: z.string(),
+  }),
+  IntegrationBaseSchema.extend({
+    type: z.literal('mail'),
+    imapHost: z.string(),
+    imapPort: z.number().int().min(1).max(65535),
+    smtpHost: z.string(),
+    smtpPort: z.number().int().min(1).max(65535),
+    username: z.string(),
+    password: z.string(),
+    fromAddress: z.string(),
+  }),
+]);
+
+export const IntegrationSettingsSchema = z.array(IntegrationConfigSchema);
+
+export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;
+export type IntegrationSettings = z.infer<typeof IntegrationSettingsSchema>;
+
 export const ServerEnvVarSchema = z.object({
   key: z.string().min(1),
   value: z.string(),
@@ -150,6 +186,7 @@ export const UserPreferencesSchema = z.object({
   tts: TTSConfigSchema.optional(),
   stt: STTConfigSchema.optional(),
   notifications: NotificationPreferencesSchema.optional(),
+  integrations: IntegrationSettingsSchema.optional(),
   lastKnownGoodConfig: z.string().optional(),
   repoOrder: z.array(z.number()).optional(),
   repoSortMode: z.enum(['recent', 'manual', 'name']).optional(),
@@ -183,6 +220,8 @@ export const DEFAULT_STT_CONFIG: STTConfig = {
   lastModelsFetch: 0,
 };
 
+export const DEFAULT_INTEGRATION_SETTINGS: IntegrationSettings = [];
+
 export const DEFAULT_USER_PREFERENCES = {
   theme: "dark" as const,
   mode: "build" as const,
@@ -201,6 +240,7 @@ export const DEFAULT_USER_PREFERENCES = {
   tts: DEFAULT_TTS_CONFIG,
   stt: DEFAULT_STT_CONFIG,
   notifications: DEFAULT_NOTIFICATION_PREFERENCES,
+  integrations: DEFAULT_INTEGRATION_SETTINGS,
   repoSortMode: 'recent' as const,
   serverEnvVars: [] as ServerEnvVar[],
   disabledDefaultServerEnvVars: [] as string[],

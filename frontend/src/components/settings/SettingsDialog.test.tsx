@@ -31,6 +31,10 @@ vi.mock('@/components/settings/ProviderSettings', () => ({
   ProviderSettings: () => <div data-testid="providers-settings">Provider Settings Content</div>,
 }))
 
+vi.mock('@/components/settings/IntegrationsSettings', () => ({
+  IntegrationsSettings: () => <div data-testid="integrations-settings">Integrations Settings Content</div>,
+}))
+
 vi.mock('@/components/settings/AccountSettings', () => ({
   AccountSettings: () => <div data-testid="account-settings">Account Settings Content</div>,
 }))

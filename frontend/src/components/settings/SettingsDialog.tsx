@@ -13,13 +13,14 @@ import { ProviderSettings } from '@/components/settings/ProviderSettings'
 import { AccountSettings } from '@/components/settings/AccountSettings'
 import { VoiceSettings } from '@/components/settings/VoiceSettings'
 import { NotificationSettings } from '@/components/settings/NotificationSettings'
+import { IntegrationsSettings } from '@/components/settings/IntegrationsSettings'
 import { VersionSelectDialog } from '@/components/settings/VersionSelectDialog'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { Settings2, Keyboard, Code, ChevronLeft, Key, GitBranch, User, Volume2, Bell, X, MessageSquare, Palette } from 'lucide-react'
+import { Settings2, Keyboard, Code, ChevronLeft, Key, GitBranch, User, Volume2, Bell, X, MessageSquare, Palette, Plug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSettingsDialog } from '@/hooks/useSettingsDialog'
 
-type SettingsView = 'menu' | 'general' | 'chat' | 'appearance' | 'git' | 'shortcuts' | 'opencode' | 'providers' | 'account' | 'voice' | 'notifications'
+type SettingsView = 'menu' | 'general' | 'chat' | 'appearance' | 'git' | 'shortcuts' | 'opencode' | 'providers' | 'integrations' | 'account' | 'voice' | 'notifications'
 
 export function SettingsDialog() {
   const { isOpen, close, activeTab, setActiveTab } = useSettingsDialog()
@@ -85,6 +86,7 @@ export function SettingsDialog() {
     { id: 'git', icon: GitBranch, label: 'Git', description: 'Git identity and credentials for repositories' },
     { id: 'shortcuts', icon: Keyboard, label: 'Keyboard Shortcuts', description: 'Customize keyboard shortcuts' },
     { id: 'opencode', icon: Code, label: 'OpenCode Config', description: 'Manage OpenCode configurations, commands, and agents' },
+    { id: 'integrations', icon: Plug, label: 'Integrations', description: 'Configure MCP, calendars, and mail' },
     { id: 'providers', icon: Key, label: 'Providers', description: 'Manage AI provider API keys' },
   ]
 
@@ -155,6 +157,7 @@ export function SettingsDialog() {
                   </div>
                 )}
                 {activeTab === 'providers' && <ProviderSettings />}
+                {activeTab === 'integrations' && <IntegrationsSettings />}
               </div>
             </div>
           </div>
@@ -226,7 +229,8 @@ export function SettingsDialog() {
                     <OpenCodeConfigManager hideHealthStatus />
                   </div>
                 )}
-              {mobileView === 'providers' && <div key="providers"><ProviderSettings /></div>}
+               {mobileView === 'providers' && <div key="providers"><ProviderSettings /></div>}
+               {mobileView === 'integrations' && <div key="integrations"><IntegrationsSettings /></div>}
            </div>
         </div>
 

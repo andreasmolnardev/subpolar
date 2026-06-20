@@ -33,6 +33,7 @@ import { createProjectRoutes } from './routes/projects'
 import { createSessionRoutes } from './routes/sessions'
 import { createInternalRoutes } from './routes/internal'
 import { createOpenCodeProxyRoutes } from './routes/opencode-proxy'
+import { createSubpolarCliRoutes } from './routes/subpolar-cli'
 import { sseAggregator } from './services/sse-aggregator'
 import { ensureDirectoryExists, writeFileContent, fileExists, readFileContent } from './services/file-operations'
 import { SettingsService } from './services/settings'
@@ -58,6 +59,8 @@ import {
 } from './db/model-state'
 
 import { logger } from './utils/logger'
+import { seedTools } from './db/subpolar-tools'
+import { SUBPOLAR_POLICY_SEEDS, SUBPOLAR_TOOL_SEEDS } from './services/subpolar-tool-seeds'
 import { 
   getWorkspacePath, 
   getConfigPath,
@@ -119,6 +122,7 @@ let settingsService: SettingsService | undefined
 async function initializeApp() {
   db = await initializeDatabase()
   await ensureGeneralChatProject(db!).catch((err) => logger.warn('Failed to ensure general chat project:', err))
+  await seedTools(db!, SUBPOLAR_TOOL_SEEDS, SUBPOLAR_POLICY_SEEDS).catch((err) => logger.warn('Failed to seed Subpolar tools:', err))
   requireAuth = createAuthMiddleware()
   openCodeClient = createOpenCodeClient(async () => new SettingsService(db!).getOpenCodeServerPassword())
   opencodeServerManager.setOpenCodeClient(openCodeClient)
@@ -342,6 +346,7 @@ app.route('/api/mcp-oauth-proxy', createMcpOauthProxyRoutes(openCodeClient!, req
 app.route('/api/internal', createInternalRoutes(db!, automationService!, notificationService!, settingsService!, openCodeClient!))
 app.route('/api/opencode-proxy', createOpenCodeProxyRoutes(db!, settingsService!))
 app.route('/api/projects', createProjectRoutes(db!))
+app.route('/api/subpolar-cli', createSubpolarCliRoutes(db!))
 
 const protectedApi = new Hono()
 protectedApi.use('/*', requireAuth!)

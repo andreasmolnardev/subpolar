@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAllAutomations, useAllAutomationRuns, useCancelRepoAutomationRun } from '@/hooks/useAutomations'
 import { useDeleteRepoAutomation, useRunRepoAutomation, useUpdateRepoAutomation, useCreateRepoAutomation } from '@/hooks/useAutomations'
 import { AutomationJobDialog, RunHistoryCards, PromptsTab } from '@/components/automations'
@@ -27,6 +27,7 @@ type SortOption = 'nextRun' | 'name' | 'repo'
 
 export function GlobalAutomations() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [selectedRepoId, setSelectedRepoId] = useState<number | undefined>(undefined)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [automationModeFilter, setautomationModeFilter] = useState<automationModeFilter>('all')
@@ -41,6 +42,12 @@ export function GlobalAutomations() {
   const runOffsetRef = useRef(runOffset)
 
   const { automationTab, setAutomationTab, dialog, promptDialog, jobId, runId, templateId, openNewJob, openEditJob, openDeleteJob, openNewTemplate, openEditTemplate, openDeleteTemplate, openImportTemplate, closeDialog, closePromptDialog, selectRun } = useAutomationUrlState()
+
+  useEffect(() => {
+    if (location.state?.openAutomationDialog) {
+      navigate({ pathname: location.pathname, search: '?automationDialog=new' }, { replace: true, state: null })
+    }
+  }, [location.pathname, location.state, navigate])
 
   const cancelRunMutation = useCancelRepoAutomationRun()
   const cancelRunPending = cancelRunMutation.isPending

@@ -355,6 +355,18 @@ export function DesktopSidebar() {
             onToggle={() => setAutomationsExpanded(!automationsExpanded)}
             onClick={() => navigate("/automations")}
             active={location.pathname === "/automations"}
+            action={
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate("/automations", { state: { openAutomationDialog: true } });
+                }}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            }
           >
           </SidebarSection>
 

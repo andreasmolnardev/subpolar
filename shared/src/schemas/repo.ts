@@ -74,7 +74,7 @@ export type AgentFileInfo = z.infer<typeof AgentFileInfoSchema>
 export const GeneralChatStatusSchema = z.object({
   repoId: z.number(),
   directory: z.string(),
-  relativePath: z.literal('repos/assistant'),
+  relativePath: z.string(),
   warnings: z.array(z.object({
     code: z.string(),
     path: z.string(),
@@ -138,6 +138,10 @@ export const GeneralChatStatusSchema = z.object({
     created: z.boolean(),
   }).optional(),
   notesCliSkill: z.object({
+    path: z.string(),
+    created: z.boolean(),
+  }).optional(),
+  subpolarToolsSkill: z.object({
     path: z.string(),
     created: z.boolean(),
   }).optional(),

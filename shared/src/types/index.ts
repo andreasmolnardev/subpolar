@@ -16,9 +16,9 @@ import {
   CreateProjectRequestSchema,
   UpdateProjectRequestSchema,
   ProjectStatusSchema,
-  GeneralChatStatusSchema,
   GeneralChatInitRequestSchema,
 } from '../schemas/project'
+import { GeneralChatStatusSchema } from '../schemas/repo'
 import {
   FileInfoSchema,
   CreateFileRequestSchema,
@@ -45,6 +45,23 @@ import {
   AssistantNotificationResponseSchema,
   AssistantSettingsPatchSchema,
 } from '../schemas/internal-assistant'
+import {
+  AgentDefinitionSchema,
+  AgentModeSchema,
+  AgentSourceSchema,
+  ToolDefinitionSchema,
+  ToolAdapterTypeSchema,
+  ToolRiskSchema,
+  AgentToolPolicySchema,
+  ToolListRequestSchema,
+  ToolDescribeRequestSchema,
+  ToolCallRequestSchema,
+  ToolCallResponseSchema,
+  ToolApprovalSchema,
+  ToolAuditRecordSchema,
+  IntegrationSchema,
+  IntegrationTypeSchema,
+} from '../schemas/subpolar-cli'
 
 export type UserPreferences = z.infer<typeof UserPreferencesSchema>
 export type SettingsResponse = z.infer<typeof SettingsResponseSchema>
@@ -85,6 +102,22 @@ export type AssistantNotificationPriority = z.infer<typeof AssistantNotification
 export type AssistantNotificationRequest = z.infer<typeof AssistantNotificationRequestSchema>
 export type AssistantNotificationResponse = z.infer<typeof AssistantNotificationResponseSchema>
 export type AssistantSettingsPatch = z.infer<typeof AssistantSettingsPatchSchema>
+
+export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>
+export type AgentMode = z.infer<typeof AgentModeSchema>
+export type AgentSource = z.infer<typeof AgentSourceSchema>
+export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>
+export type ToolAdapterType = z.infer<typeof ToolAdapterTypeSchema>
+export type ToolRisk = z.infer<typeof ToolRiskSchema>
+export type AgentToolPolicy = z.infer<typeof AgentToolPolicySchema>
+export type ToolListRequest = z.infer<typeof ToolListRequestSchema>
+export type ToolDescribeRequest = z.infer<typeof ToolDescribeRequestSchema>
+export type ToolCallRequest = z.infer<typeof ToolCallRequestSchema>
+export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>
+export type ToolApproval = z.infer<typeof ToolApprovalSchema>
+export type ToolAuditRecord = z.infer<typeof ToolAuditRecordSchema>
+export type Integration = z.infer<typeof IntegrationSchema>
+export type IntegrationType = z.infer<typeof IntegrationTypeSchema>
 
 export { FetchError } from './errors'
 export type { ApiErrorResponse, ApiErrorCode } from './errors'

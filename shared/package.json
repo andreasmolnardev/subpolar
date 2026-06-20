@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./schemas": "./src/schemas/index.ts",
+    "./schemas/repo": "./src/schemas/repo.ts",
     "./types": "./src/types/index.ts",
     "./types/errors": "./src/types/errors.ts",
     "./config": "./src/config/index.ts",

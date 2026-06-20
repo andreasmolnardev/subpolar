@@ -11,6 +11,8 @@ import type {
   CreateSkillRequest,
   UpdateSkillRequest,
   SkillScope,
+  IntegrationConfig,
+  IntegrationSettings,
 } from './types/settings'
 import { API_BASE_URL } from '@/config'
 import { fetchWrapper, FetchError } from './fetchWrapper'
@@ -41,6 +43,39 @@ export const settingsApi = {
       method: 'DELETE',
       params: { userId },
     })
+  },
+
+  listIntegrations: async (): Promise<{ integrations: IntegrationSettings }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/integrations`)
+  },
+
+  createIntegration: async (integration: IntegrationConfig): Promise<IntegrationConfig> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/integrations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(integration),
+    })
+  },
+
+  updateIntegration: async (integration: IntegrationConfig): Promise<IntegrationConfig> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/integrations/${encodeURIComponent(integration.id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(integration),
+    })
+  },
+
+  deleteIntegration: async (id: string): Promise<{ success: boolean }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/integrations/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+  },
+
+  getUpcomingCalendarEvents: async (): Promise<{
+    calendars: Array<{ id: string; name: string; url: string }>
+    events: Array<{ title: string; calendar: string; start: string; end: string | null; location?: string }>
+  }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/calendar/upcoming`)
   },
 
   getOpenCodeConfigs: async (userId = DEFAULT_USER_ID): Promise<OpenCodeConfigResponse> => {
@@ -206,6 +241,14 @@ export const settingsApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ host, sshPrivateKey, passphrase }),
+    })
+  },
+
+  discoverCalDavCalendars: async (serverUrl: string, username: string, password: string): Promise<{ calendars: Array<{ name: string; url: string; description?: string }> }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/discover-caldav-calendars`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ serverUrl, username, password }),
     })
   },
 

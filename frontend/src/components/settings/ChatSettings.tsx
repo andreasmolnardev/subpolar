@@ -1,10 +1,72 @@
 import { useSettings } from '@/hooks/useSettings'
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { getProviders } from '@/api/providers'
+import { OPENCODE_API_ENDPOINT } from '@/config'
+import { useConfig } from '@/hooks/useOpenCode'
 
 export function ChatSettings() {
   const { preferences, isLoading, updateSettings, isUpdating } = useSettings()
+  const { data: config } = useConfig(OPENCODE_API_ENDPOINT)
+
+  const { data: providersData } = useQuery({
+    queryKey: ['opencode', 'providers', OPENCODE_API_ENDPOINT],
+    queryFn: () => getProviders(),
+    staleTime: 30000,
+  })
+
+  const models = useMemo(() => {
+    const providers = providersData?.providers
+    if (!providers) return []
+
+    const configuredProviders = config?.provider ?? {}
+    const disabledProviders = new Set(config?.disabled_providers ?? [])
+    const connectedProviders = new Set(providersData?.connected ?? [])
+
+    return providers.flatMap((provider) => {
+      if (disabledProviders.has(provider.id)) return []
+
+      const isConfigured = provider.id in configuredProviders
+      const isConnected = connectedProviders.has(provider.id)
+      if (!isConfigured && !isConnected) return []
+
+      const configuredModels = configuredProviders[provider.id]?.models
+      const enabledModelKeys = configuredModels ? new Set(Object.keys(configuredModels)) : null
+
+      return Object.entries(provider.models).flatMap(([key, model]) => {
+        if (enabledModelKeys && !enabledModelKeys.has(key)) return []
+
+        return [{
+          id: `${provider.id}/${key}`,
+          name: model.name || key,
+          providerName: provider.name,
+        }]
+      })
+    })
+  }, [providersData, config])
+
+  const modelsByProvider = useMemo(() => {
+    const map = new Map<string, typeof models>()
+    for (const model of models) {
+      const group = map.get(model.providerName) ?? []
+      group.push(model)
+      map.set(model.providerName, group)
+    }
+    return map
+  }, [models])
 
   if (isLoading) {
     return (
@@ -19,6 +81,38 @@ export function ChatSettings() {
       <h2 className="text-lg font-semibold text-foreground mb-6">Chat Preferences</h2>
 
       <div className="space-y-6">
+        <div className="flex flex-row items-center justify-between gap-4 rounded-lg border border-border p-4">
+          <div className="space-y-0.5">
+            <Label htmlFor="defaultModel" className="text-base">Default model</Label>
+            <p className="text-sm text-muted-foreground">
+              Choose the model selected by default for new chats
+            </p>
+          </div>
+          <Select
+            value={preferences?.defaultModel ?? '__auto__'}
+            onValueChange={(value) => updateSettings({ defaultModel: value === '__auto__' ? undefined : value })}
+          >
+            <SelectTrigger id="defaultModel" className="w-[240px]">
+              <SelectValue placeholder="Auto Model" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
+              <SelectItem value="__auto__">Auto Model</SelectItem>
+              <SelectSeparator />
+              {Array.from(modelsByProvider.entries()).map(([providerName, providerModels], index) => (
+                <SelectGroup key={providerName}>
+                  {index > 0 && <SelectSeparator />}
+                  <SelectLabel>{providerName}</SelectLabel>
+                  {providerModels.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
           <div className="space-y-0.5">
             <Label htmlFor="simpleChatMode" className="text-base">Simple chat mode</Label>

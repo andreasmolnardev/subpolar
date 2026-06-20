@@ -1,8 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMemo, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -10,8 +9,14 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
-import { getProvidersWithModels } from '@/api/providers'
+import { Plus, Trash2 } from 'lucide-react'
+
+const toolAccessSchema = z.object({
+  type: z.enum(['builtin', 'skill', 'cli', 'subpolar']),
+  id: z.string().min(1),
+  permission: z.enum(['allow', 'ask', 'deny']),
+  command: z.string().optional(),
+})
 
 const agentFormSchema = z.object({
   name: z.string().min(1, 'Agent name is required').regex(/^[a-z0-9-]+$/, 'Must be lowercase letters, numbers, and hyphens only'),
@@ -20,22 +25,15 @@ const agentFormSchema = z.object({
   mode: z.enum(['subagent', 'primary', 'all']),
   temperature: z.number().min(0).max(2),
   topP: z.number().min(0).max(1),
-  modelId: z.string().optional(),
-  providerId: z.string().optional(),
-  write: z.boolean(),
-  edit: z.boolean(),
-  bash: z.boolean(),
-  webfetch: z.boolean(),
-  editPermission: z.enum(['ask', 'allow', 'deny']),
-  bashPermission: z.enum(['ask', 'allow', 'deny']),
-  webfetchPermission: z.enum(['ask', 'allow', 'deny']),
   disable: z.boolean(),
   icon: z.string().optional(),
   skills: z.array(z.string()).optional(),
   allowedCommands: z.array(z.string()).optional(),
+  toolAccess: z.array(toolAccessSchema).optional(),
 })
 
 type AgentFormValues = z.infer<typeof agentFormSchema>
+type ToolAccess = z.infer<typeof toolAccessSchema>
 
 interface Agent {
   prompt?: string
@@ -54,14 +52,31 @@ interface Agent {
   icon?: string
   skills?: string[]
   allowedCommands?: string[]
+  toolAccess?: Array<z.infer<typeof toolAccessSchema>>
   disable?: boolean
   [key: string]: unknown
 }
 
-function parseModelString(model?: string): { providerId: string; modelId: string } {
-  if (!model) return { providerId: '', modelId: '' }
-  const [providerId, ...rest] = model.split('/')
-  return { providerId: providerId || '', modelId: rest.join('/') || '' }
+const BUILTIN_TOOL_LABELS: Record<string, string> = {
+  edit: 'Edit Files',
+  webfetch: 'Web Fetch',
+  'other-bash': 'Other Bash Commands',
+}
+
+function permissionFrom(value: unknown, fallback: 'allow' | 'ask' | 'deny' = 'deny'): 'allow' | 'ask' | 'deny' {
+  return value === 'allow' || value === 'ask' || value === 'deny' ? value : fallback
+}
+
+function buildToolAccess(agent?: Agent): ToolAccess[] {
+  if (agent?.toolAccess?.length) return agent.toolAccess
+  const bashPermission = agent?.permission?.bash
+  return [
+    { type: 'builtin', id: 'edit', permission: permissionFrom(agent?.permission?.edit, 'allow') },
+    { type: 'builtin', id: 'webfetch', permission: permissionFrom(agent?.permission?.webfetch, 'allow') },
+    { type: 'builtin', id: 'other-bash', permission: typeof bashPermission === 'string' ? permissionFrom(bashPermission, 'ask') : 'deny' },
+    ...(agent?.skills || []).map((skill): ToolAccess => ({ type: 'skill', id: skill, permission: 'allow' })),
+    ...(agent?.allowedCommands || []).map((command): ToolAccess => ({ type: 'cli', id: command, command, permission: 'allow' })),
+  ]
 }
 
 interface AgentDialogProps {
@@ -72,30 +87,10 @@ interface AgentDialogProps {
   availableSkills?: string[]
 }
 
-export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent }: AgentDialogProps) {
-  const { data: providers = [] } = useQuery({
-    queryKey: ['providers-with-models'],
-    queryFn: () => getProvidersWithModels(),
-    enabled: open,
-    staleTime: 5 * 60 * 1000,
-  })
-
-  const providerOptions: ComboboxOption[] = useMemo(() => {
-    const sourceLabels: Record<string, string> = {
-      configured: 'Custom',
-      local: 'Local',
-      builtin: 'Built-in',
-    }
-    return providers.map(p => ({
-      value: p.id,
-      label: p.name || p.id,
-      description: p.models.length > 0 ? `${p.models.length} models` : undefined,
-      group: sourceLabels[p.source] || 'Other',
-    }))
-  }, [providers])
+export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availableSkills = [] }: AgentDialogProps) {
+  const [selectedToolIndex, setSelectedToolIndex] = useState(0)
 
   const getDefaultValues = (agent?: { name: string; agent: Agent } | null): AgentFormValues => {
-    const parsed = parseModelString(agent?.agent.model)
     return {
       name: agent?.name || '',
       description: agent?.agent.description || '',
@@ -103,19 +98,11 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent }: Agen
       mode: agent?.agent.mode || 'subagent',
       temperature: agent?.agent.temperature ?? 0.7,
       topP: agent?.agent.topP ?? agent?.agent.top_p ?? 1,
-      modelId: parsed.modelId,
-      providerId: parsed.providerId,
-      write: agent?.agent.tools?.write ?? true,
-      edit: agent?.agent.tools?.edit ?? true,
-      bash: agent?.agent.tools?.bash ?? true,
-      webfetch: agent?.agent.tools?.webfetch ?? true,
-      editPermission: agent?.agent.permission?.edit || 'allow',
-      bashPermission: typeof agent?.agent.permission?.bash === 'string' ? agent?.agent.permission?.bash || 'allow' : 'allow',
-      webfetchPermission: agent?.agent.permission?.webfetch || 'allow',
       disable: agent?.agent.disable ?? false,
       icon: agent?.agent.icon || '',
       skills: agent?.agent.skills || [],
       allowedCommands: agent?.agent.allowedCommands || [],
+      toolAccess: buildToolAccess(agent?.agent),
     }
   }
 
@@ -127,25 +114,29 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent }: Agen
   useEffect(() => {
     if (open) {
       form.reset(getDefaultValues(editingAgent))
+      setSelectedToolIndex(0)
     }
   }, [open, editingAgent, form])
 
-  const selectedProviderId = form.watch('providerId')
+  const toolAccess = form.watch('toolAccess') || []
+  const selectedTool = toolAccess[selectedToolIndex]
 
-  const modelOptions: ComboboxOption[] = useMemo(() => {
-    const selectedProvider = providers.find(p => p.id === selectedProviderId)
-    if (selectedProvider && selectedProvider.models.length > 0) {
-      return selectedProvider.models.map(m => ({
-        value: m.id,
-        label: m.name || m.id,
-      }))
-    }
-    return providers.flatMap(p => p.models.map(m => ({
-      value: m.id,
-      label: m.name || m.id,
-      group: p.name || p.id,
-    })))
-  }, [providers, selectedProviderId])
+  const addToolAccess = () => {
+    const next = [...toolAccess, { type: 'subpolar' as const, id: 'calendar.get', permission: 'allow' as const, command: 'subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" calendar.get' }]
+    form.setValue('toolAccess', next, { shouldDirty: true, shouldValidate: true })
+    setSelectedToolIndex(next.length - 1)
+  }
+
+  const removeToolAccess = (index: number) => {
+    const next = toolAccess.filter((_, itemIndex) => itemIndex !== index)
+    form.setValue('toolAccess', next, { shouldDirty: true, shouldValidate: true })
+    setSelectedToolIndex(Math.max(0, Math.min(index, next.length - 1)))
+  }
+
+  const updateSelectedTool = (patch: Partial<ToolAccess>) => {
+    const next = toolAccess.map((tool, index) => index === selectedToolIndex ? { ...tool, ...patch } : tool)
+    form.setValue('toolAccess', next, { shouldDirty: true, shouldValidate: true })
+  }
 
   const handleSubmit = (values: AgentFormValues) => {
     const agent: Agent = {
@@ -155,21 +146,8 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent }: Agen
       temperature: values.temperature,
       topP: values.topP,
       disable: values.disable,
-      tools: {
-        write: values.write,
-        edit: values.edit,
-        bash: values.bash,
-        webfetch: values.webfetch
-      },
-      permission: {
-        edit: values.editPermission,
-        bash: values.bashPermission,
-        webfetch: values.webfetchPermission
-      }
-    }
-
-    if (values.modelId && values.providerId) {
-      agent.model = `${values.providerId}/${values.modelId}`
+      tools: {},
+      permission: {}
     }
 
     if (values.icon) {
@@ -182,6 +160,39 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent }: Agen
 
     if (values.allowedCommands && values.allowedCommands.length > 0) {
       agent.allowedCommands = values.allowedCommands
+    }
+
+    if (values.toolAccess && values.toolAccess.length > 0) {
+      agent.toolAccess = values.toolAccess
+      const builtinTools = Object.fromEntries(values.toolAccess.filter(tool => tool.type === 'builtin').map(tool => [tool.id, tool]))
+      const editPermission = builtinTools.edit?.permission || 'deny'
+      const webfetchPermission = builtinTools.webfetch?.permission || 'deny'
+      const otherBashPermission = builtinTools['other-bash']?.permission || 'deny'
+      agent.tools = {
+        edit: editPermission !== 'deny',
+        bash: otherBashPermission !== 'deny' || values.toolAccess.some(tool => tool.type === 'cli' || tool.type === 'subpolar'),
+        webfetch: webfetchPermission !== 'deny',
+      }
+      agent.permission = {
+        edit: editPermission,
+        webfetch: webfetchPermission,
+        bash: otherBashPermission,
+      }
+      agent.skills = Array.from(new Set(values.toolAccess.filter(tool => tool.type === 'skill').map(tool => tool.id)))
+      agent.allowedCommands = Array.from(new Set(values.toolAccess.filter(tool => tool.type === 'cli').map(tool => tool.command || tool.id)))
+      const subpolarTools = values.toolAccess.filter(tool => tool.type === 'subpolar')
+      const cliTools = values.toolAccess.filter(tool => tool.type === 'cli')
+      if (subpolarTools.length > 0 || cliTools.length > 0 || otherBashPermission !== 'deny') {
+        agent.permission = {
+          ...agent.permission,
+          bash: Object.fromEntries([
+            ['subpolar-cli *', 'allow'],
+            ...subpolarTools.map(tool => [`subpolar-cli * ${tool.id} *`, tool.permission]),
+            ...cliTools.map(tool => [`${tool.command || tool.id} *`, tool.permission]),
+            ['*', otherBashPermission],
+          ]),
+        }
+      }
     }
 
     onSubmit(values.name, agent)
@@ -206,27 +217,48 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent }: Agen
         <div className="flex-1 overflow-y-auto p-2 sm:p-4">
           <Form {...form}>
             <div className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Agent Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="my-agent"
-                        disabled={!!editingAgent}
-                        className={editingAgent ? 'bg-muted' : ''}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Use lowercase letters, numbers, and hyphens only
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-[minmax(3.25rem,auto)_1fr] gap-3 items-start">
+                <FormField
+                  control={form.control}
+                  name="icon"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Icon</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="🤖"
+                          maxLength={4}
+                          className="w-14 min-w-14 text-center text-lg px-2"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Agent Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="my-agent"
+                          disabled={!!editingAgent}
+                          className={editingAgent ? 'bg-muted' : ''}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Use lowercase letters, numbers, and hyphens only
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <FormField
                 control={form.control}
@@ -331,260 +363,92 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent }: Agen
                 />
               </div>
 
-              <div className="space-y-2">
-                <div className="text-sm font-medium">Model Configuration</div>
-                <div className="flex flex-col sm:grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="providerId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Provider ID</FormLabel>
-                        <FormControl>
-                          <Combobox
-                            value={field.value || ''}
-                            onChange={field.onChange}
-                            options={providerOptions}
-                            placeholder="Select or type provider..."
-                            allowCustomValue
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="modelId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Model ID</FormLabel>
-                        <FormControl>
-                          <Combobox
-                            value={field.value || ''}
-                            onChange={field.onChange}
-                            options={modelOptions}
-                            placeholder="Select or type model..."
-                            allowCustomValue
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-medium">Agent Tools</div>
+                    <p className="text-xs text-muted-foreground">Configure skills, direct CLI utilities, and Subpolar backend-routed tool calls.</p>
+                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="text-sm font-medium">Tools Configuration</div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <FormField
-                    control={form.control}
-                    name="write"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">Write</FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="edit"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">Edit</FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="bash"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">Bash</FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="webfetch"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">Web Fetch</FormLabel>
-                      </FormItem>
-                    )}
-                  />
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {toolAccess.map((tool, index) => (
+                    <button
+                      key={`${tool.type}-${tool.id}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedToolIndex(index)}
+                      className={`min-w-36 rounded-md border p-3 text-left text-sm transition-colors ${selectedToolIndex === index ? 'border-primary bg-primary/10' : 'bg-card hover:bg-muted'}`}
+                    >
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">{tool.type}</div>
+                      <div className="truncate font-medium">{tool.id}</div>
+                      <div className="text-xs text-muted-foreground">{tool.permission}</div>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addToolAccess}
+                    className="min-w-24 rounded-md border border-dashed p-3 text-sm text-muted-foreground hover:bg-muted flex items-center justify-center"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <div className="text-sm font-medium">Permissions</div>
-                <div className="grid grid-cols-3 gap-2 text-sm">
-                  <FormField
-                    control={form.control}
-                    name="editPermission"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">Edit</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
+                {selectedTool ? (
+                  <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Tool Type</label>
+                      <Select value={selectedTool.type} onValueChange={(value) => updateSelectedTool({ type: value as 'builtin' | 'skill' | 'cli' | 'subpolar' })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="builtin">Built-in Tool</SelectItem>
+                          <SelectItem value="skill">Skill</SelectItem>
+                          <SelectItem value="cli">CLI Utility</SelectItem>
+                          <SelectItem value="subpolar">subpolar-cli Tool</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">{selectedTool.type === 'builtin' ? 'Tool' : selectedTool.type === 'skill' ? 'Skill' : selectedTool.type === 'cli' ? 'Command' : 'Tool ID'}</label>
+                      {selectedTool.type === 'builtin' ? (
+                        <Select value={selectedTool.id} onValueChange={(value) => updateSelectedTool({ id: value })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="ask">Ask</SelectItem>
-                            <SelectItem value="allow">Allow</SelectItem>
-                            <SelectItem value="deny">Deny</SelectItem>
+                            {Object.entries(BUILTIN_TOOL_LABELS).map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
                           </SelectContent>
                         </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="bashPermission"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">Bash</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
+                      ) : selectedTool.type === 'skill' && availableSkills.length > 0 ? (
+                        <Select value={selectedTool.id} onValueChange={(value) => updateSelectedTool({ id: value })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="ask">Ask</SelectItem>
-                            <SelectItem value="allow">Allow</SelectItem>
-                            <SelectItem value="deny">Deny</SelectItem>
+                            {availableSkills.map(skill => <SelectItem key={skill} value={skill}>{skill}</SelectItem>)}
                           </SelectContent>
                         </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="webfetchPermission"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">Web Fetch</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="ask">Ask</SelectItem>
-                            <SelectItem value="allow">Allow</SelectItem>
-                            <SelectItem value="deny">Deny</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="text-sm font-medium">Icon</div>
-                <FormField
-                  control={form.control}
-                  name="icon"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="emoji or icon name (e.g., 🤖, robot, code)"
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Optional icon for the agent (emoji or icon identifier)
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="text-sm font-medium">Skills Access</div>
-                <FormField
-                  control={form.control}
-                  name="skills"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input
-                          value={field.value?.join(', ') || ''}
-                          placeholder="comma-separated skill names (e.g., git, filesystem, web)"
-                          onChange={(e) => field.onChange(e.target.value ? e.target.value.split(',').map(s => s.trim()) : [])}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Comma-separated list of skill names this agent can access
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="text-sm font-medium">Allowed Commands</div>
-                <FormField
-                  control={form.control}
-                  name="allowedCommands"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input
-                          value={field.value?.join(', ') || ''}
-                          placeholder="comma-separated command names (e.g., /build, /test)"
-                          onChange={(e) => field.onChange(e.target.value ? e.target.value.split(',').map(s => s.trim()) : [])}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Comma-separated list of slash commands this agent can run
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                      ) : (
+                        <Input value={selectedTool.id} placeholder={selectedTool.type === 'subpolar' ? 'calendar.get' : 'rg'} onChange={(event) => updateSelectedTool({ id: event.target.value, command: selectedTool.type === 'cli' ? event.target.value : selectedTool.command })} />
+                      )}
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeToolAccess(selectedToolIndex)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Permission</label>
+                      <Select value={selectedTool.permission} onValueChange={(value) => updateSelectedTool({ permission: value as 'allow' | 'ask' | 'deny' })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="allow">Allow</SelectItem>
+                          <SelectItem value="ask">Ask</SelectItem>
+                          <SelectItem value="deny">Deny</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <label className="text-sm font-medium">CLI Pattern</label>
+                      <Input value={selectedTool.command || ''} placeholder={selectedTool.type === 'subpolar' ? 'subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" calendar.get' : 'rg *'} onChange={(event) => updateSelectedTool({ command: event.target.value })} />
+                      <p className="text-xs text-muted-foreground">For skills this can document required CLI utility permissions. For Subpolar tools, use the dot-based tool ID above.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">Add a tool to configure agent access.</div>
+                )}
               </div>
 
               <FormField

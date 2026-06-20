@@ -50,15 +50,21 @@ const DialogContent = React.forwardRef<
   const shouldAnimateSwipe = shouldEnableMobileSwipe && isMobileFullscreenMode
   const swipeContainerRef = React.useRef<HTMLDivElement>(null)
   const closeTriggerRef = React.useRef<HTMLButtonElement>(null)
+  const forwardedRef = React.useRef(ref)
+
+  React.useEffect(() => {
+    forwardedRef.current = ref
+  }, [ref])
   
   const combinedRef = React.useCallback((node: HTMLDivElement | null) => {
     swipeContainerRef.current = node
-    if (typeof ref === 'function') {
-      ref(node)
-    } else if (ref) {
-      ref.current = node
+    const currentRef = forwardedRef.current
+    if (typeof currentRef === 'function') {
+      currentRef(node)
+    } else if (currentRef) {
+      currentRef.current = node
     }
-  }, [ref])
+  }, [])
   
   React.useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)

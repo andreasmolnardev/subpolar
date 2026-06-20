@@ -22,6 +22,7 @@ import { PwaUpdatePrompt } from '@/components/PwaUpdatePrompt'
 import { MobileTabBar } from '@/components/navigation/MobileTabBar'
 import { MobileSheetHost } from '@/components/navigation/MobileSheetHost'
 import { DesktopSidebar } from '@/components/navigation/DesktopSidebar'
+import { ProductivitySidebar } from '@/components/navigation/ProductivitySidebar'
 import { useTheme } from './hooks/useTheme'
 import { useRightEdgeSwipe, useSwipeBack } from './hooks/useMobile'
 import { useMobileTabBar } from '@/hooks/useMobileTabBar'
@@ -172,6 +173,7 @@ function AppShell() {
           <div className="flex-1 min-w-0 min-h-0 flex flex-col">
             <Outlet />
           </div>
+          <ProductivitySidebar />
         </div>
         <MobileTabBar />
         <MobileSheetHost />

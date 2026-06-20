@@ -37,6 +37,15 @@ import {
   updateSkill,
   deleteSkill,
 } from '../services/skills'
+import {
+  createIntegration,
+  deleteIntegration,
+  listIntegrations,
+  listEnabledIntegrationsByType,
+  normalizeIntegrationType,
+  toSettingsIntegrationType,
+  updateIntegration,
+} from '../db/integrations'
 
 function getOpenCodeInstallMethod(): string {
   const homePath = process.env.HOME || ''
@@ -209,6 +218,43 @@ const TestSSHConnectionSchema = z.object({
   passphrase: z.string().optional(),
 })
 
+const DiscoverCalDavCalendarsSchema = z.object({
+  serverUrl: z.string().url(),
+  username: z.string().min(1),
+  password: z.string().min(1),
+})
+
+const IntegrationConfigRequestSchema = z.discriminatedUnion('type', [
+  z.object({
+    name: z.string().min(1),
+    type: z.literal('mcp'),
+    enabled: z.boolean(),
+    serverUrl: z.string(),
+    apiKey: z.string(),
+  }),
+  z.object({
+    name: z.string().min(1),
+    type: z.literal('caldav'),
+    enabled: z.boolean(),
+    serverUrl: z.string(),
+    username: z.string(),
+    password: z.string(),
+    calendarUrl: z.string(),
+  }),
+  z.object({
+    name: z.string().min(1),
+    type: z.literal('mail'),
+    enabled: z.boolean(),
+    imapHost: z.string(),
+    imapPort: z.number().int().min(1).max(65535),
+    smtpHost: z.string(),
+    smtpPort: z.number().int().min(1).max(65535),
+    username: z.string(),
+    password: z.string(),
+    fromAddress: z.string(),
+  }),
+])
+
 const SyncOpenCodeImportSchema = z.object({
   overwriteState: z.boolean().optional(),
 })
@@ -219,6 +265,216 @@ async function extractOpenCodeError(response: Response, defaultError: string): P
   return (errorObj && typeof errorObj === 'object' && 'error' in errorObj)
     ? String(errorObj.error)
     : defaultError
+}
+
+function getXmlValues(xml: string, localName: string): string[] {
+  const pattern = new RegExp(`<[^>]*:?${localName}[^>]*>([\\s\\S]*?)<\\/[^>]*:?${localName}>`, 'gi')
+  return [...xml.matchAll(pattern)].map((match) => match[1]?.trim() ?? '').filter(Boolean)
+}
+
+function getXmlResponses(xml: string): string[] {
+  const pattern = /<[^>]*:?response[^>]*>([\s\S]*?)<\/[^>]*:?response>/gi
+  return [...xml.matchAll(pattern)].map((match) => match[1] ?? '')
+}
+
+function resolveCalDavUrl(baseUrl: string, href: string): string {
+  return new URL(href, baseUrl).toString()
+}
+
+async function propfindCalDav(url: string, username: string, password: string, body: string, depth: '0' | '1'): Promise<string> {
+  const response = await fetch(url, {
+    method: 'PROPFIND',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`,
+      Depth: depth,
+      'Content-Type': 'application/xml; charset=utf-8',
+    },
+    body,
+  })
+
+  if (!response.ok && response.status !== 207) {
+    throw new Error(`CalDAV server returned ${response.status}`)
+  }
+
+  return response.text()
+}
+
+async function reportCalDav(url: string, username: string, password: string, body: string): Promise<string> {
+  const response = await fetch(url, {
+    method: 'REPORT',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`,
+      Depth: '1',
+      'Content-Type': 'application/xml; charset=utf-8',
+    },
+    body,
+  })
+
+  if (!response.ok && response.status !== 207) {
+    throw new Error(`CalDAV server returned ${response.status}`)
+  }
+
+  return response.text()
+}
+
+function formatCalDavDate(date: Date): string {
+  return date.toISOString().replaceAll('-', '').replaceAll(':', '').replace(/\.\d{3}Z$/, 'Z')
+}
+
+function parseICalDate(value: string): string | null {
+  const normalized = value.trim()
+  if (/^\d{8}$/.test(normalized)) {
+    return new Date(`${normalized.slice(0, 4)}-${normalized.slice(4, 6)}-${normalized.slice(6, 8)}T00:00:00Z`).toISOString()
+  }
+  const match = normalized.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/)
+  if (!match) return null
+  return new Date(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}Z`).toISOString()
+}
+
+function unfoldICalLines(raw: string): string[] {
+  return raw.replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '').split(/\r?\n/)
+}
+
+function decodeXmlValue(value: string): string {
+  return value
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&apos;', "'")
+    .replaceAll('&amp;', '&')
+}
+
+function parseICalEvents(raw: string, calendarName: string) {
+  return decodeXmlValue(raw).split('BEGIN:VEVENT').slice(1).map((block) => {
+    const lines = unfoldICalLines(block)
+    const getValue = (name: string) => {
+      const line = lines.find((item) => item.startsWith(`${name}:`) || item.startsWith(`${name};`))
+      return line?.slice(line.indexOf(':') + 1).replaceAll('\\,', ',').replaceAll('\\n', ' ').trim()
+    }
+    const start = getValue('DTSTART')
+    const end = getValue('DTEND')
+    return {
+      title: getValue('SUMMARY') || 'Untitled event',
+      calendar: calendarName,
+      start: start ? parseICalDate(start) : null,
+      end: end ? parseICalDate(end) : null,
+      location: getValue('LOCATION') || undefined,
+    }
+  }).filter((event) => event.start)
+}
+
+async function getUpcomingCalDavEvents(db: Database) {
+  const integrations = await listEnabledIntegrationsByType(db, 'caldav')
+  const start = new Date()
+  const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000)
+
+  const calendars = integrations.map((integration) => ({
+    id: integration.id,
+    name: integration.name,
+    url: String(integration.config.calendarUrl ?? ''),
+  })).filter((calendar) => calendar.url)
+
+  const events = (await Promise.all(integrations.map(async (integration) => {
+    const calendarUrl = String(integration.config.calendarUrl ?? '')
+    const username = String(integration.config.username ?? '')
+    const password = String(integration.config.password ?? '')
+    if (!calendarUrl || !username || !password) return []
+
+    const body = `<?xml version="1.0" encoding="utf-8" ?>
+<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:prop>
+    <d:getetag />
+    <c:calendar-data />
+  </d:prop>
+  <c:filter>
+    <c:comp-filter name="VCALENDAR">
+      <c:comp-filter name="VEVENT">
+        <c:time-range start="${formatCalDavDate(start)}" end="${formatCalDavDate(end)}" />
+      </c:comp-filter>
+    </c:comp-filter>
+  </c:filter>
+</c:calendar-query>`
+    try {
+      const xml = await reportCalDav(calendarUrl, username, password, body)
+      return getXmlValues(xml, 'calendar-data').flatMap((data) => parseICalEvents(data, integration.name))
+    } catch (error) {
+      logger.error(`Failed to load CalDAV events for ${integration.name}:`, error)
+      return []
+    }
+  }))).flat().sort((a, b) => String(a.start).localeCompare(String(b.start)))
+
+  return { calendars, events }
+}
+
+async function discoverCalDavCalendars(serverUrl: string, username: string, password: string) {
+  const principalBody = `<?xml version="1.0" encoding="utf-8" ?>
+<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:prop>
+    <d:current-user-principal />
+    <c:calendar-home-set />
+  </d:prop>
+</d:propfind>`
+  const principalXml = await propfindCalDav(serverUrl, username, password, principalBody, '0')
+  let homeHref = getXmlValues(principalXml, 'calendar-home-set').flatMap((value) => getXmlValues(value, 'href'))[0]
+
+  if (!homeHref) {
+    const principalHref = getXmlValues(principalXml, 'current-user-principal').flatMap((value) => getXmlValues(value, 'href'))[0]
+    if (principalHref) {
+      const principalUrl = resolveCalDavUrl(serverUrl, principalHref)
+      const homeXml = await propfindCalDav(principalUrl, username, password, principalBody, '0')
+      homeHref = getXmlValues(homeXml, 'calendar-home-set').flatMap((value) => getXmlValues(value, 'href'))[0]
+    }
+  }
+
+  if (!homeHref) {
+    throw new Error('CalDAV calendar home was not found')
+  }
+
+  const homeUrl = resolveCalDavUrl(serverUrl, homeHref)
+  const calendarsBody = `<?xml version="1.0" encoding="utf-8" ?>
+<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:prop>
+    <d:displayname />
+    <d:resourcetype />
+    <c:calendar-description />
+  </d:prop>
+</d:propfind>`
+  const calendarsXml = await propfindCalDav(homeUrl, username, password, calendarsBody, '1')
+
+  return getXmlResponses(calendarsXml)
+    .filter((response) => /<[^>]*:?calendar[\s/>]/i.test(response))
+    .map((response) => {
+      const href = getXmlValues(response, 'href')[0] ?? ''
+      const url = href ? resolveCalDavUrl(homeUrl, href) : homeUrl
+      const name = getXmlValues(response, 'displayname')[0] || new URL(url).pathname.split('/').filter(Boolean).at(-1) || 'Calendar'
+      return {
+        name,
+        url,
+        description: getXmlValues(response, 'calendar-description')[0] || undefined,
+      }
+    })
+}
+
+function integrationToSettingsConfig(integration: Awaited<ReturnType<typeof listIntegrations>>[number]) {
+  const type = toSettingsIntegrationType(integration.type)
+  return {
+    id: integration.id,
+    name: integration.name,
+    type,
+    enabled: integration.enabled,
+    ...integration.config,
+  }
+}
+
+function settingsConfigToIntegrationData(config: z.infer<typeof IntegrationConfigRequestSchema>) {
+  const { name, type, enabled, ...integrationConfig } = config
+  return {
+    name,
+    type: normalizeIntegrationType(type),
+    enabled,
+    config: integrationConfig,
+    metadata: {},
+  }
 }
 
 export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClient, openCodeSupervisor?: OpenCodeSupervisor) {
@@ -311,6 +567,65 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
     } catch (error) {
       logger.error('Failed to reset settings:', error)
       return c.json({ error: 'Failed to reset settings' }, 500)
+    }
+  })
+
+  app.get('/integrations', async (c) => {
+    try {
+      const integrations = await listIntegrations(db)
+      return c.json({ integrations: integrations.map(integrationToSettingsConfig) })
+    } catch (error) {
+      logger.error('Failed to list integrations:', error)
+      return c.json({ error: 'Failed to list integrations' }, 500)
+    }
+  })
+
+  app.post('/integrations', async (c) => {
+    try {
+      const body = await c.req.json()
+      const validated = IntegrationConfigRequestSchema.parse(body)
+      const integration = await createIntegration(db, settingsConfigToIntegrationData(validated))
+      return c.json(integrationToSettingsConfig(integration))
+    } catch (error) {
+      logger.error('Failed to create integration:', error)
+      if (error instanceof z.ZodError) {
+        return c.json({ error: 'Invalid integration data', details: error.issues }, 400)
+      }
+      return c.json({ error: 'Failed to create integration' }, 500)
+    }
+  })
+
+  app.put('/integrations/:id', async (c) => {
+    try {
+      const body = await c.req.json()
+      const validated = IntegrationConfigRequestSchema.parse(body)
+      const integration = await updateIntegration(db, c.req.param('id'), settingsConfigToIntegrationData(validated))
+      return c.json(integrationToSettingsConfig(integration))
+    } catch (error) {
+      logger.error('Failed to update integration:', error)
+      if (error instanceof z.ZodError) {
+        return c.json({ error: 'Invalid integration data', details: error.issues }, 400)
+      }
+      return c.json({ error: 'Failed to update integration' }, 500)
+    }
+  })
+
+  app.delete('/integrations/:id', async (c) => {
+    try {
+      await deleteIntegration(db, c.req.param('id'))
+      return c.json({ success: true })
+    } catch (error) {
+      logger.error('Failed to delete integration:', error)
+      return c.json({ error: 'Failed to delete integration' }, 500)
+    }
+  })
+
+  app.get('/calendar/upcoming', async (c) => {
+    try {
+      return c.json(await getUpcomingCalDavEvents(db))
+    } catch (error) {
+      logger.error('Failed to load upcoming calendar events:', error)
+      return c.json({ error: error instanceof Error ? error.message : 'Failed to load upcoming calendar events' }, 500)
     }
   })
 
@@ -1565,6 +1880,22 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
     } catch (error) {
       logger.error('Failed to rotate manager token:', error)
       return c.json({ error: 'Failed to rotate manager token' }, 500)
+    }
+  })
+
+  app.post('/discover-caldav-calendars', async (c) => {
+    try {
+      const body = await c.req.json()
+      const { serverUrl, username, password } = DiscoverCalDavCalendarsSchema.parse(body)
+      const calendars = await discoverCalDavCalendars(serverUrl, username, password)
+
+      return c.json({ calendars })
+    } catch (error) {
+      logger.error('Failed to discover CalDAV calendars:', error)
+      if (error instanceof z.ZodError) {
+        return c.json({ error: 'Server URL, username, and password are required' }, 400)
+      }
+      return c.json({ error: error instanceof Error ? error.message : 'Failed to discover CalDAV calendars' }, 500)
     }
   })
 

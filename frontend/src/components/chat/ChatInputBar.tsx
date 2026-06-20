@@ -18,6 +18,7 @@ import { useAgents, useAbortSession, useConfig, useCreateSession, useSendPrompt 
 import { getProviders } from "@/api/providers";
 import { getProject, listProjects } from "@/api/projects";
 import { OPENCODE_API_ENDPOINT } from "@/config";
+import { useSettings } from "@/hooks/useSettings";
 import { showToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -63,7 +64,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     onSend,
     defaultProjectId,
     defaultAgent = "__default__",
-    defaultModel = "__auto__",
+    defaultModel,
     defaultPermission = "default",
     sendImmediately = false,
     sessionID,
@@ -80,10 +81,12 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { preferences } = useSettings();
+  const effectiveDefaultModel = defaultModel ?? preferences?.defaultModel ?? "__auto__";
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(defaultProjectId ?? null);
   const [selectedAgent, setSelectedAgent] = useState(defaultAgent);
-  const [selectedModel, setSelectedModel] = useState(defaultModel);
+  const [selectedModel, setSelectedModel] = useState(effectiveDefaultModel);
   const [selectedPermission, setSelectedPermission] = useState(defaultPermission);
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [hasPromptContent, setHasPromptContent] = useState(false);
@@ -189,8 +192,8 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   }, [defaultAgent]);
 
   useEffect(() => {
-    setSelectedModel(defaultModel);
-  }, [defaultModel]);
+    setSelectedModel(effectiveDefaultModel);
+  }, [effectiveDefaultModel]);
 
   useEffect(() => {
     setSelectedPermission(defaultPermission);
