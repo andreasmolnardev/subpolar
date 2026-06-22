@@ -30,7 +30,7 @@ export function ProductivitySidebar() {
     <aside
       className={cn(
         'hidden md:flex h-dvh flex-shrink-0 flex-col border-l border-border bg-card/60 backdrop-blur-sm pt-safe pb-safe transition-[width] duration-200',
-        expanded ? 'w-[40vw] min-w-96 max-w-[720px]' : 'w-24'
+        expanded ? 'w-[40vw] min-w-96 max-w-[720px]' : 'w-20'
       )}
       aria-label="Productivity integrations"
     >

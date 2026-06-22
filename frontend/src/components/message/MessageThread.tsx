@@ -94,6 +94,21 @@ function isBubblePart(part: Part): boolean {
   return part.type === 'text' && !part.synthetic && !!part.text?.trim()
 }
 
+function isGenerationStepPart(part: Part): boolean {
+  if (part.type === 'reasoning') return !!part.text?.trim()
+  if (part.type === 'tool') return part.state.status === 'pending' || part.state.status === 'running'
+  if (part.type === 'text') return !part.synthetic && !!part.text?.trim()
+  return false
+}
+
+function getActiveGenerationPartIndex(parts: Part[]): number | undefined {
+  for (let index = parts.length - 1; index >= 0; index--) {
+    if (isGenerationStepPart(parts[index])) return index
+  }
+
+  return undefined
+}
+
 function isBelowBubblePart(part: Part): boolean {
   return part.type === 'step-finish' || part.type === 'retry'
 }
@@ -185,9 +200,17 @@ const MessageRow = memo(function MessageRow({
   const msg = msgWithParts.info
   const parts = msgWithParts.parts
   const streaming = isMessageStreaming(msg)
+  const activeGenerationPartIndex = streaming ? getActiveGenerationPartIndex(parts) : undefined
   const isQueued = msg.role === 'user' && pendingAssistantId && compareMessageIds(msg.id, pendingAssistantId) > 0
   const isLastUserMessage = msg.role === 'user' && msg.id === lastUserMessageId
   const messageTextContent = getMessageTextContent(parts)
+  const assistantMetadata = msg.role === 'assistant'
+    ? {
+      modelID: 'modelID' in msg ? msg.modelID : undefined,
+      created: msg.time?.created,
+      completed: 'completed' in msg.time ? msg.time.completed : undefined,
+    }
+    : undefined
 
   const nextAssistantMsg = nextAssistantMessage?.info
   const isUserBeforeAssistant = msg.role === 'user' && nextAssistantMessage
@@ -226,6 +249,8 @@ const MessageRow = memo(function MessageRow({
                 onFileClick={onFileClick}
                 onChildSessionClick={onChildSessionClick}
                 messageTextContent={messageTextContent}
+                isActiveGenerationStep={streaming && parts.indexOf(part) === activeGenerationPartIndex}
+                assistantMetadata={assistantMetadata}
               />
             </div>
           ))}
@@ -243,9 +268,9 @@ const MessageRow = memo(function MessageRow({
         <div className="flex items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">
-              {msg.role === 'user' ? 'You' : (msg.role === 'assistant' && 'modelID' in msg ? msg.modelID : 'Assistant')}
+              {msg.role === 'user' ? 'You' : 'Assistant'}
             </span>
-            {msg.time && (
+            {msg.role === 'user' && msg.time && (
               <span className="text-xs text-muted-foreground">
                 {new Date(msg.time.created).toLocaleTimeString()}
               </span>
@@ -290,6 +315,8 @@ const MessageRow = memo(function MessageRow({
                   onFileClick={onFileClick}
                   onChildSessionClick={onChildSessionClick}
                   messageTextContent={msg.role === 'assistant' ? messageTextContent : undefined}
+                  isActiveGenerationStep={streaming && parts.indexOf(part) === activeGenerationPartIndex}
+                  assistantMetadata={assistantMetadata}
                 />
               </div>
             ))}
@@ -342,6 +369,8 @@ const MessageRow = memo(function MessageRow({
                       onFileClick={onFileClick}
                       onChildSessionClick={onChildSessionClick}
                       messageTextContent={msg.role === 'assistant' ? messageTextContent : undefined}
+                      isActiveGenerationStep={streaming && parts.indexOf(part) === activeGenerationPartIndex}
+                      assistantMetadata={assistantMetadata}
                     />
                   </div>
                 ))
@@ -365,6 +394,8 @@ const MessageRow = memo(function MessageRow({
                   onFileClick={onFileClick}
                   onChildSessionClick={onChildSessionClick}
                   messageTextContent={msg.role === 'assistant' ? messageTextContent : undefined}
+                  isActiveGenerationStep={streaming && parts.indexOf(part) === activeGenerationPartIndex}
+                  assistantMetadata={assistantMetadata}
                 />
               </div>
             ))}

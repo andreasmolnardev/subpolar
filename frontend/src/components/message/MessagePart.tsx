@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { components } from '@/api/opencode-types'
-import { Volume2, VolumeX, Loader2 } from 'lucide-react'
+import { Brain, ChevronDown, Loader2, Volume2, VolumeX } from 'lucide-react'
 import { TextPart } from './TextPart'
 import { PatchPart } from './PatchPart'
 import { ToolCallPart } from './ToolCallPart'
@@ -22,6 +22,18 @@ interface MessagePartProps {
   onFileClick?: (filePath: string, lineNumber?: number) => void
   onChildSessionClick?: (sessionId: string) => void
   messageTextContent?: string
+  isActiveGenerationStep?: boolean
+  assistantMetadata?: AssistantMetadata
+}
+
+interface AssistantMetadata {
+  modelID?: string
+  created?: number
+  completed?: number
+}
+
+function formatTime(value?: number): string | undefined {
+  return value ? new Date(value).toLocaleTimeString() : undefined
 }
 
 function getCopyableContent(part: Part, allParts?: Part[]): string {
@@ -102,7 +114,7 @@ function TTSButton({ messageId, content, className = "" }: TTSButtonProps) {
   )
 }
 
-export const MessagePart = memo(function MessagePart({ part, role, allParts, partIndex, onFileClick, onChildSessionClick, messageTextContent }: MessagePartProps) {
+export const MessagePart = memo(function MessagePart({ part, role, allParts, partIndex, onFileClick, onChildSessionClick, messageTextContent, isActiveGenerationStep = false, assistantMetadata }: MessagePartProps) {
   const { preferences } = useSettings()
   const simpleChatMode = preferences?.simpleChatMode ?? false
   const showReasoning = preferences?.showReasoning ?? false
@@ -128,11 +140,13 @@ export const MessagePart = memo(function MessagePart({ part, role, allParts, par
     case 'reasoning':
       if (simpleChatMode || !showReasoning) return null
       return (
-        <details className="border border-border rounded-lg my-2">
-          <summary className="px-4 py-2 bg-muted hover:bg-accent cursor-pointer text-sm font-medium">
-            Reasoning
+        <details className="group my-2 text-sm text-muted-foreground">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md py-1 text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+            <Brain className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className={isActiveGenerationStep ? 'reasoning-text-trail font-medium' : 'font-medium text-muted-foreground'}>Reasoning</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
           </summary>
-          <div className="p-4 bg-card text-sm text-muted-foreground whitespace-pre-wrap">
+          <div className="overflow-hidden whitespace-pre-wrap pl-6 pt-1 text-muted-foreground/90 animate-disclosure-down">
             {part.text}
           </div>
         </details>
@@ -153,13 +167,27 @@ export const MessagePart = memo(function MessagePart({ part, role, allParts, par
       )
     case 'step-finish':
       if (simpleChatMode) return null
+      if (!assistantMetadata?.completed) return null
       {
         const isFree = part.cost === 0
         const totalTokens = part.tokens.input + part.tokens.output + (part.tokens.cache?.read || 0)
-        const costText = isMobile && isFree ? null : <span>${part.cost.toFixed(4)} • {totalTokens} tokens</span>
+        const durationSeconds = assistantMetadata?.created && assistantMetadata.completed
+          ? (assistantMetadata.completed - assistantMetadata.created) / 1000
+          : part.time ? (part.time.end - part.time.start) / 1000 : undefined
+        const tokensPerSecond = durationSeconds && durationSeconds > 0 ? part.tokens.output / durationSeconds : undefined
+        const startedAt = formatTime(assistantMetadata?.created)
+        const endedAt = formatTime(assistantMetadata?.completed)
+        const metadataItems = [
+          assistantMetadata?.modelID,
+          startedAt && endedAt ? `${startedAt} -> ${endedAt}` : startedAt,
+          durationSeconds ? `${durationSeconds.toFixed(1)}s` : undefined,
+          tokensPerSecond ? `${tokensPerSecond.toFixed(1)} t/s` : undefined,
+          isMobile && isFree ? undefined : `$${part.cost.toFixed(4)}`,
+          `${totalTokens} tokens`,
+        ].filter(Boolean)
         return (
           <div className="text-xs text-muted-foreground my-1 flex items-center gap-2">
-            {costText}
+            <span>{metadataItems.join(' • ')}</span>
             <CopyButton content={copyableContent} title="Copy step complete" />
             {messageTextContent && part.messageID && <TTSButton messageId={part.messageID} content={messageTextContent} />}
           </div>
@@ -177,8 +205,9 @@ export const MessagePart = memo(function MessagePart({ part, role, allParts, par
     case 'subtask': {
       const label = part.description || part.prompt || 'Sub-agent task'
       return (
-        <div className="my-1 w-full rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-1.5 text-left text-xs text-muted-foreground shadow-sm shadow-blue-500/5">
+        <div className="my-1 w-full py-1 text-left text-xs text-muted-foreground">
           <div className="flex items-center gap-2 min-w-0">
+            <Brain className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="truncate">{label}</span>
             <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">sub-agent</span>
           </div>

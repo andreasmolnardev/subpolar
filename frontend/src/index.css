@@ -163,6 +163,29 @@ body {
   animation: shine-loading 3s linear infinite;
 }
 
+@keyframes text-primary-trail {
+  0% { background-position: 140% 0; }
+  100% { background-position: -140% 0; }
+}
+
+.reasoning-text-trail {
+  background: linear-gradient(90deg, var(--color-muted-foreground) 0%, var(--color-muted-foreground) 42%, var(--color-primary) 50%, var(--color-muted-foreground) 58%, var(--color-muted-foreground) 100%);
+  background-size: 240% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: text-primary-trail 2.4s ease-in-out infinite;
+}
+
+@keyframes disclosure-down {
+  from { opacity: 0; transform: translateY(-4px); max-height: 0; }
+  to { opacity: 1; transform: translateY(0); max-height: 24rem; }
+}
+
+.animate-disclosure-down {
+  animation: disclosure-down 180ms ease-out;
+}
+
 .prose-enhanced {
   line-height: 1.7;
   word-break: break-word;
