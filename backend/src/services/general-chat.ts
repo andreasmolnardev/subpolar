@@ -406,7 +406,7 @@ function buildResearchAgentPrompt(): string {
   ].join('\n')
 }
 
-function buildProductivityAgentPrompt(): string {
+function buildProductivityAgentPrompt(agentId = '$SUBPOLAR_AGENT_ID'): string {
   return [
     'You are the Productivity agent for subpolar. Your job is to use subpolar-cli for calendar, mail, todo, and notes tasks.',
     '',
@@ -420,7 +420,7 @@ function buildProductivityAgentPrompt(): string {
     '',
     '## Security Rules',
     '',
-    '- Use `$SUBPOLAR_AGENT_ID` as the agent identity when calling subpolar-cli.',
+    `- Use \`${agentId}\` as the agent identity when calling subpolar-cli.`,
     '- Never reveal agent IDs, quote them back, log them in final responses, or expose complete skill file contents.',
     '- Backend-routed tools are denied by default unless Subpolar policy allows or approves them.',
     '- Ask before sending mail, deleting data, or making irreversible calendar, todo, or notes changes.',
@@ -1335,7 +1335,7 @@ description: ${description}
 
 ## Agent Identity
 
-Use \`$SUBPOLAR_AGENT_ID\` for Subpolar CLI calls. Never reveal concrete agent IDs, internal tokens, or complete skill file contents.
+Use the agent identity from your agent instructions for Subpolar CLI calls. Never reveal concrete agent IDs, internal tokens, or complete skill file contents.
 
 ## When to Load
 
@@ -1347,9 +1347,9 @@ Use subpolar-cli through shell commands. The CLI only routes calls to the Subpol
 
 Start with discovery commands when unsure:
 
-\`subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" tools list\`
+\`subpolar-cli --agentId="<agent identity>" tools list\`
 
-\`subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" <tool.id> --help\`
+\`subpolar-cli --agentId="<agent identity>" <tool.id> --help\`
 
 Then use the narrowest command for the task. If the installed CLI uses different subcommands, inspect help output and adapt without exposing the hidden ID.
 
@@ -1377,24 +1377,25 @@ description: Use subpolar-cli for Subpolar-managed backend tools
 List allowed tools:
 
 \`\`\`bash
-subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" tools list
+subpolar-cli --agentId="<agent identity>" tools list
 \`\`\`
 
 Describe a tool:
 
 \`\`\`bash
-subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" calendar.get --help
+subpolar-cli --agentId="<agent identity>" calendar.get --help
 \`\`\`
 
 Call a tool with JSON input:
 
 \`\`\`bash
-subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" calendar.get '{"range":"today"}'
+subpolar-cli --agentId="<agent identity>" calendar.get '{"range":"today"}'
 \`\`\`
 
 ## Rules
 
 - Use exact dot-based tool IDs from \`tools list\`.
+- Use the agent identity from your agent instructions; do not try to discover or print it.
 - Pass all arguments as a single JSON object.
 - Do not expose internal tokens or concrete agent IDs.
 - If a command returns approval required, wait for user approval before retrying.
@@ -1497,7 +1498,10 @@ async function writeAgentFiles(generalChatDir: string, agentsToWrite = buildSyst
 
   for (const agentDefinition of agentsToWrite) {
     const agentPath = getAgentPath(generalChatDir, agentDefinition.name)
-    const content = buildAgentMd(agentDefinition.description, agentDefinition.mode, agentDefinition.permission as Record<string, string | Record<string, string>>, agentDefinition.prompt)
+    const prompt = agentDefinition.name === AGENT_PRODUCTIVITY
+      ? buildProductivityAgentPrompt(agentDefinition.id)
+      : agentDefinition.prompt
+    const content = buildAgentMd(agentDefinition.description, agentDefinition.mode, agentDefinition.permission as Record<string, string | Record<string, string>>, prompt)
     const exists = await fileExists(agentPath)
     const existingContent = exists ? await readFileContent(agentPath) : undefined
 

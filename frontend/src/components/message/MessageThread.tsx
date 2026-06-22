@@ -113,6 +113,14 @@ function isBelowBubblePart(part: Part): boolean {
   return part.type === 'step-finish' || part.type === 'retry'
 }
 
+function getBelowBubbleParts(role: Message['role'], parts: Part[], bubbleParts: Part[]): Part[] {
+  const belowBubbleParts = parts.filter(isBelowBubblePart)
+  if (role !== 'assistant' || bubbleParts.length === 0) return belowBubbleParts.filter(part => part.type !== 'step-finish')
+
+  const lastStepFinishIndex = parts.findLastIndex(part => part.type === 'step-finish')
+  return belowBubbleParts.filter(part => part.type !== 'step-finish' || parts.indexOf(part) === lastStepFinishIndex)
+}
+
 function isIgnorableSubAgentMessagePart(part: Part): boolean {
   if (part.type === 'step-start' || part.type === 'step-finish' || part.type === 'compaction') {
     return true
@@ -224,7 +232,7 @@ const MessageRow = memo(function MessageRow({
   const standaloneSubAgentMessage = isStandaloneSubAgentMessage(msg.role, parts)
   const bubbleParts = parts.filter(isBubblePart)
   const aboveBubbleParts = parts.filter(part => !isBubblePart(part) && !isBelowBubblePart(part))
-  const belowBubbleParts = parts.filter(isBelowBubblePart)
+  const belowBubbleParts = getBelowBubbleParts(msg.role, parts, bubbleParts)
   const messageAlignment = msg.role === 'user' ? 'items-end' : 'items-start'
   const messageWidth = msg.role === 'user' ? 'max-w-[80%]' : 'w-full'
 

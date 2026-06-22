@@ -179,7 +179,24 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
 
   const previewText = getPreviewText()
   const isFileTool = ['read', 'write', 'edit'].includes(part.tool)
+  const isCompactTool = part.tool === 'bash' || part.tool === 'glob' || part.tool === 'read'
   const isActiveToolStep = part.state.status === 'pending' || part.state.status === 'running'
+
+  const getCompactToolLabel = () => {
+    if (!isCompactTool) return part.tool
+
+    if (part.tool === 'read') {
+      if (part.state.status === 'running') return 'Reading file'
+      if (part.state.status === 'completed') return 'Read File'
+      if (part.state.status === 'error') return 'Read Failed'
+      return 'Preparing read'
+    }
+
+    if (part.state.status === 'running') return part.tool === 'glob' ? 'Running glob' : 'Running command'
+    if (part.state.status === 'completed') return part.tool === 'glob' ? 'Ran Glob' : 'Ran Command'
+    if (part.state.status === 'error') return part.tool === 'glob' ? 'Glob Failed' : 'Command Failed'
+    return part.tool === 'glob' ? 'Preparing glob' : 'Preparing command'
+  }
 
   if (part.tool === 'task') {
     const sessionId = taskSessionId
@@ -275,10 +292,11 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
         className="flex w-full min-w-0 items-center gap-2 rounded-md py-1 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         {getToolIcon()}
-        <span className={getStatusColor()}>{getStatusIcon()}</span>
-        <span className={isActiveToolStep ? 'reasoning-text-trail font-medium' : 'font-medium text-muted-foreground'}>{part.tool}</span>
+        {!isCompactTool && <span className={getStatusColor()}>{getStatusIcon()}</span>}
+        <span className={isActiveToolStep ? 'reasoning-text-trail font-medium' : 'font-medium text-muted-foreground'}>{getCompactToolLabel()}</span>
+        {isCompactTool && <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />}
 
-        {previewText && isFileTool ? (
+        {previewText && isFileTool && !isCompactTool ? (
           <span
             onClick={(e) => {
               e.stopPropagation()
@@ -291,7 +309,7 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
           >
             {previewText}
           </span>
-        ) : previewText ? (
+        ) : previewText && !isCompactTool ? (
           <span className="text-muted-foreground text-xs truncate">{previewText}</span>
         ) : null}
 
@@ -311,8 +329,8 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
             </span>
           ) : null
         })()}
-         <span className="ml-auto text-xs text-muted-foreground">{isWaitingPermission ? 'awaiting permission' : isWaitingQuestion ? 'awaiting answer' : part.state.status}</span>
-         <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+         {!isCompactTool && <span className="ml-auto text-xs text-muted-foreground">{isWaitingPermission ? 'awaiting permission' : isWaitingQuestion ? 'awaiting answer' : part.state.status}</span>}
+         {!isCompactTool && <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />}
       </button>
 
       {expanded && (
@@ -328,9 +346,16 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
             </div>
           )}
 
+          {isCompactTool && previewText && (
+            <div className="text-sm">
+              <div className="text-muted-foreground mb-1">{part.tool === 'glob' ? 'Pattern:' : part.tool === 'read' ? 'File:' : 'Command:'}</div>
+              <pre className="bg-accent p-2 rounded text-xs overflow-x-auto whitespace-pre-wrap break-all">{previewText}</pre>
+            </div>
+          )}
+
           {part.state.status === 'running' && (
             <>
-              {part.tool === 'bash' ? (
+              {isCompactTool ? (
                 <div className={`flex items-center gap-2 text-xs ${isWaitingPermission ? 'text-orange-600 dark:text-orange-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
                   <Loader2 className="w-3 h-3 animate-spin" />
                   <span>{isWaitingPermission ? 'Waiting for permission...' : 'Running...'}</span>
@@ -350,7 +375,7 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
 
           {part.state.status === 'completed' && (
             <>
-              {part.tool !== 'bash' && (
+              {!isCompactTool && (
                 <div className="text-sm">
                   <div className="text-muted-foreground mb-1">Input:</div>
                   <ClickableJson json={part.state.input} onFileClick={onFileClick} />

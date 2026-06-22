@@ -145,12 +145,5 @@ export function getToolSpecificRender(part: ToolPart, onFileClick?: (filePath: s
     }
   }
 
-  if (part.tool === 'read') {
-    const filePath = part.state.input?.filePath as string | undefined
-    if (filePath) {
-      return <FileToolRender part={part} filePath={filePath} toolName="Read" onFileClick={onFileClick} />
-    }
-  }
-
   return null
 }

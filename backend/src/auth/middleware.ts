@@ -4,7 +4,8 @@ import { POCKETBASE_URL } from '../db/pocketbase-client'
 
 export function createAuthMiddleware(pbClient?: PocketBase) {
   return async (c: Context, next: Next) => {
-    const pb = pbClient || new PocketBase(POCKETBASE_URL)
+    const pb = pbClient ? new PocketBase(pbClient.baseUrl) : new PocketBase(POCKETBASE_URL)
+    pb.autoCancellation(false)
 
     const cookie = c.req.header('cookie') || ''
     const authHeader = c.req.header('authorization') || ''
