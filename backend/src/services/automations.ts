@@ -217,7 +217,7 @@ function buildRunLog(input: {
   }
 
   if (input.responseText) {
-    lines.push('', 'Assistant output:', input.responseText)
+    lines.push('', 'General Chat output:', input.responseText)
   }
 
   return lines.join('\n')

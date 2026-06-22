@@ -294,7 +294,7 @@ try {
     db: db!,
     apiBaseUrl: `http://localhost:${PORT}/api/internal`,
   })
-  logger.info('Assistant workspace installed')
+  logger.info('General Chat workspace installed')
 
   opencodeServerManager.setDatabase(db!)
   const openCodeStatus = await openCodeSupervisor.start()

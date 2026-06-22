@@ -38,7 +38,7 @@ Subpolar provides a comprehensive web interface for managing OpenCode AI agents.
 
 - **Recurring Repo Jobs** - Run reusable prompts against a repository on an interval or cron automation
 - **Prompt Templates** - Start with built-in reviews for repo health, dependencies, release readiness, docs drift, and more
-- **Run History** - Inspect statuses, logs, errors, and assistant output from past runs
+- **Run History** - Inspect statuses, logs, errors, and General Chat output from past runs
 - **Session Handoff** - Open the linked OpenCode session for any run and continue from there
 - **Manual Runs** - Trigger the same job on demand when you want a fresh report immediately
 

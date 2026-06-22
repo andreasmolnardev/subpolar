@@ -572,7 +572,7 @@ permission:
 
 You are the default General Chat agent for subpolar.
 
-This workspace is the shared general chat workspace. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.
+This workspace is the shared general chat workspace. Help the user manage repos, automations, notifications, settings, and General Chat behavior safely.
 
 Use the workspace skills when relevant:
 - Load repo-management before automation-management when you need a repo ID.
@@ -639,11 +639,11 @@ function buildAssistantAgentPrompt(): string {
   return [
     'You are the default General Chat agent for subpolar.',
     '',
-    'This workspace is the shared general chat workspace for subpolar. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.',
+    'This workspace is the shared general chat workspace for subpolar. Help the user manage repos, automations, notifications, settings, and General Chat behavior safely.',
     '',
     '## Self-Editing Rules',
     '',
-    'Durable assistant instructions, behavior, and preferences belong in `.opencode/agents/assistant.md`. Edit that file when the user expresses lasting preferences or when you need to refine your behavior.',
+    'Durable General Chat instructions, behavior, and preferences belong in `.opencode/agents/assistant.md`. Edit that file when the user expresses lasting preferences or when you need to refine your behavior.',
     '',
     'The workspace directory explanation belongs in `AGENTS.md`. Keep that file focused on describing the directory contents and pointing to managed files.',
     '',
@@ -718,7 +718,7 @@ Authorization: Bearer <token>
 
 \`${internalBaseUrl}\`
 
-## Assistant Automations
+## General Chat Automations
 
 Use repo ID \`0\` for the General Chat. For example, use \`/repos/0/automations\` to list or create automation jobs that run in the General chat workspace.
 
@@ -1690,7 +1690,7 @@ export async function ensureGeneralChat(
         {
           code: 'assistant-agents-md-preserved',
           path: agentsMdPath,
-          message: 'Some general chat instruction updates were not applied because AGENTS.md appears to contain customized legacy assistant instructions. To regenerate the default workspace explanation, manually delete AGENTS.md and initialize General Chat again.',
+          message: 'Some General Chat instruction updates were not applied because AGENTS.md appears to contain customized legacy General Chat instructions. To regenerate the default workspace explanation, manually delete AGENTS.md and initialize General Chat again.',
         },
       ]
     : undefined

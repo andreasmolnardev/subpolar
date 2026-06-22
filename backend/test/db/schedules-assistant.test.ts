@@ -27,7 +27,7 @@ function createMockPocketBase(): PocketBase {
           if (!record) throw new Error('Not found')
           return record as unknown as T
         },
-        getFirstListItem: async <T = unknown>(filter: string): Promise<T> => {
+        getFirstListItem: async <T = unknown>(): Promise<T> => {
           for (const record of col.values()) {
             return record as unknown as T
           }
@@ -114,7 +114,7 @@ describe('assistant repo (repo_id=0) in global aggregate queries', () => {
     await pb.collection('automation_jobs').create({
       id: '2',
       repo_id: '0',
-      name: 'Assistant job',
+      name: 'General Chat job',
       enabled: true,
       automation_mode: 'interval',
       prompt: 'Run the assistant job',
@@ -150,10 +150,10 @@ describe('assistant repo (repo_id=0) in global aggregate queries', () => {
     const assistantJob = jobs.find(j => j.repoId === 0)
     expect(assistantJob).toBeDefined()
     if (assistantJob) {
-      expect(assistantJob.repoName).toBe('Assistant')
+      expect(assistantJob.repoName).toBe('General Chat')
       expect(assistantJob.repoPath).toBe('assistant')
       expect(assistantJob.repoUrl).toBe('')
-      expect(assistantJob.name).toBe('Assistant job')
+      expect(assistantJob.name).toBe('General Chat job')
     }
 
     const realJob = jobs.find(j => j.repoId === 1)
@@ -173,9 +173,9 @@ describe('assistant repo (repo_id=0) in global aggregate queries', () => {
     const assistantRun = runs.find(r => r.repoId === 0)
     expect(assistantRun).toBeDefined()
     if (assistantRun) {
-      expect(assistantRun.repoName).toBe('Assistant')
+      expect(assistantRun.repoName).toBe('General Chat')
       expect(assistantRun.repoPath).toBe('assistant')
-      expect(assistantRun.jobName).toBe('Assistant job')
+      expect(assistantRun.jobName).toBe('General Chat job')
     }
 
     const realRun = runs.find(r => r.repoId === 1)
@@ -192,7 +192,7 @@ describe('assistant repo (repo_id=0) in global aggregate queries', () => {
     expect(runs).toHaveLength(1)
     const run = runs[0]!
     expect(run.repoId).toBe(0)
-    expect(run.repoName).toBe('Assistant')
+    expect(run.repoName).toBe('General Chat')
     expect(run.repoPath).toBe('assistant')
   })
 

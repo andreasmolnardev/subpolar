@@ -73,7 +73,7 @@ describe('MobileTabBar', () => {
       </QueryClientProvider>,
     )
     expect(screen.getByText('Repos')).toBeInTheDocument()
-    expect(screen.getByText('Assistant')).toBeInTheDocument()
+    expect(screen.getByText('General Chat')).toBeInTheDocument()
     expect(screen.getByText('automations')).toBeInTheDocument()
   })
 
@@ -95,7 +95,7 @@ describe('MobileTabBar', () => {
       </QueryClientProvider>,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Assistant' }))
+    await user.click(screen.getByRole('button', { name: 'General Chat' }))
     expect(screen.getByTestId('location')).toHaveTextContent('/assistant')
   })
 
@@ -117,7 +117,7 @@ describe('MobileTabBar', () => {
       </QueryClientProvider>,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Assistant' }))
+    await user.click(screen.getByRole('button', { name: 'General Chat' }))
     expect(screen.getByTestId('location')).toHaveTextContent('/assistant')
   })
 
@@ -134,7 +134,7 @@ describe('MobileTabBar', () => {
     expect(screen.getByText('Jobs')).toBeInTheDocument()
     expect(screen.getByText('Detail')).toBeInTheDocument()
     expect(screen.getByText('Runs')).toBeInTheDocument()
-    expect(screen.queryByText('Assistant')).not.toBeInTheDocument()
+    expect(screen.queryByText('General Chat')).not.toBeInTheDocument()
   })
 
   it('renders tab bar on root path', () => {
@@ -149,7 +149,7 @@ describe('MobileTabBar', () => {
     )
     expect(screen.getByText('Repos')).toBeInTheDocument()
     expect(screen.getByText('Files')).toBeInTheDocument()
-    expect(screen.getByText('Assistant')).toBeInTheDocument()
+    expect(screen.getByText('General Chat')).toBeInTheDocument()
     expect(screen.getByText('automations')).toBeInTheDocument()
     expect(screen.getByText('More')).toBeInTheDocument()
   })

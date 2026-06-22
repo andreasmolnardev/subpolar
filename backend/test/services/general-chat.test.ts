@@ -151,9 +151,9 @@ describe('buildAutomationsSkill', () => {
     expect(skill).not.toContain(':443')
   })
 
-  it('documents repoId 0 for Assistant automations', () => {
+  it('documents repoId 0 for General Chat automations', () => {
     const skill = buildAutomationsSkill('http://localhost:5003/api/internal')
-    expect(skill).toContain('Use repo ID `0` for the built-in Assistant')
+    expect(skill).toContain('Use repo ID `0` for the General Chat')
     expect(skill).toContain('/repos/0/automations')
   })
 })
@@ -451,7 +451,7 @@ describe('ensureGeneralChat', () => {
     const automationsSkillContent = await readFile(automationsSkillPath, 'utf8')
     expect(automationsSkillContent).toContain('name: automation-management')
     expect(automationsSkillContent).toContain('Manage automation jobs')
-    expect(automationsSkillContent).toContain('Use repo ID `0` for the built-in Assistant')
+    expect(automationsSkillContent).toContain('Use repo ID `0` for the General Chat')
     expect(automationsSkillContent).toContain('/repos/0/automations')
 
     const notificationsSkillContent = await readFile(notificationsSkillPath, 'utf8')
@@ -599,7 +599,7 @@ This folder is the shared General chat workspace for subpolar.
 ## Self-Editing Rules
 
 The agent MAY self-edit the following files within this workspace:
-- \`AGENTS.md\` - Assistant instructions, persona, and durable preferences
+- \`AGENTS.md\` - General Chat instructions, persona, and durable preferences
 `)
     await writeFile(autoAgentPath, `---
 description: Default subpolar assistant workspace agent
@@ -616,7 +616,7 @@ permission:
 
 You are the default General Chat agent for subpolar.
 
-This workspace is the shared assistant workspace. Help the user manage repos, automations, notifications, settings, and assistant behavior safely.
+This workspace is the shared General Chat workspace. Help the user manage repos, automations, notifications, settings, and General Chat behavior safely.
 
 Use the workspace skills when relevant:
 - Load repo-management before automation-management when you need a repo ID.
@@ -625,7 +625,7 @@ Use the workspace skills when relevant:
 - Load manager-settings when reading or safely updating UI preferences.
 
 Preserve user-customized workspace files unless the user explicitly asks you to change them.
-Ask before destructive operations or changes outside this assistant workspace.
+Ask before destructive operations or changes outside this General Chat workspace.
 `)
 
     const result = await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
@@ -642,7 +642,7 @@ Ask before destructive operations or changes outside this assistant workspace.
     await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const agentsMdPath = path.join(ws.assistantDir, 'AGENTS.md')
 
-    const customContent = '# Custom Assistant Workspace\n\nThis is my custom AGENTS.md content.'
+    const customContent = '# Custom General Chat Workspace\n\nThis is my custom AGENTS.md content.'
     await writeFile(agentsMdPath, customContent)
 
     const result = await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl }, { overwriteAgentsMd: true })
@@ -745,7 +745,7 @@ describe('installAssistantWorkspace', () => {
     })
     await pb.collection('automation_jobs').create({
       repo_id: '99',
-      name: 'Assistant job',
+      name: 'General Chat job',
       description: null,
       enabled: true,
       interval_minutes: 60,
@@ -767,7 +767,7 @@ describe('installAssistantWorkspace', () => {
     const assistantRepo = await getRepoById(pb, 99) ?? await getRepoById(pb, 0)
     expect(assistantRepo?.localPath).toBe('assistant')
 
-    const migratedJobs = await pb.collection('automation_jobs').getFullList({ filter: 'name = "Assistant job"' })
+    const migratedJobs = await pb.collection('automation_jobs').getFullList({ filter: 'name = "General Chat job"' })
     const migratedJob = migratedJobs[0] as Record<string, unknown>
     expect(migratedJob?.repo_id).toBeDefined()
   })

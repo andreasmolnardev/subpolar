@@ -12,7 +12,7 @@ automations make Subpolar proactive instead of purely session-driven. Good examp
 - **Docs drift reviews** to spot stale setup instructions
 - **Tech debt triage** for recurring cleanup planning
 
-Each run is stored with status, timestamps, logs, assistant output, and a linked session you can open and continue.
+Each run is stored with status, timestamps, logs, General Chat output, and a linked session you can open and continue.
 
 ## Creating a automation
 
@@ -74,7 +74,7 @@ Each automation stores a run history panel with:
 - **Status** - Running, completed, or failed
 - **Trigger source** - Manual or automationd
 - **Log output** - Execution metadata and captured results
-- **Assistant output** - Rendered markdown preview and raw markdown
+- **General Chat output** - Rendered markdown preview and raw markdown
 - **Errors** - Failure details when a run does not complete
 
 This makes recurring jobs easy to review without digging through raw session data first.
@@ -111,9 +111,9 @@ This keeps automation connected to the rest of the Subpolar workflow instead of 
 3. Use **Open session** to inspect the underlying session
 4. Verify provider credentials, model availability, and any pending agent questions or permissions
 
-### No Assistant Output
+### No General Chat Output
 
-If a run starts but does not produce assistant output:
+If a run starts but does not produce General Chat output:
 
 1. Open the linked session
 2. Check for a provider error

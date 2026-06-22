@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ChatInputBar } from '@/components/chat/ChatInputBar'
-import { Header } from '@/components/ui/header'
 import { Button } from '@/components/ui/button'
 import { useSidebarAction } from '@/hooks/useSidebarAction'
 import { Puzzle } from 'lucide-react'

@@ -226,11 +226,11 @@ describe('SessionDetail assistant loading at repoId=0', () => {
     })
   })
 
-  it('renders "Assistant" as the workspace display name', async () => {
+  it('renders "General Chat" as the workspace display name', async () => {
     renderAssistantSession('sess-asst-1')
 
     await waitFor(() => {
-      expect(screen.getByText('Assistant')).toBeInTheDocument()
+      expect(screen.getByText('General Chat')).toBeInTheDocument()
     })
   })
 
@@ -256,7 +256,7 @@ describe('SessionDetail assistant loading at repoId=0', () => {
     })
   })
 
-  it('renders "Assistant" as workspaceDisplayName for non-assistant sessions without repo', async () => {
+  it('renders "General Chat" as workspaceDisplayName for non-assistant sessions without repo', async () => {
     mocks.useSession.mockReturnValue({ data: undefined, isLoading: false })
 
     return render(

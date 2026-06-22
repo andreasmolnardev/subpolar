@@ -116,7 +116,7 @@ describe('DesktopSidebar', () => {
     expect(screen.getByText('Projects')).toBeInTheDocument()
   })
 
-  it('shows Assistant sub-item under Agents', () => {
+  it('shows General Chat sub-item under Agents', () => {
     vi.spyOn(useDesktopModule, 'useDesktop').mockReturnValue(true)
     vi.spyOn(useSidebarCollapsedModule, 'useSidebarCollapsed').mockReturnValue([false, vi.fn()])
     vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
@@ -127,7 +127,7 @@ describe('DesktopSidebar', () => {
 
     render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
 
-    expect(screen.getByText('Assistant')).toBeInTheDocument()
+    expect(screen.getByText('General Chat')).toBeInTheDocument()
   })
 
   it('shows user name and email in profile section', () => {

@@ -37,7 +37,7 @@ const getPartText = (part: Part) => {
 const getConversationHistory = (messages: MessageWithParts[] = []) => {
   return messages
     .map((message) => {
-      const role = message.info.role === 'assistant' ? 'Assistant' : 'User'
+      const role = message.info.role === 'assistant' ? 'General Chat' : 'User'
       const content = message.parts.map(getPartText).filter(Boolean).join('\n\n')
       if (!content.trim()) return ''
       return `${role}:\n${content}`
@@ -107,7 +107,7 @@ export function ContextUsageIndicator({ opcodeUrl, sessionID, directory, isConne
             <span className="font-medium text-foreground">{messages?.length || 0}</span>
           </div>
           <div className="flex justify-between gap-3">
-            <span className="text-muted-foreground">User / assistant</span>
+            <span className="text-muted-foreground">User / General Chat</span>
             <span className="font-medium text-foreground">{userMessages} / {assistantMessages}</span>
           </div>
           <div className="flex justify-between gap-3">

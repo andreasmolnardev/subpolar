@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { automationJobDialog } from './automationJobDialog'
 
 // jsdom does not implement scrollIntoView
 Element.prototype.scrollIntoView = vi.fn()
@@ -57,7 +56,7 @@ describe('automationJobDialog — assistant create guard', () => {
     vi.clearAllMocks()
   })
 
-  it('renders Assistant as the first repository option', async () => {
+  it('renders General Chat as the first repository option', async () => {
     const onRepoChange = vi.fn()
     const onSubmit = vi.fn()
     const onOpenChange = vi.fn()
@@ -80,15 +79,15 @@ describe('automationJobDialog — assistant create guard', () => {
     const repoInput = screen.getByPlaceholderText('Select a repository')
     await user.click(repoInput)
 
-    // The dropdown should open and show "Assistant" as an option
+    // The dropdown should open and show "General Chat" as an option
     await waitFor(() => {
-      expect(screen.getByText('Assistant')).toBeInTheDocument()
+      expect(screen.getByText('General Chat')).toBeInTheDocument()
     })
-    // Assistant description should also be visible
+    // General Chat description should also be visible
     expect(screen.getByText('Built-in assistant')).toBeInTheDocument()
   })
 
-  it('disables submit when no repo is selected, enables when Assistant repo is selected', async () => {
+  it('disables submit when no repo is selected, enables when General Chat repo is selected', async () => {
     const onRepoChange = vi.fn()
     const onSubmit = vi.fn()
     const user = userEvent.setup()
@@ -113,7 +112,7 @@ describe('automationJobDialog — assistant create guard', () => {
 
     // Fill in required name field
     const nameInput = screen.getByLabelText('Name')
-    await user.type(nameInput, 'Test Assistant Job')
+    await user.type(nameInput, 'Test General Chat Job')
 
     // Switch to Prompt tab to fill prompt
     const promptTab = screen.getByRole('tab', { name: 'Prompt' })
@@ -127,7 +126,7 @@ describe('automationJobDialog — assistant create guard', () => {
     const submitButton = screen.getByRole('button', { name: /Create automation/i })
     expect(submitButton).toBeDisabled()
 
-    // Re-render with repoId={0} (Assistant selected) — name and prompt state persists
+    // Re-render with repoId={0} (General Chat selected) — name and prompt state persists
     rerender(
       <automationJobDialog
         open

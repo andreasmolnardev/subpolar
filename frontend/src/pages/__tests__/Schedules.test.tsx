@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { automations } from '../automations'
 
 const mocks = vi.hoisted(() => ({
   useAutomationTarget: vi.fn(),
@@ -137,7 +136,7 @@ describe('automations', () => {
         automationTarget: {
           repoId: 0,
           kind: 'assistant',
-          name: 'Assistant',
+          name: 'General Chat',
           subtitle: 'Built-in assistant',
           fullPath: '/abs/assistant',
           backHref: '/assistant',
@@ -152,7 +151,7 @@ describe('automations', () => {
 
       renderautomations('0')
 
-      expect(screen.getByText('Assistant')).toBeInTheDocument()
+      expect(screen.getByText('General Chat')).toBeInTheDocument()
       expect(screen.getByText('Built-in assistant')).toBeInTheDocument()
     })
 
@@ -161,7 +160,7 @@ describe('automations', () => {
         automationTarget: {
           repoId: 0,
           kind: 'assistant',
-          name: 'Assistant',
+          name: 'General Chat',
           subtitle: 'Built-in assistant',
           fullPath: '/abs/assistant',
           backHref: '/assistant',
@@ -186,7 +185,7 @@ describe('automations', () => {
         automationTarget: {
           repoId: 0,
           kind: 'assistant',
-          name: 'Assistant',
+          name: 'General Chat',
           subtitle: 'Built-in assistant',
           fullPath: '/abs/assistant',
           backHref: '/assistant',
@@ -213,7 +212,7 @@ describe('automations', () => {
         automationTarget: {
           repoId: 0,
           kind: 'assistant',
-          name: 'Assistant',
+          name: 'General Chat',
           subtitle: 'Built-in assistant',
           fullPath: '/abs/assistant',
           backHref: '/assistant',
@@ -418,7 +417,7 @@ describe('automations', () => {
 
       renderautomations('0')
 
-      expect(screen.getByText('Assistant not found')).toBeInTheDocument()
+      expect(screen.getByText('General Chat not found')).toBeInTheDocument()
     })
   })
 

@@ -227,23 +227,23 @@ describe('MoreDrawer', () => {
     expect(handleClose).toHaveBeenCalled()
   })
 
-  it('shows Assistant instead of the source repo on assistant routes', () => {
+  it('shows General Chat instead of the source repo on assistant routes', () => {
     mockAuth()
     mockServerHealth()
     const handleClose = vi.fn()
     renderMoreDrawer({ initialEntry: '/repos/1/assistant', routePath: '/repos/:id/assistant', onClose: handleClose })
 
-    expect(screen.getByText('Assistant')).toBeInTheDocument()
+    expect(screen.getByText('General Chat')).toBeInTheDocument()
     expect(screen.queryByText('wrong-repo')).not.toBeInTheDocument()
   })
 
-  it('shows Assistant instead of the source repo on canonical /assistant route', () => {
+  it('shows General Chat instead of the source repo on canonical /assistant route', () => {
     mockAuth()
     mockServerHealth()
     const handleClose = vi.fn()
     renderMoreDrawer({ initialEntry: '/assistant', routePath: '/assistant', onClose: handleClose })
 
-    expect(screen.getByText('Assistant')).toBeInTheDocument()
+    expect(screen.getByText('General Chat')).toBeInTheDocument()
     expect(screen.queryByText('wrong-repo')).not.toBeInTheDocument()
   })
 

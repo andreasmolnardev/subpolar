@@ -1,6 +1,6 @@
-# Assistant Internal API
+# General Chat Internal API
 
-The Assistant Internal API provides capabilities for OpenCode agents to interact with the manager backend via a secure bearer-token API.
+The General Chat Internal API provides capabilities for OpenCode agents to interact with the manager backend via a secure bearer-token API.
 
 > For a user-facing overview of how to use and set up general chat, see [General Chat](general-chat.md).
 
@@ -128,7 +128,7 @@ Returns the updated settings object.
 - `400`: Invalid request body or disallowed key
 - `401`: Missing or invalid bearer token
 
-### Assistant
+### General Chat
 
 **POST `/api/internal/assistant/reload`**
 
@@ -148,7 +148,7 @@ curl -X POST -H "Authorization: Bearer <token>" \
 ```
 
 **Status Codes:**
-- `200`: Assistant workspace reloaded
+- `200`: General Chat workspace reloaded
 - `401`: Missing or invalid bearer token
 - `429`: Rate limit exceeded
 - `502`: Failed to reload (upstream OpenCode error)

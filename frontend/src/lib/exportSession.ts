@@ -96,7 +96,7 @@ function generateSessionMarkdown(
   lines.push('')
   
   for (const message of messages) {
-    const role = message.info.role === 'user' ? 'User' : 'Assistant'
+    const role = message.info.role === 'user' ? 'User' : 'General Chat'
     lines.push(`## ${role}`)
     lines.push('')
     

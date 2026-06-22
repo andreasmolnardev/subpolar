@@ -33,7 +33,7 @@ export function RunDetailPanel({ repoId, activeRun, selectedRunLoading, onCancel
       <div className="flex items-center justify-center gap-2 px-2 py-1.5">
         <TabsList className="h-auto gap-0 rounded-none border-0 bg-transparent p-0">
           <TabsTrigger value="log" className="rounded-none border-b-2 border-transparent px-3 py-1.5 text-xs data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none">Log</TabsTrigger>
-          <TabsTrigger value="response" disabled={!activeRun.responseText} className="rounded-none border-b-2 border-transparent px-3 py-1.5 text-xs data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none">Assistant Output</TabsTrigger>
+          <TabsTrigger value="response" disabled={!activeRun.responseText} className="rounded-none border-b-2 border-transparent px-3 py-1.5 text-xs data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none">General Chat Output</TabsTrigger>
           <TabsTrigger value="error" disabled={!activeRun.errorText} className="rounded-none border-b-2 border-transparent px-3 py-1.5 text-xs data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none">{activeRun.status === 'cancelled' ? 'Details' : 'Error'}</TabsTrigger>
         </TabsList>
       </div>
@@ -67,7 +67,7 @@ export function RunDetailPanel({ repoId, activeRun, selectedRunLoading, onCancel
             <AutomationRunMarkdown content={activeRun.responseText} />
           </div>
         ) : (
-          <div className="p-3"><pre className="whitespace-pre-wrap break-words text-sm font-mono leading-6">No assistant output captured.</pre></div>
+          <div className="p-3"><pre className="whitespace-pre-wrap break-words text-sm font-mono leading-6">No General Chat output captured.</pre></div>
         )}
       </TabsContent>
       <TabsContent value="error" className="mt-0 min-h-0 flex-1 overflow-y-auto px-0 py-3 [mask-image:linear-gradient(to_bottom,transparent,black_16px,black)]">

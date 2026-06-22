@@ -25,7 +25,7 @@ Four skills are provisioned automatically when general chat is initialized:
 | `manager-settings` | Read and patch user preferences, and reload the general chat workspace |
 | `repo-management` | List all managed repositories |
 
-See [Assistant Internal API](assistant-internal-api.md) for the full API reference these skills expose.
+See [General Chat Internal API](assistant-internal-api.md) for the full API reference these skills expose.
 
 ## General Chat Persona
 

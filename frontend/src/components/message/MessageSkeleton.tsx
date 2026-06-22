@@ -17,7 +17,6 @@ export function MessageSkeleton() {
         </div>
       </div>
 
-      {/* Assistant message skeleton */}
       <div className="flex flex-col">
         <div className="w-full rounded-lg p-1.5 bg-card/50 border border-border">
           <div className="flex items-center gap-2 mb-1">
@@ -48,7 +47,6 @@ export function MessageSkeleton() {
         </div>
       </div>
 
-      {/* Assistant message skeleton */}
       <div className="flex flex-col">
         <div className="w-full rounded-lg p-1.5 bg-card/50 border border-border">
           <div className="flex items-center gap-2 mb-1">
@@ -100,4 +98,3 @@ export function MessageSkeleton() {
     </div>
   );
 }
-

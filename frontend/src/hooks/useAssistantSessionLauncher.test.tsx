@@ -105,7 +105,7 @@ describe('useAssistantSessionLauncher', () => {
       await result.current.openAssistant()
     })
 
-    expect(mocks.createSession).toHaveBeenCalledWith({ title: 'Assistant' })
+    expect(mocks.createSession).toHaveBeenCalledWith({ title: 'General Chat' })
     expect(mocks.sendPromptAsync).toHaveBeenCalledWith('created', {
       parts: [
         expect.objectContaining({
@@ -186,7 +186,7 @@ describe('useAssistantSessionLauncher', () => {
     }))
 
     await act(async () => {
-      await expect(result.current.openAssistant()).rejects.toThrow('Assistant workspace directory is unavailable')
+      await expect(result.current.openAssistant()).rejects.toThrow('General Chat workspace directory is unavailable')
     })
 
     expect(OpenCodeClient).not.toHaveBeenCalled()
