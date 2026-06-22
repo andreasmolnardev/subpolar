@@ -101,7 +101,7 @@ const DialogContent = React.forwardRef<
         autoFocus={false}
         aria-describedby={undefined}
         className={cn(
-          "fixed z-[70] grid gap-4 border-0 sm:border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+          "fixed z-[70] grid gap-4 border-0 border-border sm:border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           fullscreen
             ? "inset-0 w-full h-full max-w-none max-h-none p-0 rounded-none"
             : mobileFullscreen
@@ -109,6 +109,7 @@ const DialogContent = React.forwardRef<
               : "left-[50%] top-[50%] w-[90%] max-w-lg translate-x-[-50%] translate-y-[-50%] p-6 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
           className
         )}
+        data-dialog-content=""
         style={Object.keys(mergedStyle).length > 0 ? mergedStyle : undefined}
         {...props}
       >

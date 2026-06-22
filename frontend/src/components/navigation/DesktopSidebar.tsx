@@ -20,11 +20,20 @@ import {
   FolderKanban,
   History,
   Home,
+  MoreHorizontal,
+  Pencil,
   Plus,
+  Trash2,
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sidebar, SidebarCollapseToggle } from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { AgentDialog } from "@/components/settings/AgentDialog";
 import { ProjectDialog } from "@/components/project/ProjectDialog";
 
@@ -119,6 +128,58 @@ function SidebarNavItem({
   );
 }
 
+function SidebarAgentItem({
+  label,
+  active,
+  onClick,
+  onEdit,
+  onDelete,
+}: {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="group flex items-center gap-1 rounded-md">
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-3 rounded-md px-3 py-2 pl-8 text-sm transition-colors text-left",
+          active
+            ? "bg-accent text-accent-foreground font-medium"
+            : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+        )}
+      >
+        <span className="truncate">{label}</span>
+      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-colors hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:opacity-100 group-hover:opacity-100"
+            aria-label={`Agent actions for ${label}`}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={onEdit}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem className="text-red-500 focus:text-red-600" onSelect={onDelete}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 interface Agent {
   prompt?: string;
   description?: string;
@@ -154,6 +215,7 @@ export function DesktopSidebar() {
   const [automationsExpanded, setAutomationsExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(true);
   const [isCreateAgentDialogOpen, setIsCreateAgentDialogOpen] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<{ name: string; agent: Agent } | null>(null);
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] = useState(false);
   const { data: projects } = useQuery({
     queryKey: ["projects"],
@@ -195,10 +257,9 @@ export function DesktopSidebar() {
   const queryClient = useQueryClient();
 
   const updateConfigMutation = useMutation({
-    mutationFn: async ({ name, agent }: { name: string; agent: Agent }) => {
+    mutationFn: async (agents: Record<string, Agent>) => {
       if (!defaultConfig) throw new Error("No default config found");
-      const updatedAgents = { ...(parsedConfig?.agents || {}), [name]: agent };
-      const updatedContent = { ...parsedConfig, agents: updatedAgents };
+      const updatedContent = { ...parsedConfig, agents };
       await settingsApi.updateOpenCodeConfig("default", {
         content: JSON.stringify(updatedContent, null, 2),
       });
@@ -213,11 +274,37 @@ export function DesktopSidebar() {
   });
 
   const handleCreateAgent = (name: string, agent: Agent) => {
-    updateConfigMutation.mutate({ name, agent }, {
+    const updatedAgents = { ...(parsedConfig?.agents as Record<string, Agent> || {}), [name]: agent };
+    updateConfigMutation.mutate(updatedAgents, {
       onSuccess: () => {
         setIsCreateAgentDialogOpen(false);
       },
     });
+  };
+
+  const handleSaveAgent = (name: string, agent: Agent) => {
+    if (!editingAgent) {
+      handleCreateAgent(name, agent);
+      return;
+    }
+
+    const currentAgents = { ...(parsedConfig?.agents as Record<string, Agent> || {}) };
+    if (editingAgent.name !== name) {
+      delete currentAgents[editingAgent.name];
+    }
+    const updatedAgents = { ...currentAgents, [name]: { ...currentAgents[name], ...agent } };
+    updateConfigMutation.mutate(updatedAgents, {
+      onSuccess: () => {
+        setEditingAgent(null);
+      },
+    });
+  };
+
+  const handleDeleteAgent = (name: string) => {
+    if (!defaultConfig) return;
+    const updatedAgents = { ...(parsedConfig?.agents as Record<string, Agent> || {}) };
+    delete updatedAgents[name];
+    updateConfigMutation.mutate(updatedAgents);
   };
 
   const handleCreateProject = async (data: { name: string; directory?: string }) => {
@@ -305,14 +392,21 @@ export function DesktopSidebar() {
           >
             {visibleGeneralChatAgents.map((agent) => {
               const name = agent.name;
+              const configuredAgent = (parsedConfig?.agents as Record<string, Agent> | undefined)?.[name];
+              const editableAgent = {
+                ...agent,
+                model: agent.model ? `${agent.model.providerID}/${agent.model.modelID}` : undefined,
+                ...configuredAgent,
+              };
               return (
-                <SidebarNavItem
+                <SidebarAgentItem
                   key={name}
                   label={name}
                   active={isAgentActive(name)}
                   onClick={() =>
                     navigate(`/agents/${encodeURIComponent(name)}`)}
-                  indent
+                  onEdit={() => setEditingAgent({ name, agent: editableAgent })}
+                  onDelete={() => handleDeleteAgent(name)}
                 />
               );
             })}
@@ -448,6 +542,15 @@ export function DesktopSidebar() {
         onOpenChange={setIsCreateAgentDialogOpen}
         onSubmit={handleCreateAgent}
         editingAgent={null}
+        availableSkills={opencodeSkills?.map((s) => s.name) || []}
+      />
+      <AgentDialog
+        open={editingAgent !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingAgent(null);
+        }}
+        onSubmit={handleSaveAgent}
+        editingAgent={editingAgent}
         availableSkills={opencodeSkills?.map((s) => s.name) || []}
       />
       <ProjectDialog

@@ -20,6 +20,14 @@
   --color-accent-foreground: #fafafa;
 }
 
+[data-dialog-content] {
+  border-color: #343434;
+}
+
+[data-dialog-content] [data-slot="card"]:not(.border-0) {
+  border-color: #343434;
+}
+
 :root:not(.dark) {
   --color-background: #ffffff;
   --color-foreground: #111827;
@@ -38,6 +46,11 @@
   --color-secondary: #f4f4f5;
   --color-secondary-foreground: #111827;
   --color-accent-foreground: #111827;
+}
+
+:root:not(.dark) [data-dialog-content],
+:root:not(.dark) [data-dialog-content] [data-slot="card"]:not(.border-0) {
+  border-color: #d1d5db;
 }
 
 html {
