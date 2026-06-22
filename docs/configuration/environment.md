@@ -82,6 +82,12 @@ When configured, users can enable push notifications in Settings → Notificatio
 |----------|-------------|---------|
 | `DATABASE_PATH` | Path to SQLite database file | `./data/opencode.db` |
 
+## Integrations
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CALDAV_IGNORE_INSECURE_CERTIFICATES` | Allow CalDAV servers with self-signed or otherwise invalid TLS certificates | `false` |
+
 ## Workspace
 
 | Variable | Description | Default |

@@ -294,6 +294,7 @@ export function IntegrationsSettings() {
   const queryClient = useQueryClient()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingIntegrationId, setEditingIntegrationId] = useState<string | null>(null)
+  const [testingCalDavIntegrationId, setTestingCalDavIntegrationId] = useState<string | null>(null)
   const { data, isLoading } = useQuery({
     queryKey: ['integrations'],
     queryFn: settingsApi.listIntegrations,
@@ -371,6 +372,28 @@ export function IntegrationsSettings() {
     }
   }
 
+  const testCalDavIntegration = async (integration: IntegrationConfig) => {
+    if (integration.type !== 'caldav') return
+    if (!integration.serverUrl.trim() || !integration.username.trim() || !integration.password.trim()) {
+      showToast.error('Server URL, username, and password are required')
+      return
+    }
+
+    setTestingCalDavIntegrationId(integration.id)
+    try {
+      const result = await settingsApi.discoverCalDavCalendars(integration.serverUrl, integration.username, integration.password)
+      if (result.calendars.length === 0) {
+        showToast.error('Connected, but no calendars were found')
+        return
+      }
+      showToast.success(`CalDAV connection works. Found ${result.calendars.length} calendar${result.calendars.length === 1 ? '' : 's'}`)
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : 'CalDAV connection failed')
+    } finally {
+      setTestingCalDavIntegrationId(null)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -380,8 +403,8 @@ export function IntegrationsSettings() {
   }
 
   return (
-    <div className="bg-card border border-border rounded-lg">
-      <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border">
+    <div>
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Integrations</h2>
           <p className="text-sm text-muted-foreground">Configure external services agents can use.</p>
@@ -392,9 +415,9 @@ export function IntegrationsSettings() {
         </Button>
       </div>
 
-      <div className="p-6">
+      <div className="mt-6">
         {integrations.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border p-8 text-center">
+          <div className="rounded-lg border  text-center">
             <Network className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
             <h3 className="font-medium text-foreground mb-1">No integrations configured</h3>
             <p className="text-sm text-muted-foreground mb-4">Add MCP, CalDAV, or IMAP/SMTP connections for agents to use.</p>
@@ -417,6 +440,12 @@ export function IntegrationsSettings() {
                   </div>
                   <p className="text-sm text-muted-foreground truncate">{integrationTypes[integration.type].description}</p>
                 </div>
+                {integration.type === 'caldav' && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => testCalDavIntegration(integration)} disabled={isUpdating || testingCalDavIntegrationId === integration.id}>
+                    {testingCalDavIntegrationId === integration.id && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    Test
+                  </Button>
+                )}
                 <Switch checked={integration.enabled} onCheckedChange={(checked) => toggleIntegration(integration.id, checked)} disabled={isUpdating} />
                 <Button type="button" variant="ghost" size="icon" onClick={() => openEditDialog(integration.id)} disabled={isUpdating}>
                   <Pencil className="h-4 w-4" />

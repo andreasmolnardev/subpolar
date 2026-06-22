@@ -115,6 +115,10 @@ export const ENV = {
     SUBJECT: process.env.VAPID_SUBJECT ?? '',
   },
 
+  CALDAV: {
+    IGNORE_INSECURE_CERTIFICATES: getEnvBoolean('CALDAV_IGNORE_INSECURE_CERTIFICATES', false),
+  },
+
   AUTH: {
     SECRET: getEnvString('AUTH_SECRET', process.env.NODE_ENV === 'production' ? '' : generateDefaultSecret()),
     TRUSTED_ORIGINS: getEnvString('AUTH_TRUSTED_ORIGINS', 'http://localhost:5173,http://localhost:5003'),

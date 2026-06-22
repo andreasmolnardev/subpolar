@@ -112,7 +112,7 @@ export function ProductivitySidebar() {
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            className="flex flex-col items-center gap-1 rounded-lg border border-border bg-background/70 p-3 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+            className="flex flex-col items-center gap-1 rounded-lg p-3 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
           >
             <CalendarDays className="h-5 w-5 flex-shrink-0 text-primary" />
             <span className="truncate">Calendar</span>

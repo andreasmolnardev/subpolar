@@ -13,6 +13,8 @@
   "POCKETBASE_EMAIL": "default@dashwise.local",
   "POCKETBASE_PASSWORD": "dashwiseIsAwesome",
 
+  "CALDAV_IGNORE_INSECURE_CERTIFICATES": false,
+
   "DATABASE_PATH": "./data/opencode.db",
   "WORKSPACE_PATH": "./workspace",
 
