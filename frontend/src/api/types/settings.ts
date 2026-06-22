@@ -57,6 +57,8 @@ export interface UserPreferences {
   expandToolCalls: boolean
   showReasoning: boolean
   simpleChatMode: boolean
+  hiddenSidebarAgents?: string[]
+  hiddenChatInputAgents?: string[]
   leaderKey?: string
   directShortcuts?: string[]
   keyboardShortcuts: Record<string, string>

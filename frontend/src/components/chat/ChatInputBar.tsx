@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { useAgents, useAbortSession, useConfig, useCreateSession, useSendPrompt } from "@/hooks/useOpenCode";
 import { getProviders } from "@/api/providers";
+import { DEFAULT_USER_PREFERENCES } from "@/api/types/settings";
 import { getProject, listProjects } from "@/api/projects";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { useSettings } from "@/hooks/useSettings";
@@ -111,6 +112,14 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const selectedDirectory = sessionID ? directory : selectedProject?.fullPath;
 
   const { data: agents = [] } = useAgents(opcodeUrl, selectedDirectory);
+  const hiddenChatInputAgents = useMemo(
+    () => new Set((preferences?.hiddenChatInputAgents ?? DEFAULT_USER_PREFERENCES.hiddenChatInputAgents).map((name) => name.toLowerCase())),
+    [preferences?.hiddenChatInputAgents],
+  );
+  const visibleAgents = useMemo(
+    () => agents.filter((agent) => !hiddenChatInputAgents.has(agent.name.toLowerCase())),
+    [agents, hiddenChatInputAgents],
+  );
   const { data: config } = useConfig(opcodeUrl, selectedDirectory);
 
   const { data: providersData } = useQuery({
@@ -407,7 +416,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
               </SelectTrigger>
               <SelectContent className="max-h-[300px] overflow-y-auto">
                 <SelectItem value="__default__">Agent</SelectItem>
-                {agents.map((agent) => (
+                {visibleAgents.map((agent) => (
                   <SelectItem key={agent.name} value={agent.name}>
                     {agent.name}
                   </SelectItem>

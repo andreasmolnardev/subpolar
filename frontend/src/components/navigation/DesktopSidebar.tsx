@@ -8,7 +8,9 @@ import { useUrlParams } from "@/hooks/useUrlParams";
 import { getProject, listProjects, createProject } from "@/api/projects";
 import { listStoredSessions } from "@/api/sessions";
 import { settingsApi } from "@/api/settings";
+import { DEFAULT_USER_PREFERENCES } from "@/api/types/settings";
 import { useAgents } from "@/hooks/useOpenCode";
+import { useSettings } from "@/hooks/useSettings";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { GENERAL_CHAT_PROJECT_ID } from "@subpolar/shared/utils";
 import {
@@ -144,6 +146,7 @@ export function DesktopSidebar() {
   const { updateParams } = useUrlParams();
   const [collapsed, toggle] = useSidebarCollapsed();
   const { isAuthenticated, isLoading, user } = useAuth();
+  const { preferences } = useSettings();
   const isDesktop = useDesktop();
 
   const [agentsExpanded, setAgentsExpanded] = useState(true);
@@ -171,6 +174,8 @@ export function DesktopSidebar() {
   });
 
   const { data: generalChatAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, generalChatDirectory);
+  const hiddenSidebarAgents = new Set((preferences?.hiddenSidebarAgents ?? DEFAULT_USER_PREFERENCES.hiddenSidebarAgents).map((name) => name.toLowerCase()));
+  const visibleGeneralChatAgents = generalChatAgents.filter((agent) => !hiddenSidebarAgents.has(agent.name.toLowerCase()));
 
   const { data: configs } = useQuery({
     queryKey: ["opencode-configs"],
@@ -298,7 +303,7 @@ export function DesktopSidebar() {
               </button>
             }
           >
-            {generalChatAgents.map((agent) => {
+            {visibleGeneralChatAgents.map((agent) => {
               const name = agent.name;
               return (
                 <SidebarNavItem
