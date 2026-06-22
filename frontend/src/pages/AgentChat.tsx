@@ -60,7 +60,7 @@ export function AgentChat() {
   const configAgents = useMemo(() => {
     const rawContent = configs?.defaultConfig?.rawContent
     const parsedConfig = rawContent ? tryParseJson(rawContent) : null
-    return parsedConfig?.agents as Record<string, ConfigAgent> | undefined
+    return parsedConfig?.agent as Record<string, ConfigAgent> | undefined
   }, [configs?.defaultConfig?.rawContent])
 
   const runtimeAgent = runtimeAgents.find((agent) => agent.name === agentName)

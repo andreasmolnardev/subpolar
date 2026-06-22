@@ -268,6 +268,22 @@ export const settingsApi = {
     })
   },
 
+  listSubpolarTools: async (): Promise<{ tools: SubpolarTool[] }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/subpolar-tools`)
+  },
+
+  listAgentToolPolicies: async (agentId: string): Promise<{ policies: AgentToolPolicy[] }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/agents/${encodeURIComponent(agentId)}/tool-policies`)
+  },
+
+  replaceAgentToolPolicies: async (agentId: string, policies: Array<{ toolId: string; effect: AgentToolPolicyEffect }>): Promise<{ policies: AgentToolPolicy[] }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/agents/${encodeURIComponent(agentId)}/tool-policies`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ policies }),
+    })
+  },
+
   getVersionInfo: async (): Promise<VersionInfo> => {
     return fetchWrapper(`${API_BASE_URL}/api/health/version`)
   },
@@ -319,6 +335,23 @@ export interface VersionInfo {
   updateAvailable: boolean
   releaseUrl: string | null
   releaseName: string | null
+}
+
+export type AgentToolPolicyEffect = 'allow' | 'deny' | 'approval'
+
+export interface SubpolarTool {
+  tool_id: string
+  namespace: string
+  description: string
+  risk: 'read' | 'write' | 'delete' | 'external'
+  requires_approval: boolean
+}
+
+export interface AgentToolPolicy {
+  id?: string
+  agent_id: string
+  tool_id: string
+  effect: AgentToolPolicyEffect
 }
 
 export interface OpenCodeServerAuthStatus {

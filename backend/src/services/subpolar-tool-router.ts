@@ -1,6 +1,6 @@
 import type { ToolDefinition } from '@subpolar/shared/types'
 import { createApproval, getEnabledTool, listEnabledTools, listPoliciesForAgent, writeToolAudit } from '../db/subpolar-tools'
-import { getAgentBySlug } from '../db/subpolar-agents'
+import { getAgentById } from '../db/subpolar-agents'
 import type { Database } from '../db/schema'
 import { getEnabledIntegrationForTool } from '../db/integrations'
 import type { IntegrationType } from '@subpolar/shared/types'
@@ -21,7 +21,7 @@ function validateInput(schema: Record<string, unknown>, input: unknown): string 
 }
 
 async function checkPolicy(db: Database, agentId: string, tool: ToolDefinition, input: unknown, sessionId?: string): Promise<PolicyResult> {
-  const agent = await getAgentBySlug(db, agentId)
+  const agent = await getAgentById(db, agentId)
   if (!agent || !agent.enabled) return { decision: 'deny', code: 'UNKNOWN_AGENT', message: 'Agent is not enabled or does not exist' }
 
   const validationError = validateInput(tool.input_schema, input)
@@ -71,6 +71,9 @@ async function callIntegrationTool(db: Database, tool: ToolDefinition, input: un
 }
 
 export async function listToolsForAgent(db: Database, agentId: string) {
+  const agent = await getAgentById(db, agentId)
+  if (!agent || !agent.enabled) return []
+
   const tools = await listEnabledTools(db)
   const policies = await listPoliciesForAgent(db, agentId)
   const allowedIds = new Set(policies.filter(policy => policy.effect === 'allow' || policy.effect === 'approval').map(policy => policy.tool_id))
@@ -82,7 +85,7 @@ export async function listToolsForAgent(db: Database, agentId: string) {
 export async function describeToolForAgent(db: Database, agentId: string, toolId: string) {
   const tool = await getEnabledTool(db, toolId)
   if (!tool) return null
-  const agent = await getAgentBySlug(db, agentId)
+  const agent = await getAgentById(db, agentId)
   if (!agent || !agent.enabled) return null
   const policies = await listPoliciesForAgent(db, agentId)
   const matching = policies.filter(policy => policy.tool_id === tool.tool_id || policy.tool_id === '*')

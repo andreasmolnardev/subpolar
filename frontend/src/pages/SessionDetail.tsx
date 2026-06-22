@@ -1,20 +1,29 @@
 import { useState } from "react";
 import { useParams, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getProject } from "@/api/projects";
+import { getProject, listProjects } from "@/api/projects";
 import { MessageThread } from "@/components/message/MessageThread";
 import { ChatInputBar, type ChatInputBarHandle, type PendingSessionPrompt } from "@/components/chat/ChatInputBar";
 import { FloatingTTSButton } from '@/components/message/FloatingTTSButton'
-import { CornerUpLeft } from "lucide-react";
+import { ChevronDown, CornerUpLeft } from "lucide-react";
 import { Header } from "@/components/ui/header";
 import { SessionList } from "@/components/session/SessionList";
 import { getSessionListPath } from '@/lib/navigation'
+import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
 
 import { FileBrowserSheet } from "@/components/file-browser/FileBrowserSheet";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ContextUsageIndicator } from "@/components/session/ContextUsageIndicator";
-import { useSession, useAbortSession, useUpdateSession, useMessages, useCreateSession, useSendPrompt } from "@/hooks/useOpenCode";
+import { useSession, useAbortSession, useMessages, useCreateSession, useSendPrompt } from "@/hooks/useOpenCode";
 import { useProjectActivity } from "@/hooks/useProjectActivity";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { useSSE } from "@/hooks/useSSE";
@@ -68,7 +77,7 @@ export function SessionDetail() {
   const messageContainerRef = useRef<HTMLDivElement>(null);
   const promptInputRef = useRef<ChatInputBarHandle>(null);
   const consumedPendingPromptRef = useRef<string | null>(null);
-  const [sessionsDialogOpen, setSessionsDialogOpen] = useState(false);
+  const [sessionsPopoverOpen, setSessionsPopoverOpen] = useState(false);
   const [fileBrowserOpen, setFileBrowserOpen] = useDialogParam('files');
   const [selectedFilePath, setSelectedFilePath] = useState<string | undefined>();
   const [hasPromptContent, setHasPromptContent] = useState(false);
@@ -101,6 +110,11 @@ export function SessionDetail() {
     queryKey: ["repo", repoId],
     queryFn: () => getProject(repoId),
     enabled: id !== undefined,
+  });
+
+  const { data: projects } = useQuery({
+    queryKey: ["projects"],
+    queryFn: listProjects,
   });
 
   useProjectActivity(repoId, Boolean(repo));
@@ -136,7 +150,6 @@ export function SessionDetail() {
     onScrollStateChange: () => {}
   });
   const abortSession = useAbortSession(opcodeUrl, repoDirectory, sessionId);
-  const updateSession = useUpdateSession(opcodeUrl, repoDirectory);
   const createSession = useCreateSession(opcodeUrl, repoDirectory);
   const sendPendingPrompt = useSendPrompt(opcodeUrl, repoDirectory);
   const { model, modelString } = useModelSelection(opcodeUrl, repoDirectory);
@@ -313,7 +326,7 @@ export function SessionDetail() {
   }, [navigate, repoId, location.search])
 
   const { leaderActive } = useKeyboardShortcuts({
-    openSessions: () => setSessionsDialogOpen(true),
+    openSessions: () => setSessionsPopoverOpen(true),
     openSettings,
     newSession: handleNewSession,
     closeSession: handleCloseSession,
@@ -358,12 +371,6 @@ export function SessionDetail() {
     setFileBrowserOpen(true)
   }, [repo?.fullPath, setFileBrowserOpen]);
 
-  const handleSessionTitleUpdate = useCallback((newTitle: string) => {
-    if (sessionId) {
-      updateSession.mutate({ sessionID: sessionId, title: newTitle });
-    }
-  }, [sessionId, updateSession]);
-
   const handleFileBrowserClose = useCallback(() => {
     setFileBrowserOpen(false)
     setSelectedFilePath(undefined)
@@ -399,6 +406,9 @@ export function SessionDetail() {
   }
 
   const workspaceDisplayName = repo?.name || repo?.directory.split('/').pop() || repo?.directory || 'Workspace';
+  const isGeneralChatProject = repoId === GENERAL_CHAT_PROJECT_ID;
+  const sessionTitle = session?.title || "Untitled Session";
+  const selectableProjects = projects?.filter((project) => project.id !== GENERAL_CHAT_PROJECT_ID) ?? [];
   const tabFromUrl = new URLSearchParams(location.search).get('projectTab') ?? undefined;
   const sessionBackPath = getSessionListPath(repoId, tabFromUrl);
 
@@ -431,11 +441,62 @@ export function SessionDetail() {
             ) : (
               <Header.BackButton to={sessionBackPath} className="text-xs sm:hidden" />
             )}
-            <Header.EditableTitle
-              value={session?.title || "Untitled Session"}
-              onChange={handleSessionTitleUpdate}
-              subtitle={<span className="text-orange-600 dark:text-orange-400">{workspaceDisplayName}</span>}
-            />
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-1 text-xs sm:text-base font-semibold">
+                {!isGeneralChatProject && (
+                  <>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="min-w-0 max-w-[38vw] truncate rounded px-1 -mx-1 text-orange-600 transition-colors hover:bg-accent dark:text-orange-400">
+                          <span className="truncate">{workspaceDisplayName}</span>
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-72 max-h-96 overflow-y-auto">
+                        <DropdownMenuLabel>Switch project</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {selectableProjects.map((project) => (
+                          <DropdownMenuItem
+                            key={project.id}
+                            onClick={() => navigate(`/projects/${project.id}`)}
+                            className={project.id === repoId ? "bg-accent" : undefined}
+                          >
+                            <span className="truncate">{project.name}</span>
+                          </DropdownMenuItem>
+                        ))}
+                        {selectableProjects.length === 0 && (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No projects available</div>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <span className="text-muted-foreground">/</span>
+                  </>
+                )}
+                <Popover open={sessionsPopoverOpen} onOpenChange={setSessionsPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      className="flex min-w-0 items-center gap-1 rounded px-1 -mx-1 transition-colors hover:bg-accent"
+                      title="Switch session"
+                    >
+                      <span className="truncate bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">{sessionTitle}</span>
+                      <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="h-[min(70vh,34rem)] w-[min(92vw,34rem)] p-0">
+                    {opcodeUrl && (
+                      <SessionList
+                        opcodeUrl={opcodeUrl}
+                        directory={repoDirectory}
+                        activeSessionID={sessionId || undefined}
+                        onSelectSession={(selectedSessionID) => {
+                          navigate(`/projects/${repoId}/sessions/${selectedSessionID}${sessionRouteSuffix}`)
+                          setSessionsPopoverOpen(false)
+                        }}
+                      />
+                    )}
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
           </div>
           <Header.Actions className="gap-2 sm:gap-4">
             <div className="flex items-center gap-1">
@@ -447,6 +508,7 @@ export function SessionDetail() {
               directory={repoDirectory}
               isConnected={isConnected}
               isReconnecting={isReconnecting}
+              messages={messages}
             />
             <SessionMoreButton />
           </Header.Actions>
@@ -527,26 +589,6 @@ export function SessionDetail() {
           </div>
         )}
       </div>
-
-      {/* Sessions Dialog */}
-      <Dialog open={sessionsDialogOpen} onOpenChange={setSessionsDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogTitle>Sessions</DialogTitle>
-          <div className="overflow-y-auto max-h-[60vh] mt-4">
-            {opcodeUrl && (
-              <SessionList
-                opcodeUrl={opcodeUrl}
-                directory={repoDirectory}
-                activeSessionID={sessionId || undefined}
-                onSelectSession={(sessionID) => {
-                  navigate(`/repos/${repoId}/sessions/${sessionID}${sessionRouteSuffix}`)
-                  setSessionsDialogOpen(false)
-                }}
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <FileBrowserSheet
         isOpen={fileBrowserOpen}

@@ -14,6 +14,13 @@
 - `pnpm lint:backend` - Backend linting
 - `pnpm lint:frontend` - Frontend linting
 
+## Package Managers
+
+- Prefer pnpm for workspace dependency management and scripts.
+- pnpm is installed, but its configured global bin directory is not currently on PATH; avoid relying on `pnpm link --global` unless the shell setup is fixed first.
+- npm global installs link into `/opt/homebrew`, which is on PATH; use `npm link` for globally linking this local package when needed.
+- The root package exposes `subpolar-cli` via the `bin` field and requires Bun to execute the TypeScript script.
+
 ## Code Style
 
 - No comments, self-documenting code only

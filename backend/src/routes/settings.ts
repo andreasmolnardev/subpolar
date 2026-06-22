@@ -46,6 +46,14 @@ import {
   toSettingsIntegrationType,
   updateIntegration,
 } from '../db/integrations'
+import { listEnabledTools, listPoliciesForAgent, replacePoliciesForAgent } from '../db/subpolar-tools'
+
+const AgentToolPoliciesUpdateSchema = z.object({
+  policies: z.array(z.object({
+    toolId: z.string().min(1),
+    effect: z.enum(['allow', 'deny', 'approval']),
+  })),
+})
 
 function getOpenCodeInstallMethod(): string {
   const homePath = process.env.HOME || ''
@@ -292,6 +300,44 @@ function settingsConfigToIntegrationData(config: z.infer<typeof IntegrationConfi
 export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClient, openCodeSupervisor?: OpenCodeSupervisor) {
   const app = new Hono()
   const settingsService = new SettingsService(db)
+
+  app.get('/subpolar-tools', async (c) => {
+    try {
+      const tools = await listEnabledTools(db)
+      return c.json({ tools })
+    } catch (error) {
+      logger.error('Failed to list Subpolar tools:', error)
+      return c.json({ error: 'Failed to list Subpolar tools' }, 500)
+    }
+  })
+
+  app.get('/agents/:agentId/tool-policies', async (c) => {
+    try {
+      const agentId = c.req.param('agentId')
+      const policies = await listPoliciesForAgent(db, agentId)
+      return c.json({ policies })
+    } catch (error) {
+      logger.error('Failed to list agent tool policies:', error)
+      return c.json({ error: 'Failed to list agent tool policies' }, 500)
+    }
+  })
+
+  app.put('/agents/:agentId/tool-policies', async (c) => {
+    try {
+      const agentId = c.req.param('agentId')
+      const parsed = AgentToolPoliciesUpdateSchema.parse(await c.req.json())
+      const policies = await replacePoliciesForAgent(db, agentId, parsed.policies.map(policy => ({
+        tool_id: policy.toolId,
+        effect: policy.effect,
+        constraints: {},
+      })))
+      return c.json({ policies })
+    } catch (error) {
+      logger.error('Failed to update agent tool policies:', error)
+      if (error instanceof z.ZodError) return c.json({ error: 'Invalid agent tool policy data', details: error.issues }, 400)
+      return c.json({ error: 'Failed to update agent tool policies' }, 500)
+    }
+  })
 
   app.get('/', async (c) => {
     try {

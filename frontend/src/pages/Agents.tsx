@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { settingsApi } from '@/api/settings'
+import { settingsApi, type AgentToolPolicyEffect } from '@/api/settings'
 import { getProject } from '@/api/projects'
 import { Header } from '@/components/ui/header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -30,8 +30,24 @@ interface Agent {
   icon?: string
   skills?: string[]
   allowedCommands?: string[]
+  toolAccess?: Array<{ type: 'builtin' | 'skill' | 'cli' | 'subpolar'; id: string; permission: 'allow' | 'ask' | 'deny'; command?: string }>
   disable?: boolean
   [key: string]: unknown
+}
+
+function policyEffect(permission: 'allow' | 'ask' | 'deny'): AgentToolPolicyEffect {
+  if (permission === 'ask') return 'approval'
+  return permission
+}
+
+function subpolarPolicies(agent: Agent) {
+  const policies = (agent.toolAccess ?? [])
+    .filter(tool => tool.type === 'subpolar')
+    .map(tool => ({ toolId: tool.id, effect: policyEffect(tool.permission) }))
+  if (policies.some(policy => policy.effect !== 'deny') && !policies.some(policy => policy.toolId === 'tools.list')) {
+    return [{ toolId: 'tools.list', effect: 'allow' as const }, ...policies]
+  }
+  return policies
 }
 
 function tryParseJson(raw: string): Record<string, unknown> | null {
@@ -68,7 +84,7 @@ export function Agents() {
   const defaultConfig = configs?.defaultConfig
   const rawContent = defaultConfig?.rawContent
   const parsedConfig = rawContent ? tryParseJson(rawContent) : null
-  const configAgents = parsedConfig?.agents as Record<string, Agent> | undefined
+  const configAgents = parsedConfig?.agent as Record<string, Agent> | undefined
   const agents = useMemo(() => {
     const runtimeAgentEntries = runtimeAgents
       .filter((agent) => !agent.hidden)
@@ -96,20 +112,24 @@ export function Agents() {
   }, [activeAgent, agentNames])
 
   const updateConfigMutation = useMutation({
-    mutationFn: async (agents: Record<string, Agent>) => {
+    mutationFn: async ({ agents, changedAgent }: { agents: Record<string, Agent>; changedAgent?: { name: string; agent: Agent } }) => {
       if (!defaultConfig) throw new Error('No default config found')
-      const updatedContent = { ...parsedConfig, agents }
+      const updatedContent = { ...parsedConfig, agent: agents }
       await settingsApi.updateOpenCodeConfig('default', { content: JSON.stringify(updatedContent, null, 2) })
+      if (changedAgent) {
+        await settingsApi.replaceAgentToolPolicies(changedAgent.name, subpolarPolicies(changedAgent.agent))
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opencode-configs'] })
       queryClient.invalidateQueries({ queryKey: ['opencode', 'agents', OPENCODE_API_ENDPOINT, generalChatDirectory] })
+      queryClient.invalidateQueries({ queryKey: ['agent-tool-policies'] })
     },
   })
 
   const handleCreate = (name: string, agent: Agent) => {
-    const updatedAgents = { ...(parsedConfig?.agents as Record<string, Agent> || {}), [name]: agent }
-    updateConfigMutation.mutate(updatedAgents, {
+    const updatedAgents = { ...(parsedConfig?.agent as Record<string, Agent> || {}), [name]: agent }
+    updateConfigMutation.mutate({ agents: updatedAgents, changedAgent: { name, agent } }, {
       onSuccess: () => {
         setIsCreateOpen(false)
         setActiveAgent(name)
@@ -118,9 +138,9 @@ export function Agents() {
   }
 
   const handleDelete = (name: string) => {
-    const updatedAgents = { ...(parsedConfig?.agents as Record<string, Agent> || {}) }
+    const updatedAgents = { ...(parsedConfig?.agent as Record<string, Agent> || {}) }
     delete updatedAgents[name]
-    updateConfigMutation.mutate(updatedAgents, {
+    updateConfigMutation.mutate({ agents: updatedAgents }, {
       onSuccess: () => {
         const remaining = Object.keys(updatedAgents).filter((n) => !updatedAgents[n]?.disable)
         if (activeAgent === name) {
@@ -338,10 +358,10 @@ export function Agents() {
         open={!!editingAgent}
         onOpenChange={() => setEditingAgent(null)}
         onSubmit={(name, agent) => {
-          const updatedAgents = { ...(parsedConfig?.agents as Record<string, Agent> || {}) }
+          const updatedAgents = { ...(parsedConfig?.agent as Record<string, Agent> || {}) }
           delete updatedAgents[editingAgent!.name]
           updatedAgents[name] = agent
-          updateConfigMutation.mutate(updatedAgents, {
+          updateConfigMutation.mutate({ agents: updatedAgents, changedAgent: { name, agent } }, {
             onSuccess: () => {
               setEditingAgent(null)
               if (name !== editingAgent!.name) {

@@ -1,5 +1,6 @@
 import type PocketBase from 'pocketbase'
 import type { AgentToolPolicy, ToolAuditRecord, ToolDefinition } from '@subpolar/shared/types'
+import { getAgentBySlug } from './subpolar-agents'
 
 export type ToolSeed = Omit<ToolDefinition, 'id' | 'created_at' | 'updated_at'>
 export type PolicySeed = Omit<AgentToolPolicy, 'id' | 'created_at' | 'updated_at'>
@@ -53,6 +54,19 @@ export async function listPoliciesForAgent(db: PocketBase, agentId: string): Pro
   return records.map(record => toPolicy(record as unknown as Record<string, unknown>))
 }
 
+export async function replacePoliciesForAgent(db: PocketBase, agentId: string, policies: Array<Omit<PolicySeed, 'agent_id'>>): Promise<AgentToolPolicy[]> {
+  const existing = await listPoliciesForAgent(db, agentId)
+  for (const policy of existing) {
+    if (policy.id) await db.collection('agent_tool_policies').delete(policy.id)
+  }
+
+  const next: AgentToolPolicy[] = []
+  for (const policy of policies) {
+    next.push(await upsertPolicy(db, { ...policy, agent_id: agentId }))
+  }
+  return next
+}
+
 export async function upsertTool(db: PocketBase, definition: ToolSeed): Promise<ToolDefinition> {
   const now = Date.now()
   const escaped = definition.tool_id.replaceAll('"', '\\"')
@@ -91,5 +105,8 @@ export async function writeToolAudit(db: PocketBase, data: Omit<ToolAuditRecord,
 
 export async function seedTools(db: PocketBase, tools: ToolSeed[], policies: PolicySeed[]): Promise<void> {
   for (const tool of tools) await upsertTool(db, tool)
-  for (const policy of policies) await upsertPolicy(db, policy)
+  for (const policy of policies) {
+    const agent = await getAgentBySlug(db, policy.agent_id)
+    await upsertPolicy(db, { ...policy, agent_id: agent?.id ?? policy.agent_id })
+  }
 }

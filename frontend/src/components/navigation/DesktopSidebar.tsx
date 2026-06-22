@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUrlParams } from "@/hooks/useUrlParams";
 import { getProject, listProjects, createProject } from "@/api/projects";
 import { listStoredSessions } from "@/api/sessions";
-import { settingsApi } from "@/api/settings";
+import { settingsApi, type AgentToolPolicyEffect } from "@/api/settings";
 import { DEFAULT_USER_PREFERENCES } from "@/api/types/settings";
 import { useAgents } from "@/hooks/useOpenCode";
 import { useSettings } from "@/hooks/useSettings";
@@ -197,8 +197,24 @@ interface Agent {
   icon?: string;
   skills?: string[];
   allowedCommands?: string[];
+  toolAccess?: Array<{ type: "builtin" | "skill" | "cli" | "subpolar"; id: string; permission: "allow" | "ask" | "deny"; command?: string }>;
   disable?: boolean;
   [key: string]: unknown;
+}
+
+function policyEffect(permission: "allow" | "ask" | "deny"): AgentToolPolicyEffect {
+  if (permission === "ask") return "approval";
+  return permission;
+}
+
+function subpolarPolicies(agent: Agent) {
+  const policies = (agent.toolAccess ?? [])
+    .filter((tool) => tool.type === "subpolar")
+    .map((tool) => ({ toolId: tool.id, effect: policyEffect(tool.permission) }));
+  if (policies.some((policy) => policy.effect !== "deny") && !policies.some((policy) => policy.toolId === "tools.list")) {
+    return [{ toolId: "tools.list", effect: "allow" as const }, ...policies];
+  }
+  return policies;
 }
 
 export function DesktopSidebar() {
@@ -257,12 +273,15 @@ export function DesktopSidebar() {
   const queryClient = useQueryClient();
 
   const updateConfigMutation = useMutation({
-    mutationFn: async (agents: Record<string, Agent>) => {
+    mutationFn: async ({ agents, changedAgent }: { agents: Record<string, Agent>; changedAgent?: { name: string; agent: Agent } }) => {
       if (!defaultConfig) throw new Error("No default config found");
-      const updatedContent = { ...parsedConfig, agents };
+      const updatedContent = { ...parsedConfig, agent: agents };
       await settingsApi.updateOpenCodeConfig("default", {
         content: JSON.stringify(updatedContent, null, 2),
       });
+      if (changedAgent) {
+        await settingsApi.replaceAgentToolPolicies(changedAgent.name, subpolarPolicies(changedAgent.agent));
+      }
       return { success: true };
     },
     onSuccess: () => {
@@ -270,12 +289,13 @@ export function DesktopSidebar() {
       queryClient.invalidateQueries({
         queryKey: ["opencode", "agents", OPENCODE_API_ENDPOINT, generalChatDirectory],
       });
+      queryClient.invalidateQueries({ queryKey: ["agent-tool-policies"] });
     },
   });
 
   const handleCreateAgent = (name: string, agent: Agent) => {
-    const updatedAgents = { ...(parsedConfig?.agents as Record<string, Agent> || {}), [name]: agent };
-    updateConfigMutation.mutate(updatedAgents, {
+    const updatedAgents = { ...(parsedConfig?.agent as Record<string, Agent> || {}), [name]: agent };
+    updateConfigMutation.mutate({ agents: updatedAgents, changedAgent: { name, agent } }, {
       onSuccess: () => {
         setIsCreateAgentDialogOpen(false);
       },
@@ -288,12 +308,12 @@ export function DesktopSidebar() {
       return;
     }
 
-    const currentAgents = { ...(parsedConfig?.agents as Record<string, Agent> || {}) };
+    const currentAgents = { ...(parsedConfig?.agent as Record<string, Agent> || {}) };
     if (editingAgent.name !== name) {
       delete currentAgents[editingAgent.name];
     }
     const updatedAgents = { ...currentAgents, [name]: { ...currentAgents[name], ...agent } };
-    updateConfigMutation.mutate(updatedAgents, {
+    updateConfigMutation.mutate({ agents: updatedAgents, changedAgent: { name, agent } }, {
       onSuccess: () => {
         setEditingAgent(null);
       },
@@ -302,9 +322,9 @@ export function DesktopSidebar() {
 
   const handleDeleteAgent = (name: string) => {
     if (!defaultConfig) return;
-    const updatedAgents = { ...(parsedConfig?.agents as Record<string, Agent> || {}) };
+    const updatedAgents = { ...(parsedConfig?.agent as Record<string, Agent> || {}) };
     delete updatedAgents[name];
-    updateConfigMutation.mutate(updatedAgents);
+    updateConfigMutation.mutate({ agents: updatedAgents });
   };
 
   const handleCreateProject = async (data: { name: string; directory?: string }) => {
@@ -392,9 +412,11 @@ export function DesktopSidebar() {
           >
             {visibleGeneralChatAgents.map((agent) => {
               const name = agent.name;
-              const configuredAgent = (parsedConfig?.agents as Record<string, Agent> | undefined)?.[name];
-              const editableAgent = {
-                ...agent,
+              const configuredAgent = (parsedConfig?.agent as Record<string, Agent> | undefined)?.[name];
+              const editableAgent: Agent = {
+                prompt: agent.prompt,
+                description: agent.description,
+                mode: agent.mode,
                 model: agent.model ? `${agent.model.providerID}/${agent.model.modelID}` : undefined,
                 ...configuredAgent,
               };

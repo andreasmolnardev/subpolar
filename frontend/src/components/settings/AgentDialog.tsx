@@ -1,7 +1,9 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { settingsApi, type AgentToolPolicy, type SubpolarTool } from '@/api/settings'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -67,15 +69,31 @@ function permissionFrom(value: unknown, fallback: 'allow' | 'ask' | 'deny' = 'de
   return value === 'allow' || value === 'ask' || value === 'deny' ? value : fallback
 }
 
-function buildToolAccess(agent?: Agent): ToolAccess[] {
-  if (agent?.toolAccess?.length) return agent.toolAccess
+function policyPermission(effect: AgentToolPolicy['effect']): 'allow' | 'ask' | 'deny' {
+  if (effect === 'approval') return 'ask'
+  return effect
+}
+
+function buildToolAccess(agent?: Agent, policies: AgentToolPolicy[] = []): ToolAccess[] {
+  const configured = agent?.toolAccess?.length ? agent.toolAccess.filter(tool => tool.type !== 'subpolar') : undefined
   const bashPermission = agent?.permission?.bash
-  return [
-    { type: 'builtin', id: 'edit', permission: permissionFrom(agent?.permission?.edit, 'allow') },
-    { type: 'builtin', id: 'webfetch', permission: permissionFrom(agent?.permission?.webfetch, 'allow') },
-    { type: 'builtin', id: 'other-bash', permission: typeof bashPermission === 'string' ? permissionFrom(bashPermission, 'ask') : 'deny' },
+  const fallback = [
+    { type: 'builtin' as const, id: 'edit', permission: permissionFrom(agent?.permission?.edit, 'allow') },
+    { type: 'builtin' as const, id: 'webfetch', permission: permissionFrom(agent?.permission?.webfetch, 'allow') },
+    { type: 'builtin' as const, id: 'other-bash', permission: typeof bashPermission === 'string' ? permissionFrom(bashPermission, 'ask') : 'deny' },
     ...(agent?.skills || []).map((skill): ToolAccess => ({ type: 'skill', id: skill, permission: 'allow' })),
     ...(agent?.allowedCommands || []).map((command): ToolAccess => ({ type: 'cli', id: command, command, permission: 'allow' })),
+  ]
+  const base = configured ?? fallback
+  const subpolar = policies.map((policy): ToolAccess => ({
+    type: 'subpolar',
+    id: policy.tool_id,
+    permission: policyPermission(policy.effect),
+    command: `subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" ${policy.tool_id}`,
+  }))
+  return [
+    ...base,
+    ...subpolar,
   ]
 }
 
@@ -90,7 +108,23 @@ interface AgentDialogProps {
 export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availableSkills = [] }: AgentDialogProps) {
   const [selectedToolIndex, setSelectedToolIndex] = useState(0)
 
-  const getDefaultValues = (agent?: { name: string; agent: Agent } | null): AgentFormValues => {
+  const { data: subpolarToolsResponse } = useQuery({
+    queryKey: ['subpolar-tools'],
+    queryFn: () => settingsApi.listSubpolarTools(),
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const { data: policyResponse } = useQuery({
+    queryKey: ['agent-tool-policies', editingAgent?.name],
+    queryFn: () => settingsApi.listAgentToolPolicies(editingAgent!.name),
+    enabled: open && !!editingAgent?.name,
+  })
+
+  const subpolarTools = useMemo(() => subpolarToolsResponse?.tools ?? [], [subpolarToolsResponse?.tools])
+  const policies = useMemo(() => policyResponse?.policies ?? [], [policyResponse?.policies])
+
+  const getDefaultValues = useCallback((agent?: { name: string; agent: Agent } | null): AgentFormValues => {
     return {
       name: agent?.name || '',
       description: agent?.agent.description || '',
@@ -102,9 +136,9 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
       icon: agent?.agent.icon || '',
       skills: agent?.agent.skills || [],
       allowedCommands: agent?.agent.allowedCommands || [],
-      toolAccess: buildToolAccess(agent?.agent),
+      toolAccess: buildToolAccess(agent?.agent, policies),
     }
-  }
+  }, [policies])
 
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentFormSchema),
@@ -116,13 +150,14 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
       form.reset(getDefaultValues(editingAgent))
       setSelectedToolIndex(0)
     }
-  }, [open, editingAgent, form])
+  }, [open, editingAgent, form, getDefaultValues])
 
   const toolAccess = form.watch('toolAccess') || []
   const selectedTool = toolAccess[selectedToolIndex]
 
   const addToolAccess = () => {
-    const next = [...toolAccess, { type: 'subpolar' as const, id: 'calendar.get', permission: 'allow' as const, command: 'subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" calendar.get' }]
+    const defaultTool = subpolarTools[0]?.tool_id ?? 'calendar.get'
+    const next = [...toolAccess, { type: 'subpolar' as const, id: defaultTool, permission: 'allow' as const, command: `subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" ${defaultTool}` }]
     form.setValue('toolAccess', next, { shouldDirty: true, shouldValidate: true })
     setSelectedToolIndex(next.length - 1)
   }
@@ -420,6 +455,13 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {availableSkills.map(skill => <SelectItem key={skill} value={skill}>{skill}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : selectedTool.type === 'subpolar' && subpolarTools.length > 0 ? (
+                        <Select value={selectedTool.id} onValueChange={(value) => updateSelectedTool({ id: value, command: `subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" ${value}` })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {subpolarTools.map((tool: SubpolarTool) => <SelectItem key={tool.tool_id} value={tool.tool_id}>{tool.tool_id}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       ) : (
