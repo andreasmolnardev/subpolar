@@ -24,72 +24,8 @@ type LspStatus = LspStatusResponse[number]
 
 type LegacySession = SessionListResponse[number]
 
-/** Pre-v1.16.0 session shape returned by /api/session */
-type SessionV2InfoV1 = {
-  id: string
-  parentID?: string
-  projectID: string
-  workspaceID?: string
-  title: string
-  time: { created: number; updated: number; compacting?: number; archived?: number }
-  path?: unknown
-}
-
-/** v1.16.0+ session shape returned by /api/session */
-type SessionV2InfoV2 = {
-  id: string
-  parentID?: string
-  projectID: string
-  title: string
-  time: { created: number; updated: number; archived?: number }
-  location: { directory: string; workspaceID?: string }
-  agent?: string
-  model?: { id: string; providerID: string; variant?: string }
-  cost: number
-  tokens: { input: number; output: number; reasoning: number; cache: { read: number; write: number } }
-  subpath?: string
-}
-
-type SessionV2Info = SessionV2InfoV1 | SessionV2InfoV2
-type SessionPageCursor = { previous?: string; next?: string }
-
-/** Response from /api/session — may be old (items) or new (data) format */
-type SessionPageResponse = {
-  data?: SessionV2InfoV2[]
-  items?: SessionV2InfoV1[]
-  cursor?: SessionPageCursor
-}
 type SessionPageParams = { limit?: number; order?: 'asc' | 'desc'; search?: string; cursor?: string }
 type SessionPage = { items: LegacySession[]; nextCursor?: string }
-
-function isNewSession(session: SessionV2Info): session is SessionV2InfoV2 {
-  return 'location' in session && session.location !== undefined
-}
-
-function toLegacySession(session: SessionV2Info, directory?: string): LegacySession {
-  if (isNewSession(session)) {
-    return {
-      id: session.id,
-      projectID: session.projectID,
-      workspaceID: session.location.workspaceID,
-      directory: session.location.directory ?? directory ?? '',
-      parentID: session.parentID,
-      title: session.title || 'Untitled Session',
-      version: 'v2',
-      time: session.time,
-    } as LegacySession
-  }
-  return {
-    id: session.id,
-    projectID: session.projectID,
-    workspaceID: session.workspaceID,
-    directory: directory ?? '',
-    parentID: session.parentID,
-    title: session.title || 'Untitled Session',
-    version: 'v2',
-    time: session.time,
-  } as LegacySession
-}
 
 export type { SendPromptResponse, SendCommandResponse, LspStatus }
 
@@ -111,10 +47,26 @@ export class OpenCodeClient {
     return { ...params, directory: this.directory }
   }
 
+  private get nativeBaseURL() {
+    return this.baseURL.replace(/\/api\/opencode$/, '/api')
+  }
+
+  private toLegacySession(session: { id: string; title?: string | null; directory?: string | null; createdAt?: number; updatedAt?: number; projectId?: number | null }) {
+    const created = session.createdAt ?? Date.now()
+    const updated = session.updatedAt ?? created
+    return {
+      id: session.id,
+      projectID: session.projectId ? String(session.projectId) : 'default',
+      directory: session.directory ?? this.directory ?? '',
+      title: session.title || 'Untitled Session',
+      version: 'pi',
+      time: { created, updated },
+    } as LegacySession
+  }
+
   async listSessions(params?: SessionListParams) {
-    return fetchWrapper<SessionListResponse>(`${this.baseURL}/session`, {
-      params: this.getParams(params),
-    })
+    const response = await fetchWrapper<{ sessions: Array<{ id: string; title?: string | null; directory?: string | null; createdAt?: number; updatedAt?: number; projectId?: number | null }> }>(`${this.nativeBaseURL}/sessions`, { params: this.getParams(params) })
+    return response.sessions.map(session => this.toLegacySession(session)) as SessionListResponse
   }
 
   async listSessionsPage(params?: SessionPageParams): Promise<SessionPage> {
@@ -126,33 +78,29 @@ export class OpenCodeClient {
           ...(params?.order !== undefined && { order: params.order }),
           ...(params?.search !== undefined && { search: params.search }),
         })
-    const response = await fetchWrapper<SessionPageResponse>(`${this.baseURL}/api/session`, {
-      params: queryParams,
-    })
-    const rawItems = response.data ?? response.items ?? []
+    const response = await fetchWrapper<{ sessions: Array<{ id: string; title?: string | null; directory?: string | null; createdAt?: number; updatedAt?: number; projectId?: number | null }> }>(`${this.nativeBaseURL}/sessions`, { params: queryParams })
     return {
-      items: rawItems.map((item) => toLegacySession(item, this.directory)),
-      nextCursor: response.cursor?.next,
+      items: response.sessions.map((item) => this.toLegacySession(item)),
     }
   }
 
   async getSession(sessionID: string) {
-    return fetchWrapper<SessionResponse>(`${this.baseURL}/session/${sessionID}`, {
-      params: this.getParams(),
-    })
+    const session = await fetchWrapper<{ id: string; title?: string | null; directory?: string | null; createdAt?: number; updatedAt?: number; projectId?: number | null }>(`${this.nativeBaseURL}/sessions/${sessionID}`, { params: this.getParams() })
+    return this.toLegacySession(session) as SessionResponse
   }
 
   async createSession(data: CreateSessionRequest) {
-    return fetchWrapper<SessionResponse>(`${this.baseURL}/session`, {
+    const response = await fetchWrapper<{ session: { id: string; runtime: string; runtimeSessionId: string | null } }>(`${this.nativeBaseURL}/sessions`, {
       method: 'POST',
       params: this.getParams(),
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, directory: this.directory, runtime: 'pi' }),
     })
+    return this.toLegacySession({ id: response.session.id, title: 'Untitled Session', directory: this.directory }) as SessionResponse
   }
 
   async deleteSession(sessionID: string) {
-    return fetchWrapperVoid(`${this.baseURL}/session/${sessionID}`, {
+    return fetchWrapperVoid(`${this.nativeBaseURL}/sessions/${sessionID}`, {
       method: 'DELETE',
       params: this.getParams(),
     })
@@ -166,7 +114,7 @@ export class OpenCodeClient {
   }
 
   async updateSession(sessionID: string, data: { title?: string }) {
-    return fetchWrapper(`${this.baseURL}/session/${sessionID}`, {
+    return fetchWrapper(`${this.nativeBaseURL}/sessions/${sessionID}`, {
       method: 'PATCH',
       params: this.getParams(),
       headers: { 'Content-Type': 'application/json' },
@@ -184,29 +132,34 @@ export class OpenCodeClient {
   }
 
   async abortSession(sessionID: string) {
-    return fetchWrapper(`${this.baseURL}/session/${sessionID}/abort`, {
+    return fetchWrapper(`${this.nativeBaseURL}/runs/${sessionID}/cancel`, {
       method: 'POST',
       params: this.getParams(),
     })
   }
 
   async listMessages(sessionID: string) {
-    return fetchWrapper<MessageListResponse>(`${this.baseURL}/session/${sessionID}/message`, {
-      params: this.getParams(),
-    })
+    const response = await fetchWrapper<{ messages: Array<{ id: string; role: string; content: string; createdAt: number }> }>(`${this.nativeBaseURL}/sessions/${sessionID}/messages`, { params: this.getParams() })
+    return response.messages.map(message => ({
+      info: {
+        id: message.id,
+        sessionID,
+        role: message.role,
+        time: { created: message.createdAt },
+      },
+      parts: message.content ? [{ id: message.id, type: 'text', text: message.content }] : [],
+    })) as MessageListResponse
   }
 
   async sendPrompt(sessionID: string, data: SendPromptRequest): Promise<SendPromptResponse> {
-    return fetchWrapper<SendPromptResponse>(
-      `${this.baseURL}/session/${sessionID}/message`,
-      {
-        method: 'POST',
-        params: this.getParams(),
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-        timeout: 0,
-      }
-    )
+    const prompt = typeof data === 'object' && data && 'parts' in data && Array.isArray(data.parts)
+      ? data.parts.map((part) => 'text' in part && typeof part.text === 'string' ? part.text : '').join('\n')
+      : typeof data === 'object' && data && 'text' in data
+      ? String(data.text ?? '')
+      : ''
+    await fetchWrapper(`${this.nativeBaseURL}/sessions/${sessionID}/messages`, { method: 'POST', params: this.getParams(), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'user', content: prompt }), timeout: 0 })
+    await fetchWrapper(`${this.nativeBaseURL}/sessions/${sessionID}/runs`, { method: 'POST', params: this.getParams(), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: 'pi', agentId: typeof data === 'object' && data && 'agent' in data ? data.agent : 'default' }), timeout: 0 })
+    return { parts: [] } as unknown as SendPromptResponse
   }
 
   async sendPromptAsync(sessionID: string, data: SendPromptAsyncRequest): Promise<void> {
@@ -232,19 +185,19 @@ export class OpenCodeClient {
   }
 
   async getConfig() {
-    return fetchWrapper<ConfigResponse>(`${this.baseURL}/config`, {
+    return fetchWrapper<ConfigResponse>(`${this.nativeBaseURL}/config`, {
       params: this.getParams(),
     })
   }
 
   async getLSPStatus() {
-    return fetchWrapper<LspStatusResponse>(`${this.baseURL}/lsp`, {
+    return fetchWrapper<LspStatusResponse>(`${this.nativeBaseURL}/lsp`, {
       params: this.getParams(),
     })
   }
 
   async updateConfig(config: Partial<ConfigResponse>) {
-    return fetchWrapper<ConfigResponse>(`${this.baseURL}/config`, {
+    return fetchWrapper<ConfigResponse>(`${this.nativeBaseURL}/config`, {
       method: 'PATCH',
       params: this.getParams(),
       headers: { 'Content-Type': 'application/json' },
@@ -253,19 +206,19 @@ export class OpenCodeClient {
   }
 
   async getProviders() {
-    return fetchWrapper(`${this.baseURL}/provider`, {
+    return fetchWrapper(`${this.nativeBaseURL}/provider`, {
       params: this.getParams(),
     })
   }
 
   async getConfigProviders() {
-    return fetchWrapper(`${this.baseURL}/config/providers`, {
+    return fetchWrapper(`${this.nativeBaseURL}/config/providers`, {
       params: this.getParams(),
     })
   }
 
   async listCommands() {
-    return fetchWrapper<CommandListResponse>(`${this.baseURL}/command`, {
+    return fetchWrapper<CommandListResponse>(`${this.nativeBaseURL}/command`, {
       params: this.getParams(),
     })
   }
@@ -299,7 +252,7 @@ export class OpenCodeClient {
   }
 
   async listPendingPermissions() {
-    return fetchWrapper<PermissionListResponse>(`${this.baseURL}/permission`, {
+    return fetchWrapper<PermissionListResponse>(`${this.nativeBaseURL}/permission`, {
       params: this.getParams(),
     })
   }
@@ -321,13 +274,13 @@ export class OpenCodeClient {
   }
 
   async listPendingQuestions() {
-    return fetchWrapper<QuestionListResponse>(`${this.baseURL}/question`, {
+    return fetchWrapper<QuestionListResponse>(`${this.nativeBaseURL}/question`, {
       params: this.getParams(),
     })
   }
 
   async listAgents() {
-    return fetchWrapper<AgentListResponse>(`${this.baseURL}/agent`, {
+    return fetchWrapper<AgentListResponse>(`${this.nativeBaseURL}/agent`, {
       params: this.getParams(),
     })
   }
@@ -349,7 +302,7 @@ export class OpenCodeClient {
   }
 
   async getSessionStatuses() {
-    return fetchWrapper<Record<string, { type: 'idle' } | { type: 'busy' } | { type: 'retry'; attempt: number; message: string; next: number }>>(`${this.baseURL}/session/status`, {
+    return fetchWrapper<Record<string, { type: 'idle' } | { type: 'busy' } | { type: 'retry'; attempt: number; message: string; next: number }>>(`${this.nativeBaseURL}/sessions/status`, {
       params: this.getParams(),
     })
   }
@@ -358,7 +311,7 @@ export class OpenCodeClient {
     const base = this.baseURL.startsWith('http')
       ? this.baseURL
       : `${window.location.origin}${this.baseURL}`
-    const url = new URL(`${base}/event`)
+    const url = new URL(`${base}/sse`)
     if (this.directory) {
       url.searchParams.set('directory', this.directory)
     }

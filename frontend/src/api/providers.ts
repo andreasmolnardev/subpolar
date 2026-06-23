@@ -170,7 +170,7 @@ export interface ProvidersResult {
 
 async function getProvidersFromOpenCodeServer(directory?: string): Promise<ProvidersResult> {
   try {
-    const response = await fetchWrapper<OpenCodeProviderResponse>(`${API_BASE_URL}/api/opencode/provider`, {
+    const response = await fetchWrapper<OpenCodeProviderResponse>(`${API_BASE_URL}/api/provider`, {
       params: { directory },
     });
 

@@ -43,11 +43,11 @@ export type McpOAuthFlowStatus =
 
 export const mcpApi = {
   async getStatus(): Promise<McpStatusMap> {
-    return fetchWrapper(`${API_BASE_URL}/api/opencode/mcp`)
+    return fetchWrapper(`${API_BASE_URL}/api/settings/mcp`)
   },
 
   async addServer(name: string, config: McpServerConfig): Promise<McpStatusMap> {
-    return fetchWrapper(`${API_BASE_URL}/api/opencode/mcp`, {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/mcp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, config }),
@@ -55,13 +55,13 @@ export const mcpApi = {
   },
 
   async connect(name: string): Promise<boolean> {
-    return fetchWrapper(`${API_BASE_URL}/api/opencode/mcp/${encodeURIComponent(name)}/connect`, {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/mcp/${encodeURIComponent(name)}/connect`, {
       method: 'POST',
     })
   },
 
   async disconnect(name: string): Promise<boolean> {
-    return fetchWrapper(`${API_BASE_URL}/api/opencode/mcp/${encodeURIComponent(name)}/disconnect`, {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/mcp/${encodeURIComponent(name)}/disconnect`, {
       method: 'POST',
     })
   },
@@ -83,7 +83,7 @@ export const mcpApi = {
   },
 
   async completeAuth(name: string, code: string): Promise<McpStatus> {
-    return fetchWrapper(`${API_BASE_URL}/api/opencode/mcp/${encodeURIComponent(name)}/auth/callback`, {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/mcp/${encodeURIComponent(name)}/auth/callback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
@@ -91,7 +91,7 @@ export const mcpApi = {
   },
 
   async authenticate(name: string): Promise<McpStatus> {
-    return fetchWrapper(`${API_BASE_URL}/api/opencode/mcp/${encodeURIComponent(name)}/auth/authenticate`, {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/mcp/${encodeURIComponent(name)}/auth/authenticate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -99,19 +99,19 @@ export const mcpApi = {
   },
 
   async removeAuth(name: string): Promise<{ success: true }> {
-    return fetchWrapper(`${API_BASE_URL}/api/opencode/mcp/${encodeURIComponent(name)}/auth`, {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/mcp/${encodeURIComponent(name)}/auth`, {
       method: 'DELETE',
     })
   },
 
   async getStatusFor(directory: string): Promise<McpStatusMap> {
-    return fetchWrapper(`${API_BASE_URL}/api/opencode/mcp`, {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/mcp`, {
       params: { directory },
     })
   },
 
   async getConfigForDirectory(directory: string): Promise<Record<string, unknown>> {
-    return fetchWrapper(`${API_BASE_URL}/api/opencode/config`, {
+    return fetchWrapper(`${API_BASE_URL}/api/config`, {
       params: { directory },
     })
   },

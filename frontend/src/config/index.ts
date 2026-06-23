@@ -9,7 +9,7 @@ const config = createClientConfig({
 })
 
 export const API_BASE_URL = config.API_BASE_URL
-export const OPENCODE_API_ENDPOINT = `${config.API_BASE_URL}/api/opencode`
+export const OPENCODE_API_ENDPOINT = `${config.API_BASE_URL}/api`
 export const SERVER_PORT = config.SERVER_PORT
 export const OPENCODE_PORT = config.OPENCODE_PORT
 export const FILE_LIMITS = config.FILE_LIMITS

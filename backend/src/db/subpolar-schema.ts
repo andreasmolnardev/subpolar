@@ -92,4 +92,45 @@ export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
     text('approval_id', false),
     number('created_at'),
   ], ['CREATE INDEX idx_tool_call_audit_created ON tool_call_audit (created_at)', 'CREATE INDEX idx_tool_call_audit_agent_created ON tool_call_audit (agent_id, created_at)'])
+
+  await ensureCollection(pb, 'messages', [
+    text('session_id'),
+    text('role'),
+    text('content', false),
+    json('metadata'),
+    number('created_at'),
+  ], ['CREATE INDEX idx_messages_session_created ON messages (session_id, created_at)'])
+
+  await ensureCollection(pb, 'runs', [
+    text('run_id'),
+    text('session_id'),
+    text('agent_id'),
+    text('runtime'),
+    select('status', ['queued', 'running', 'completed', 'failed', 'cancelled']),
+    text('error', false),
+    json('metadata'),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE UNIQUE INDEX idx_runs_run_id ON runs (run_id)', 'CREATE INDEX idx_runs_session_created ON runs (session_id, created_at)'])
+
+  await ensureCollection(pb, 'runtime_events', [
+    text('run_id'),
+    text('session_id'),
+    text('type'),
+    json('payload'),
+    number('created_at'),
+  ], ['CREATE INDEX idx_runtime_events_run_created ON runtime_events (run_id, created_at)'])
+
+  await ensureCollection(pb, 'tool_calls', [
+    text('tool_call_id'),
+    text('run_id'),
+    text('session_id'),
+    text('tool_name'),
+    select('status', ['requested', 'completed', 'failed']),
+    json('input'),
+    json('output'),
+    text('error', false),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE UNIQUE INDEX idx_tool_calls_tool_call_id ON tool_calls (tool_call_id)', 'CREATE INDEX idx_tool_calls_run_created ON tool_calls (run_id, created_at)'])
 }
