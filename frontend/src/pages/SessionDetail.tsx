@@ -41,7 +41,7 @@ import { useEffect, useRef, useCallback, useMemo } from "react";
 import { MessageSkeleton } from "@/components/message/MessageSkeleton";
 import { getMessagesContentVersion } from "./sessionContentVersion";
 import { showToast } from "@/lib/toast";
-import { createOpenCodeClient } from "@/api/opencode";
+import { createSubpolarClient } from '@/api/subpolar';
 import { usePermissions, useQuestions } from "@/contexts/EventContext";
 import { useSessionStatusForSession } from "@/stores/sessionStatusStore";
 import type { QuestionRequest } from "@/api/types";
@@ -279,7 +279,7 @@ export function SessionDetail() {
     showToast.loading('Compacting session...', { id: `compact-${sessionId}` });
 
     try {
-      const client = createOpenCodeClient(opcodeUrl, repoDirectory);
+      const client = createSubpolarClient(opcodeUrl, repoDirectory);
       await client.summarizeSession(sessionId, model.providerID, model.modelID);
     } catch (error) {
       showToast.error(`Compact failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -289,7 +289,7 @@ export function SessionDetail() {
   const handleUndo = useCallback(async () => {
     if (!opcodeUrl || !sessionId) return;
     try {
-      const client = createOpenCodeClient(opcodeUrl, repoDirectory);
+      const client = createSubpolarClient(opcodeUrl, repoDirectory);
       await client.sendCommand(sessionId, { command: 'undo', arguments: '' });
     } catch (error) {
       showToast.error(`Undo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -299,7 +299,7 @@ export function SessionDetail() {
   const handleRedo = useCallback(async () => {
     if (!opcodeUrl || !sessionId) return;
     try {
-      const client = createOpenCodeClient(opcodeUrl, repoDirectory);
+      const client = createSubpolarClient(opcodeUrl, repoDirectory);
       await client.sendCommand(sessionId, { command: 'redo', arguments: '' });
     } catch (error) {
       showToast.error(`Redo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -309,7 +309,7 @@ export function SessionDetail() {
   const handleFork = useCallback(async () => {
     if (!opcodeUrl || !sessionId) return;
     try {
-      const client = createOpenCodeClient(opcodeUrl, repoDirectory);
+      const client = createSubpolarClient(opcodeUrl, repoDirectory);
       const forkedSession = await client.forkSession(sessionId);
       if (forkedSession?.id) {
         navigate(`/repos/${repoId}/sessions/${forkedSession.id}${sessionRouteSuffix}`);

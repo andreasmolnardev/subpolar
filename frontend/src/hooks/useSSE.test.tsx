@@ -12,8 +12,8 @@ const mocks = vi.hoisted(() => ({
   getSessionStatuses: vi.fn(),
 }))
 
-vi.mock('@/api/opencode', () => ({
-  OpenCodeClient: vi.fn(() => ({
+vi.mock('@/api/subpolar', () => ({
+  SubpolarClient: vi.fn(() => ({
     getSessionStatuses: mocks.getSessionStatuses,
   })),
 }))

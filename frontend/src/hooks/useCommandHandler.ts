@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createOpenCodeClient } from '@/api/opencode'
+import { createSubpolarClient } from '@/api/subpolar'
 import { useCreateSession } from '@/hooks/useOpenCode'
 import { useModelSelection } from '@/hooks/useModelSelection'
 import { showToast } from '@/lib/toast'
@@ -44,7 +44,7 @@ export function useCommandHandler({
     setLoading(true)
     
     try {
-      const client = createOpenCodeClient(opcodeUrl, directory)
+      const client = createSubpolarClient(opcodeUrl, directory)
       
       switch (command.name) {
         case 'sessions':

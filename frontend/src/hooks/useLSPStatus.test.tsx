@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { useLSPStatus } from './useLSPStatus'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { LspStatus } from '@/api/opencode'
-import { useOpenCodeClient } from './useOpenCode'
+import type { LspStatus } from '@/api/subpolar'
+import { useSubpolarClient } from './useOpenCode'
 
 vi.mock('./useOpenCode')
 
@@ -31,7 +31,7 @@ describe('useLSPStatus', () => {
   })
 
   it('should not fetch when client is not available', async () => {
-    vi.mocked(useOpenCodeClient).mockReturnValue(null)
+    vi.mocked(useSubpolarClient).mockReturnValue(null)
 
     const { result } = renderHook(() => useLSPStatus(null, '/test'), {
       wrapper: createWrapper()
@@ -46,7 +46,7 @@ describe('useLSPStatus', () => {
       { id: '1', name: 'typescript-language-server', status: 'connected', root: '/project' }
     ]
     mockGetLSPStatus.mockResolvedValue(mockServers)
-    vi.mocked(useOpenCodeClient).mockReturnValue(mockClient)
+    vi.mocked(useSubpolarClient).mockReturnValue(mockClient)
 
     const { result } = renderHook(() => useLSPStatus('http://localhost:5551', '/test'), {
       wrapper: createWrapper()
@@ -62,7 +62,7 @@ describe('useLSPStatus', () => {
 
   it('should use correct query key', async () => {
     mockGetLSPStatus.mockResolvedValue([])
-    vi.mocked(useOpenCodeClient).mockReturnValue(mockClient)
+    vi.mocked(useSubpolarClient).mockReturnValue(mockClient)
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } }
@@ -86,7 +86,7 @@ describe('useLSPStatus', () => {
 
   it('should return empty array when no servers active', async () => {
     mockGetLSPStatus.mockResolvedValue([])
-    vi.mocked(useOpenCodeClient).mockReturnValue(mockClient)
+    vi.mocked(useSubpolarClient).mockReturnValue(mockClient)
 
     const { result } = renderHook(() => useLSPStatus('http://localhost:5551', '/test'), {
       wrapper: createWrapper()
@@ -106,7 +106,7 @@ describe('useLSPStatus', () => {
       { id: '3', name: 'rust-analyzer', status: 'connected', root: '/project/src' }
     ]
     mockGetLSPStatus.mockResolvedValue(mockServers)
-    vi.mocked(useOpenCodeClient).mockReturnValue(mockClient)
+    vi.mocked(useSubpolarClient).mockReturnValue(mockClient)
 
     const { result } = renderHook(() => useLSPStatus('http://localhost:5551', '/test'), {
       wrapper: createWrapper()
@@ -124,7 +124,7 @@ describe('useLSPStatus', () => {
 
   it('should handle API errors', async () => {
     mockGetLSPStatus.mockRejectedValue(new Error('Failed to fetch LSP status'))
-    vi.mocked(useOpenCodeClient).mockReturnValue(mockClient)
+    vi.mocked(useSubpolarClient).mockReturnValue(mockClient)
 
     const { result } = renderHook(() => useLSPStatus('http://localhost:5551', '/test'), {
       wrapper: createWrapper()
@@ -139,7 +139,7 @@ describe('useLSPStatus', () => {
 
   it('should have 30s refetch interval', async () => {
     mockGetLSPStatus.mockResolvedValue([])
-    vi.mocked(useOpenCodeClient).mockReturnValue(mockClient)
+    vi.mocked(useSubpolarClient).mockReturnValue(mockClient)
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } }
@@ -162,7 +162,7 @@ describe('useLSPStatus', () => {
 
   it('should have 10s stale time', async () => {
     mockGetLSPStatus.mockResolvedValue([])
-    vi.mocked(useOpenCodeClient).mockReturnValue(mockClient)
+    vi.mocked(useSubpolarClient).mockReturnValue(mockClient)
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } }
@@ -185,7 +185,7 @@ describe('useLSPStatus', () => {
 
   it('should refetch on window focus', async () => {
     mockGetLSPStatus.mockResolvedValue([])
-    vi.mocked(useOpenCodeClient).mockReturnValue(mockClient)
+    vi.mocked(useSubpolarClient).mockReturnValue(mockClient)
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } }

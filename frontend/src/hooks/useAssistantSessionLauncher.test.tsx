@@ -1,7 +1,7 @@
 import { renderHook, act } from '@testing-library/react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useAssistantSessionLauncher } from './useAssistantSessionLauncher'
-import { OpenCodeClient } from '@/api/opencode'
+import { SubpolarClient } from '@/api/subpolar'
 
 const mocks = vi.hoisted(() => ({
   listSessions: vi.fn(),
@@ -10,8 +10,8 @@ const mocks = vi.hoisted(() => ({
   sendPromptAsync: vi.fn(),
 }))
 
-vi.mock('@/api/opencode', () => ({
-  OpenCodeClient: vi.fn(() => ({
+vi.mock('@/api/subpolar', () => ({
+  SubpolarClient: vi.fn(() => ({
     listSessions: mocks.listSessions,
     listSessionsPage: mocks.listSessionsPage,
     createSession: mocks.createSession,
@@ -49,7 +49,7 @@ describe('useAssistantSessionLauncher', () => {
       await result.current.openAssistant()
     })
 
-    expect(OpenCodeClient).toHaveBeenCalledWith('http://localhost:5551', '/assistant')
+    expect(SubpolarClient).toHaveBeenCalledWith('http://localhost:5551', '/assistant')
     expect(mocks.listSessionsPage).toHaveBeenCalledWith({ limit: 25, order: 'desc' })
     expect(mocks.listSessions).not.toHaveBeenCalled()
     expect(onNavigate).toHaveBeenCalledWith('newest')
@@ -189,7 +189,7 @@ describe('useAssistantSessionLauncher', () => {
       await expect(result.current.openAssistant()).rejects.toThrow('General Chat workspace directory is unavailable')
     })
 
-    expect(OpenCodeClient).not.toHaveBeenCalled()
+    expect(SubpolarClient).not.toHaveBeenCalled()
     expect(mocks.listSessionsPage).not.toHaveBeenCalled()
     expect(mocks.createSession).not.toHaveBeenCalled()
     expect(onNavigate).not.toHaveBeenCalled()

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { createOpenCodeClient } from '@/api/opencode'
+import { createSubpolarClient } from '@/api/subpolar'
 import type { components } from '@/api/opencode-types'
 
 type CommandType = components['schemas']['Command']
@@ -176,7 +176,7 @@ export function useCommands(opcodeUrl: string | null) {
       setError(null)
       
       try {
-        const client = createOpenCodeClient(opcodeUrl)
+        const client = createSubpolarClient(opcodeUrl)
         const commandList = await client.listCommands()
         const allCommands = [...BUILTIN_COMMANDS, ...commandList]
         const uniqueCommands = allCommands.filter((command, index, self) =>

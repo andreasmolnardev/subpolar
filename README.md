@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    A UI for agents focused on improving your personal life
+    A workspace for agents with a chat UI and terminal-backed coding runtime
 </p>
 
 
@@ -42,6 +42,16 @@ For local development setup, see the [Development Guide](https://chriswritescode
 - **Audio** — Text-to-speech and speech-to-text (browser native and OpenAI-compatible APIs)
 - **Mobile & PWA** — Responsive mobile-first UI, installable on any device, iOS-optimized
 
+## What Subpolar Is
+
+Subpolar is a workspace for agents. Think ChatGPT with terminal access, organized around projects, reusable agent instructions, and explicit permission boundaries.
+
+The homepage is a new chat UI where a user selects an agent, model, project, and permissions before starting work. Projects are folders the agent runs in. Each user also gets a `General chat` project for general-purpose tasks that are not tied to a specific workspace.
+
+Agents combine a system prompt with permissions, including which skills they can access. Skills are dynamically loaded instructions: the model can discover them with a get-skills flow, optionally search for the right skill, then load the full skill instructions into context before using them.
+
+Subpolar uses the `pi-coding-agent` package as its agent harness and extends it with Subpolar-specific projects, permission handling, session persistence, provider compatibility APIs, and tool authorization callbacks.
+
 ## Architecture
 
 Subpolar is a pnpm workspace with three TypeScript packages:
@@ -49,6 +59,15 @@ Subpolar is a pnpm workspace with three TypeScript packages:
 - `backend/` — Bun + Hono API server with Better Auth, SQLite migrations, OpenCode process management, SSE, automations, and push notifications.
 - `frontend/` — React + Vite SPA using React Router, TanStack Query, Radix UI/Tailwind, service worker support, and mobile-first navigation.
 - `shared/` — shared Zod schemas, config helpers, types, and utilities consumed by both backend and frontend.
+
+### Pi Runtime
+
+Subpolar uses Pi as the native coding-agent runtime through the `@earendil-works/pi-coding-agent` SDK. The frontend still talks to OpenCode-shaped compatibility APIs in a few places, but session execution is handled by the backend's native session and run APIs.
+
+- Model discovery uses the Pi SDK `ModelRegistry`, then maps available Pi models into `/api/provider` for the existing model selector.
+- Prompt execution creates an SDK `AgentSession` with Subpolar's Pi extension loaded, sends the prompt through `session.prompt()`, and maps SDK events into Subpolar runtime events for messages, tool calls, completion, and failures.
+- Selected models flow from the model selector as `providerID/modelID`, are submitted with the prompt, stored on the run request, and resolved through the Pi SDK before execution.
+- Tool authorization stays inside Subpolar: the Pi extension calls back into `/api/pi/tools/authorize` with the internal token, and the backend applies the configured tool policy before allowing work to continue.
 
 A MkDocs Material site (`docs/`) provides guides, feature docs, configuration, and troubleshooting.
 

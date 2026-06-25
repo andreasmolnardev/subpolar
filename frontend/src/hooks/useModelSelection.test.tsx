@@ -19,7 +19,7 @@ vi.mock('./useOpenCode', async () => {
   return {
     ...actual,
     useConfig: vi.fn(),
-    useOpenCodeClient: vi.fn(),
+    useSubpolarClient: vi.fn(),
   }
 })
 
@@ -44,7 +44,7 @@ vi.mock('zustand/middleware', async () => {
 })
 
 const mockUseConfig = vi.mocked(useOpenCodeExports.useConfig)
-const mockUseOpenCodeClient = vi.mocked(useOpenCodeExports.useOpenCodeClient)
+const mockUseSubpolarClient = vi.mocked(useOpenCodeExports.useSubpolarClient)
 const mockGetProviders = vi.mocked(providersApi.getProviders)
 const mockGetOpenCodeModelState = vi.mocked(providersApi.getOpenCodeModelState)
 const mockAddOpenCodeRecentModel = vi.mocked(providersApi.addOpenCodeRecentModel)
@@ -58,7 +58,7 @@ describe('useModelSelection', () => {
     useModelStore.getState().setActiveModel({ providerID: 'test', modelID: 'test-model' })
     
     mockUseConfig.mockReturnValue({ data: undefined, isLoading: false } as any)
-    mockUseOpenCodeClient.mockReturnValue({} as any)
+    mockUseSubpolarClient.mockReturnValue({} as any)
     mockGetProviders.mockResolvedValue({
       providers: [],
       connected: [],

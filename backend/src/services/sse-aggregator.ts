@@ -382,6 +382,10 @@ class SSEAggregator {
     return () => { this.eventListeners.delete(listener) }
   }
 
+  publish(directory: string, event: SSEEvent): void {
+    this.handleUpstreamMessage(JSON.stringify({ directory, payload: event }))
+  }
+
   private handleUpstreamMessage(data: string): void {
     let envelope: SSEEventEnvelope
     try {

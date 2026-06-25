@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { CreateAutomationJobRequest, PromptTemplate, AutomationJob } from '@subpolar/shared/types'
 import { getProvidersWithModels } from '@/api/providers'
-import { createOpenCodeClient } from '@/api/opencode'
+import { createSubpolarClient } from '@/api/subpolar'
 import { settingsApi } from '@/api/settings'
 import { listProjects, type Project } from '@/api/projects'
 import { OPENCODE_API_ENDPOINT } from '@/config'
@@ -76,7 +76,7 @@ export function AutomationJobDialog({ open, onOpenChange, job, isSaving, onSubmi
   const { data: agents = [] } = useQuery({
     queryKey: ['opencode-agents', 'automation-dialog'],
     queryFn: async () => {
-      const client = createOpenCodeClient(OPENCODE_API_ENDPOINT)
+      const client = createSubpolarClient(OPENCODE_API_ENDPOINT)
       return await client.listAgents()
     },
     enabled: open,
@@ -93,7 +93,7 @@ export function AutomationJobDialog({ open, onOpenChange, job, isSaving, onSubmi
   const { data: openCodeConfig } = useQuery({
     queryKey: ['opencode-config', 'automation-dialog'],
     queryFn: async () => {
-      const client = createOpenCodeClient(OPENCODE_API_ENDPOINT)
+      const client = createSubpolarClient(OPENCODE_API_ENDPOINT)
       return await client.getConfig()
     },
     enabled: open,

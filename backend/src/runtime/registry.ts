@@ -2,6 +2,8 @@ import type { RuntimeAdapter, RuntimeId } from './types'
 import type { Database } from '../db/schema'
 import type { SettingsService } from '../services/settings'
 import { PiRuntimeAdapter } from './pi-runtime'
+import { getOrCreateInternalToken } from '../services/internal-token'
+import { ENV } from '@subpolar/shared/config/env'
 
 export class RuntimeRegistry {
   private readonly adapters = new Map<RuntimeId, RuntimeAdapter>()
@@ -22,8 +24,12 @@ export class RuntimeRegistry {
 }
 
 export async function createRuntimeRegistry(deps: { db: Database; settingsService: SettingsService }): Promise<RuntimeRegistry> {
-  void deps
+  void deps.settingsService
   const registry = new RuntimeRegistry()
-  registry.register(new PiRuntimeAdapter())
+  const internalToken = await getOrCreateInternalToken(deps.db)
+  registry.register(new PiRuntimeAdapter({
+    baseUrl: `http://localhost:${ENV.SERVER.PORT}`,
+    internalToken,
+  }))
   return registry
 }

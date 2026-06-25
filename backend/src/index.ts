@@ -33,6 +33,7 @@ import { createSessionRoutes } from './routes/sessions'
 import { createRunRoutes } from './routes/runs'
 import { createAgentRoutes } from './routes/agents'
 import { createRuntimeRoutes } from './routes/runtime'
+import { createPiRoutes } from './pi/routes'
 import { createInternalRoutes } from './routes/internal'
 import { createSubpolarCliRoutes } from './routes/subpolar-cli'
 import { sseAggregator } from './services/sse-aggregator'
@@ -44,6 +45,8 @@ import { AutomationRunner, AutomationService } from './services/automations'
 import { migrateGlobalSkills } from './services/skills'
 import { ensureGeneralChatProject } from './db/projects'
 import { installAssistantWorkspace } from './services/general-chat'
+import { OpenCodeSupervisor } from './services/opencode-supervisor'
+import { opencodeServerManager } from './services/opencode-single-server'
 
 import { logger } from './utils/logger'
 import { seedTools } from './db/subpolar-tools'
@@ -107,6 +110,7 @@ let automationRunnerInstance: AutomationRunner | undefined
 let notificationService: NotificationService | undefined
 let settingsService: SettingsService | undefined
 let runtimeRegistry: RuntimeRegistry | undefined
+let openCodeSupervisor: OpenCodeSupervisor | undefined
 
 async function initializeApp() {
   db = await initializeDatabase()
@@ -142,6 +146,9 @@ try {
   settingsService = new SettingsService(db!)
   runtimeRegistry = await createRuntimeRegistry({ db: db!, settingsService })
   openCodeClient = new PiNativeClient()
+  opencodeServerManager.setDatabase(db!)
+  opencodeServerManager.setOpenCodeClient(openCodeClient!)
+  openCodeSupervisor = new OpenCodeSupervisor(opencodeServerManager, settingsService)
   await settingsService.initializeLastKnownGoodConfig()
 
   await migrateGlobalSkills()
@@ -189,6 +196,7 @@ app.route('/api/auth-info', createAuthInfoRoutes(db!))
 app.route('/api/health', createHealthRoutes())
 
 app.route('/api/internal', createInternalRoutes(db!, automationService!, notificationService!, settingsService!, openCodeClient!))
+app.route('/api/pi', createPiRoutes(db!))
 app.route('/api/projects', createProjectRoutes(db!))
 app.route('/api/subpolar-cli', createSubpolarCliRoutes(db!))
 

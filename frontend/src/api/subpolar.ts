@@ -29,7 +29,7 @@ type SessionPage = { items: LegacySession[]; nextCursor?: string }
 
 export type { SendPromptResponse, SendCommandResponse, LspStatus }
 
-export class OpenCodeClient {
+export class SubpolarClient {
   private baseURL: string
   private directory?: string
 
@@ -139,40 +139,70 @@ export class OpenCodeClient {
   }
 
   async listMessages(sessionID: string) {
-    const response = await fetchWrapper<{ messages: Array<{ id: string; role: string; content: string; createdAt: number }> }>(`${this.nativeBaseURL}/sessions/${sessionID}/messages`, { params: this.getParams() })
-    return response.messages.map(message => ({
-      info: {
+    const response = await fetchWrapper<{ messages: Array<{ id: string; role: string; content: string; createdAt: number; metadata?: Record<string, unknown> }> }>(`${this.nativeBaseURL}/sessions/${sessionID}/messages`, { params: this.getParams() })
+    return response.messages.map(message => {
+      const reasoning = typeof message.metadata?.reasoning === 'string' ? message.metadata.reasoning : ''
+      const completedAt = typeof message.metadata?.completedAt === 'number' ? message.metadata.completedAt : undefined
+      const modelID = typeof message.metadata?.modelID === 'string' ? message.metadata.modelID : undefined
+      const finishReason = typeof message.metadata?.finishReason === 'string' ? message.metadata.finishReason : 'stop'
+      const usage = message.metadata?.usage && typeof message.metadata.usage === 'object' ? message.metadata.usage as {
+        input?: number
+        output?: number
+        reasoning?: number
+        cacheRead?: number
+        cacheWrite?: number
+        cost?: { total?: number }
+      } : undefined
+      return {
+        info: {
         id: message.id,
         sessionID,
         role: message.role,
-        time: { created: message.createdAt },
+        time: completedAt ? { created: message.createdAt, completed: completedAt } : { created: message.createdAt },
+        ...(modelID ? { modelID } : {}),
       },
-      parts: message.content ? [{ id: message.id, type: 'text', text: message.content }] : [],
-    })) as MessageListResponse
+        parts: [
+          ...(reasoning ? [{ id: `${message.id}-reasoning`, sessionID, messageID: message.id, type: 'reasoning', text: reasoning, time: { start: message.createdAt } }] : []),
+          ...(message.content ? [{ id: `${message.id}-text`, sessionID, messageID: message.id, type: 'text', text: message.content }] : []),
+          ...(message.role === 'assistant' && completedAt ? [{
+            id: `${message.id}-step-finish`,
+            sessionID,
+            messageID: message.id,
+            type: 'step-finish',
+            reason: finishReason,
+            cost: usage?.cost?.total ?? 0,
+            tokens: {
+              input: usage?.input ?? 0,
+              output: usage?.output ?? 0,
+              reasoning: usage?.reasoning ?? 0,
+              cache: {
+                read: usage?.cacheRead ?? 0,
+                write: usage?.cacheWrite ?? 0,
+              },
+            },
+          }] : []),
+        ],
+      }
+    }) as MessageListResponse
   }
 
   async sendPrompt(sessionID: string, data: SendPromptRequest): Promise<SendPromptResponse> {
+    await this.createNativeMessageAndRun(sessionID, data)
+    return { parts: [] } as unknown as SendPromptResponse
+  }
+
+  async sendPromptAsync(sessionID: string, data: SendPromptAsyncRequest): Promise<void> {
+    await this.createNativeMessageAndRun(sessionID, data)
+  }
+
+  private async createNativeMessageAndRun(sessionID: string, data: SendPromptRequest | SendPromptAsyncRequest): Promise<void> {
     const prompt = typeof data === 'object' && data && 'parts' in data && Array.isArray(data.parts)
       ? data.parts.map((part) => 'text' in part && typeof part.text === 'string' ? part.text : '').join('\n')
       : typeof data === 'object' && data && 'text' in data
       ? String(data.text ?? '')
       : ''
     await fetchWrapper(`${this.nativeBaseURL}/sessions/${sessionID}/messages`, { method: 'POST', params: this.getParams(), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'user', content: prompt }), timeout: 0 })
-    await fetchWrapper(`${this.nativeBaseURL}/sessions/${sessionID}/runs`, { method: 'POST', params: this.getParams(), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: 'pi', agentId: typeof data === 'object' && data && 'agent' in data ? data.agent : 'default' }), timeout: 0 })
-    return { parts: [] } as unknown as SendPromptResponse
-  }
-
-  async sendPromptAsync(sessionID: string, data: SendPromptAsyncRequest): Promise<void> {
-    return fetchWrapperVoid(
-      `${this.baseURL}/session/${sessionID}/prompt_async`,
-      {
-        method: 'POST',
-        params: this.getParams(),
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-        timeout: 0,
-      }
-    )
+    await fetchWrapper(`${this.nativeBaseURL}/sessions/${sessionID}/runs`, { method: 'POST', params: this.getParams(), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: 'pi', agentId: typeof data === 'object' && data && 'agent' in data ? data.agent : 'default', model: typeof data === 'object' && data && 'model' in data ? data.model : undefined }), timeout: 0 })
   }
 
   async summarizeSession(sessionID: string, providerID: string, modelID: string) {
@@ -319,6 +349,6 @@ export class OpenCodeClient {
   }
 }
 
-export const createOpenCodeClient = (baseURL: string, directory?: string) => {
-  return new OpenCodeClient(baseURL, directory)
+export const createSubpolarClient = (baseURL: string, directory?: string) => {
+  return new SubpolarClient(baseURL, directory)
 }

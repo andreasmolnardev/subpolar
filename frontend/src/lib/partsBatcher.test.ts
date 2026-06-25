@@ -217,6 +217,31 @@ describe('createPartsBatcher', () => {
     expect(data![0].parts[0]).toHaveProperty('text', 'snapshot later')
   })
 
+  it('creates a reasoning part when a reasoning delta arrives before its part update', () => {
+    const queryClient = new QueryClient()
+    const batcher = createPartsBatcher(queryClient, 'http://localhost:5551')
+
+    queryClient.setQueryData(
+      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      [assistantMessage('session-1', 'message-1')],
+    )
+
+    batcher.queuePartDelta('session-1', 'message-1', 'message-1-reasoning', 'text', 'thinking', '/repo')
+    batcher.flush()
+
+    const data = queryClient.getQueryData<MessageWithParts[]>([
+      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo',
+    ])
+    expect(data![0].parts).toHaveLength(1)
+    expect(data![0].parts[0]).toMatchObject({
+      id: 'message-1-reasoning',
+      sessionID: 'session-1',
+      messageID: 'message-1',
+      type: 'reasoning',
+      text: 'thinking',
+    })
+  })
+
   it('applies many queued part deltas with one cache write and no invalidation storm', () => {
     const queryClient = new QueryClient()
     const batcher = createPartsBatcher(queryClient, 'http://localhost:5551')

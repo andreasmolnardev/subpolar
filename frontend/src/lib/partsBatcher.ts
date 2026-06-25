@@ -46,6 +46,13 @@ export function createTextPart(sessionID: string, messageID: string, partID: str
   return { id: partID, sessionID, messageID, type: 'text', text } as Part
 }
 
+export function createDeltaFallbackPart(sessionID: string, messageID: string, partID: string, text: string): Part {
+  if (partID.endsWith('-reasoning')) {
+    return { id: partID, sessionID, messageID, type: 'reasoning', text, time: { start: Date.now() } } as Part
+  }
+  return createTextPart(sessionID, messageID, partID, text)
+}
+
 function appendPart(
   updatedData: MessageWithParts[],
   msgIdx: number,
@@ -222,7 +229,7 @@ export function createPartsBatcher(
               updatedData,
               msgIdx,
               msg,
-              createTextPart(sessionID, operation.messageID, operation.partID, operation.delta),
+              createDeltaFallbackPart(sessionID, operation.messageID, operation.partID, operation.delta),
               pIdx,
               supersededPartIDs,
             )

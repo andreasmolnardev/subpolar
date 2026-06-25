@@ -22,8 +22,8 @@ vi.mock('@/api/providers', () => ({
   getProvidersWithModels: () => Promise.resolve([]),
 }))
 
-vi.mock('@/api/opencode', () => ({
-  createOpenCodeClient: () => ({
+vi.mock('@/api/subpolar', () => ({
+  createSubpolarClient: () => ({
     listAgents: () => Promise.resolve([]),
     getConfig: () => Promise.resolve(null),
   }),

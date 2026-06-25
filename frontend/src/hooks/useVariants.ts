@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useModelSelection } from './useModelSelection'
 import { useModelStore } from '@/stores/modelStore'
-import { useOpenCodeClient } from './useOpenCode'
+import { useSubpolarClient } from './useOpenCode'
 import { getProviders } from '@/api/providers'
 import { useQuery } from '@tanstack/react-query'
 
@@ -20,7 +20,7 @@ export function useVariants(
 ): UseVariantsResult {
   const { model } = useModelSelection(opcodeUrl, directory)
   const { setVariant: setStoreVariant, clearVariant: clearStoreVariant } = useModelStore()
-  const client = useOpenCodeClient(opcodeUrl, directory)
+  const client = useSubpolarClient(opcodeUrl, directory)
 
    const { data: providersData, isLoading } = useQuery({
      queryKey: ['opencode', 'providers', opcodeUrl, directory],

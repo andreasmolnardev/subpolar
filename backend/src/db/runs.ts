@@ -83,6 +83,12 @@ export async function getRun(db: PocketBase, runId: string): Promise<StoredRun |
   return record ? toRun(record as unknown as Record<string, unknown>) : null
 }
 
+export async function getActiveRunForSession(db: PocketBase, sessionId: string): Promise<StoredRun | null> {
+  const escaped = sessionId.replaceAll('"', '\\"')
+  const record = await db.collection('runs').getFirstListItem(`session_id = "${escaped}" && (status = "queued" || status = "running")`, { sort: '-updated_at' }).catch(() => null)
+  return record ? toRun(record as unknown as Record<string, unknown>) : null
+}
+
 export async function writeRuntimeEvent(db: PocketBase, input: { runId: string; sessionId: string; event: RuntimeEvent }): Promise<void> {
   await db.collection('runtime_events').create({
     run_id: input.runId,

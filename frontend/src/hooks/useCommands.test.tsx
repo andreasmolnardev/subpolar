@@ -1,10 +1,10 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { useCommands } from './useCommands'
-import { createOpenCodeClient } from '../api/opencode'
+import { createSubpolarClient } from '../api/subpolar'
 
-vi.mock('../api/opencode', () => ({
-  createOpenCodeClient: vi.fn(),
+vi.mock('../api/subpolar', () => ({
+  createSubpolarClient: vi.fn(),
 }))
 
 describe('useCommands', () => {
@@ -38,12 +38,12 @@ describe('useCommands', () => {
   })
 
   it('sorts loaded custom commands with built-in commands', async () => {
-    vi.mocked(createOpenCodeClient).mockReturnValue({
+    vi.mocked(createSubpolarClient).mockReturnValue({
       listCommands: vi.fn().mockResolvedValue([
         { name: 'zebra', description: '', template: '', agent: '', model: '', hints: [] },
         { name: 'alpha', description: '', template: '', agent: '', model: '', hints: [] },
       ]),
-    } as unknown as ReturnType<typeof createOpenCodeClient>)
+    } as unknown as ReturnType<typeof createSubpolarClient>)
 
     const { result } = renderHook(() => useCommands('http://localhost:5551'))
 

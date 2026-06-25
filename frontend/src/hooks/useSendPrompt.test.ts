@@ -10,11 +10,11 @@ const mockSendPromptAsync = vi.fn()
 const mockSetOptimisticActive = vi.fn()
 const mockClearStatus = vi.fn()
 
-vi.mock('../api/opencode', async () => {
-  const actual = await vi.importActual('../api/opencode')
+vi.mock('../api/subpolar', async () => {
+  const actual = await vi.importActual('../api/subpolar')
   return {
     ...actual,
-    OpenCodeClient: vi.fn().mockImplementation(() => ({
+    SubpolarClient: vi.fn().mockImplementation(() => ({
       sendPrompt: mockSendPrompt,
       sendPromptAsync: mockSendPromptAsync,
     })),

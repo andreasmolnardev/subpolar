@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { getPiProviders } from '../runtime/pi/models'
 
 export function createRuntimeRoutes() {
   const app = new Hono()
@@ -12,7 +13,7 @@ export function createRuntimeRoutes() {
 
   app.patch('/config', async (c) => c.json(await c.req.json().catch(() => ({}))))
 
-  app.get('/provider', async (c) => c.json({}))
+  app.get('/provider', async (c) => c.json(await getPiProviders()))
   app.get('/config/providers', async (c) => c.json({}))
   app.get('/command', async (c) => c.json([]))
   app.get('/permission', async (c) => c.json([]))

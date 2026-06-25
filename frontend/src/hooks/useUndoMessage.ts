@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createOpenCodeClient } from '@/api/opencode'
+import { createSubpolarClient } from '@/api/subpolar'
 import { showToast } from '@/lib/toast'
 import { messagesQueryKey } from '@/lib/queryInvalidation'
 import type { MessageWithParts } from '@/api/types'
@@ -25,9 +25,9 @@ export function useUndoMessage({
 
   return useMutation<string, Error, { messageID: string; messageContent: string }, UndoMessageContext>({
     mutationFn: async ({ messageID, messageContent }: { messageID: string, messageContent: string }) => {
-      if (!opcodeUrl) throw new Error('OpenCode URL not available')
+      if (!opcodeUrl) throw new Error('Subpolar URL not available')
       
-      const client = createOpenCodeClient(opcodeUrl, directory)
+      const client = createSubpolarClient(opcodeUrl, directory)
       await client.revertMessage(sessionId, { messageID })
       return messageContent
     },

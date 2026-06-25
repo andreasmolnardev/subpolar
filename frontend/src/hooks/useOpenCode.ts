@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo, useRef, useEffect, useCallback } from "react";
-import { OpenCodeClient } from "../api/opencode";
+import { SubpolarClient } from '../api/subpolar';
 import { FetchError } from "../api/fetchWrapper";
 import type {
   Message,
@@ -25,14 +25,17 @@ type SendCommandResponse = paths["/session/{sessionID}/command"]["post"]["respon
 
 const parseModelString = (model: string) => {
   const [providerID, ...rest] = model.split("/");
-  const modelID = rest.join("/");
+  const rawModelID = rest.join("/");
+  const thinkingMatch = rawModelID.match(/:(off|minimal|low|medium|high|xhigh)$/)
+  const thinkingLevel = thinkingMatch?.[1]
+  const modelID = thinkingLevel ? rawModelID.slice(0, -thinkingLevel.length - 1) : rawModelID
   if (!providerID || !modelID) return undefined;
-  return { providerID, modelID };
+  return { providerID, modelID, thinkingLevel };
 };
 
-export const useOpenCodeClient = (opcodeUrl: string | null | undefined, directory?: string) => {
+export const useSubpolarClient = (opcodeUrl: string | null | undefined, directory?: string) => {
   return useMemo(
-    () => (opcodeUrl ? new OpenCodeClient(opcodeUrl, directory) : null),
+    () => (opcodeUrl ? new SubpolarClient(opcodeUrl, directory) : null),
     [opcodeUrl, directory],
   );
 };
@@ -65,7 +68,7 @@ export const useSessionsAcrossDirectories = (
       if (!pageParam) {
         const pages = await Promise.all(
           uniqueDirectories.map((directory) =>
-            new OpenCodeClient(opcodeUrl!, directory).listSessionsPage({
+            new SubpolarClient(opcodeUrl!, directory).listSessionsPage({
               limit,
               order: 'desc',
               search: normalizedSearch,
@@ -86,7 +89,7 @@ export const useSessionsAcrossDirectories = (
       const entries = Object.entries(pageParam);
       const pages = await Promise.all(
         entries.map(([directory, cursor]) =>
-          new OpenCodeClient(opcodeUrl!, directory).listSessionsPage({ cursor }),
+          new SubpolarClient(opcodeUrl!, directory).listSessionsPage({ cursor }),
         ),
       );
       const cursors: SessionPageParam = {};
@@ -124,7 +127,7 @@ export const useSessionsAcrossDirectories = (
 };
 
 export const useSession = (opcodeUrl: string | null | undefined, sessionID: string | undefined, directory?: string) => {
-  const client = useOpenCodeClient(opcodeUrl, directory);
+  const client = useSubpolarClient(opcodeUrl, directory);
 
   return useQuery({
     queryKey: ["opencode", "session", opcodeUrl, sessionID, directory],
@@ -137,7 +140,7 @@ export const useSession = (opcodeUrl: string | null | undefined, sessionID: stri
 };
 
 export const useMessages = (opcodeUrl: string | null | undefined, sessionID: string | undefined, directory?: string, opts?: { fallbackPoll?: boolean }) => {
-  const client = useOpenCodeClient(opcodeUrl, directory);
+  const client = useSubpolarClient(opcodeUrl, directory);
 
   return useQuery({
     queryKey: messagesQueryKey(opcodeUrl, sessionID, directory),
@@ -160,7 +163,7 @@ export const useCreateSession = (
   directory?: string,
   onSuccess?: (session: { id: string }) => void,
 ) => {
-  const client = useOpenCodeClient(opcodeUrl, directory);
+  const client = useSubpolarClient(opcodeUrl, directory);
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -242,7 +245,7 @@ export const useDeleteSession = (opcodeUrl: string | null | undefined, directory
           continue
         }
 
-        const client = new OpenCodeClient(
+        const client = new SubpolarClient(
           opcodeUrl,
           getDeleteSessionTargetDirectory(target, primaryDirectory),
         )
@@ -287,7 +290,7 @@ export const useDeleteSession = (opcodeUrl: string | null | undefined, directory
 
 export const useUpdateSession = (opcodeUrl: string | null | undefined, directory?: string) => {
   const queryClient = useQueryClient();
-  const client = useOpenCodeClient(opcodeUrl, directory);
+  const client = useSubpolarClient(opcodeUrl, directory);
 
   return useMutation({
     mutationFn: async ({ sessionID, title }: { sessionID: string; title: string }) => {
@@ -381,7 +384,7 @@ const getPromptText = (prompt: string | undefined, parts: ContentPart[] | undefi
 };
 
 export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: string) => {
-  const client = useOpenCodeClient(opcodeUrl, directory);
+  const client = useSubpolarClient(opcodeUrl, directory);
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -570,7 +573,7 @@ export const useAbortSession = (
   directory?: string,
   sessionID?: string,
 ) => {
-  const client = useOpenCodeClient(opcodeUrl, directory);
+  const client = useSubpolarClient(opcodeUrl, directory);
   const queryClient = useQueryClient();
   const retryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const retryCountRef = useRef(0);
@@ -712,7 +715,7 @@ export const useAbortSession = (
 };
 
 export const useSendShell = (opcodeUrl: string | null | undefined, directory?: string) => {
-  const client = useOpenCodeClient(opcodeUrl, directory);
+  const client = useSubpolarClient(opcodeUrl, directory);
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -785,7 +788,7 @@ export const useSendShell = (opcodeUrl: string | null | undefined, directory?: s
 };
 
 export const useConfig = (opcodeUrl: string | null | undefined, directory?: string) => {
-  const client = useOpenCodeClient(opcodeUrl, directory);
+  const client = useSubpolarClient(opcodeUrl, directory);
 
   return useQuery({
     queryKey: ["opencode", "config", opcodeUrl, directory],
@@ -797,7 +800,7 @@ export const useConfig = (opcodeUrl: string | null | undefined, directory?: stri
 };
 
 export const useAgents = (opcodeUrl: string | null | undefined, directory?: string) => {
-  const client = useOpenCodeClient(opcodeUrl, directory);
+  const client = useSubpolarClient(opcodeUrl, directory);
 
   return useQuery({
     queryKey: ["opencode", "agents", opcodeUrl, directory],
@@ -811,7 +814,7 @@ export const useLoadSkill = (
   sessionID: string | undefined,
   directory?: string,
 ) => {
-  const client = useOpenCodeClient(opcodeUrl, directory);
+  const client = useSubpolarClient(opcodeUrl, directory);
   const queryClient = useQueryClient();
 
   return useMutation<

@@ -10,8 +10,8 @@ const mocks = vi.hoisted(() => ({
   sendCommand: vi.fn(),
 }))
 
-vi.mock('../../api/opencode', () => ({
-  OpenCodeClient: vi.fn().mockImplementation(() => ({
+vi.mock('../../api/subpolar', () => ({
+  SubpolarClient: vi.fn().mockImplementation(() => ({
     sendCommand: mocks.sendCommand,
   })),
 }))

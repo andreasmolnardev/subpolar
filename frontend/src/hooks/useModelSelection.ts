@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useConfig } from './useOpenCode'
-import { useOpenCodeClient } from './useOpenCode'
+import { useSubpolarClient } from './useOpenCode'
 import { useModelStore, modelExists, type ModelSelection } from '@/stores/modelStore'
 import { addOpenCodeRecentModel, getOpenCodeModelState, getProviders, removeOpenCodeRecentModel, toggleOpenCodeFavoriteModel, type OpenCodeModelState } from '@/api/providers'
 
@@ -29,7 +29,7 @@ export function useModelSelection(
   directory?: string
 ): UseModelSelectionResult {
   const { data: config } = useConfig(opcodeUrl, directory)
-  const client = useOpenCodeClient(opcodeUrl, directory)
+  const client = useSubpolarClient(opcodeUrl, directory)
   const queryClient = useQueryClient()
   
   const { data: providersData } = useQuery({

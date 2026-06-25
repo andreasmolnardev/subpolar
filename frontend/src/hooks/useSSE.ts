@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useOpenCodeClient } from './useOpenCode'
+import { useSubpolarClient } from './useOpenCode'
 import { invalidateSessionListCaches, invalidateSessionListCachesDebounced, messagesQueryKey } from '@/lib/queryInvalidation'
 import type { SSEEvent, MessageWithParts } from '@/api/types'
 import { showToast } from '@/lib/toast'
@@ -60,7 +60,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
   const primaryDirectory = directoriesList[0]
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const directorySet = useMemo(() => new Set(directoriesList), [directoryKey])
-  const client = useOpenCodeClient(opcodeUrl, primaryDirectory)
+  const client = useSubpolarClient(opcodeUrl, primaryDirectory)
   const queryClient = useQueryClient()
   const mountedRef = useRef(true)
   const sessionIdRef = useRef(currentSessionId)

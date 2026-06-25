@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle2, AlertCircle, Code, Loader2 } from 'lucide-react'
-import type { LspStatus } from '@/api/opencode'
+import type { LspStatus } from '@/api/subpolar'
 
 interface RepoLspServerListProps {
   isLoading: boolean

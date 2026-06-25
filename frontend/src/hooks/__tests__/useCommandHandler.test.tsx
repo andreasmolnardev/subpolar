@@ -8,8 +8,8 @@ const mocks = vi.hoisted(() => ({
   setStatus: vi.fn(),
 }))
 
-vi.mock('@/api/opencode', () => ({
-  createOpenCodeClient: vi.fn().mockImplementation(() => ({
+vi.mock('@/api/subpolar', () => ({
+  createSubpolarClient: vi.fn().mockImplementation(() => ({
     sendCommand: mocks.sendCommand,
     summarizeSession: mocks.summarizeSession,
   })),

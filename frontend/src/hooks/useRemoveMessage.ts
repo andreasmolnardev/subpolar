@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createOpenCodeClient } from '@/api/opencode'
+import { createSubpolarClient } from '@/api/subpolar'
 import { showToast } from '@/lib/toast'
 import { messagesQueryKey } from '@/lib/queryInvalidation'
 import type { Message, Part, MessageWithParts } from '@/api/types'
@@ -21,7 +21,7 @@ export function useRemoveMessage({ opcodeUrl, sessionId, directory }: UseRemoveM
     mutationFn: async ({ messageID, partID }: { messageID: string, partID?: string }) => {
       if (!opcodeUrl) throw new Error('OpenCode URL not available')
       
-      const client = createOpenCodeClient(opcodeUrl, directory)
+      const client = createSubpolarClient(opcodeUrl, directory)
       return client.revertMessage(sessionId, { messageID, partID })
     },
     onMutate: async ({ messageID }) => {
@@ -88,7 +88,7 @@ export function useRefreshMessage({ opcodeUrl, sessionId, directory }: UseRefres
       
       await removeMessage.mutateAsync({ messageID: assistantMessageID })
       
-      const client = createOpenCodeClient(opcodeUrl, directory)
+      const client = createSubpolarClient(opcodeUrl, directory)
       
       const optimisticUserID = `optimistic_user_${Date.now()}_${Math.random()}`
       const userMessageInfo = {
