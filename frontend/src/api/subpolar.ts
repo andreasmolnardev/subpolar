@@ -202,7 +202,18 @@ export class SubpolarClient {
       ? String(data.text ?? '')
       : ''
     await fetchWrapper(`${this.nativeBaseURL}/sessions/${sessionID}/messages`, { method: 'POST', params: this.getParams(), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'user', content: prompt }), timeout: 0 })
-    await fetchWrapper(`${this.nativeBaseURL}/sessions/${sessionID}/runs`, { method: 'POST', params: this.getParams(), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runtime: 'pi', agentId: typeof data === 'object' && data && 'agent' in data ? data.agent : 'default', model: typeof data === 'object' && data && 'model' in data ? data.model : undefined }), timeout: 0 })
+    await fetchWrapper(`${this.nativeBaseURL}/sessions/${sessionID}/runs`, {
+      method: 'POST',
+      params: this.getParams(),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        runtime: 'pi',
+        agentId: typeof data === 'object' && data && 'agent' in data ? data.agent : 'default',
+        model: typeof data === 'object' && data && 'model' in data ? data.model : undefined,
+        permissionOverride: typeof data === 'object' && data && 'permission' in data ? data.permission : undefined,
+      }),
+      timeout: 0,
+    })
   }
 
   async summarizeSession(sessionID: string, providerID: string, modelID: string) {

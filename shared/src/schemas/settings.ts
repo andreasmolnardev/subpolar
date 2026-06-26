@@ -139,6 +139,16 @@ export const IntegrationSettingsSchema = z.array(IntegrationConfigSchema);
 export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;
 export type IntegrationSettings = z.infer<typeof IntegrationSettingsSchema>;
 
+export const DefaultModelsSchema = z.object({
+  routing: z.string().optional(),
+  compaction: z.string().optional(),
+  sessionNaming: z.string().optional(),
+  summary: z.string().optional(),
+  toolSummary: z.string().optional(),
+});
+
+export type DefaultModels = z.infer<typeof DefaultModelsSchema>;
+
 export const ServerEnvVarSchema = z.object({
   key: z.string().min(1),
   value: z.string(),
@@ -171,6 +181,7 @@ export const UserPreferencesSchema = z.object({
   theme: z.string().min(1),
   mode: z.enum(["plan", "build"]),
   defaultModel: z.string().optional(),
+  defaultModels: DefaultModelsSchema.optional(),
   defaultAgent: z.string().optional(),
   autoScroll: z.boolean(),
   expandDiffs: z.boolean(),
@@ -232,6 +243,7 @@ export const DEFAULT_USER_PREFERENCES = {
   expandToolCalls: false,
   showReasoning: false,
   simpleChatMode: false,
+  defaultModels: {} as DefaultModels,
   hiddenSidebarAgents: ['auto', 'compaction', 'summary', 'title'] as string[],
   hiddenChatInputAgents: ['compaction', 'summary', 'title'] as string[],
   leaderKey: DEFAULT_LEADER_KEY,

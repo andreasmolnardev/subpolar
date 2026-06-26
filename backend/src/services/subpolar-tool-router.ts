@@ -10,6 +10,8 @@ type PolicyResult =
   | { decision: 'deny'; code: string; message: string }
   | { decision: 'approval'; approvalId: string; message: string }
 
+export type ToolPermissionOverride = 'ask' | 'none' | 'allow_all'
+
 function validateInput(schema: Record<string, unknown>, input: unknown): string | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return 'Input must be a JSON object'
   const required = Array.isArray(schema.required) ? schema.required.map(String) : []
@@ -20,12 +22,21 @@ function validateInput(schema: Record<string, unknown>, input: unknown): string 
   return null
 }
 
-async function checkPolicy(db: Database, agentId: string, tool: ToolDefinition, input: unknown, sessionId?: string): Promise<PolicyResult> {
+async function checkPolicy(db: Database, agentId: string, tool: ToolDefinition, input: unknown, sessionId?: string, permissionOverride?: ToolPermissionOverride): Promise<PolicyResult> {
   const agent = await getAgentById(db, agentId)
   if (!agent || !agent.enabled) return { decision: 'deny', code: 'UNKNOWN_AGENT', message: 'Agent is not enabled or does not exist' }
 
   const validationError = validateInput(tool.input_schema, input)
   if (validationError) return { decision: 'deny', code: 'VALIDATION_FAILED', message: validationError }
+
+  if (permissionOverride === 'none') return { decision: 'deny', code: 'PERMISSION_DENIED', message: `Tool calls are disabled for this run: ${tool.tool_id}` }
+
+  if (permissionOverride === 'ask') {
+    const approvalId = await createApproval(db, { agent_id: agentId, session_id: sessionId, tool_id: tool.tool_id, input, reason: `${tool.tool_id} requires approval` })
+    return { decision: 'approval', approvalId, message: `${tool.tool_id} requires approval` }
+  }
+
+  if (permissionOverride === 'allow_all') return { decision: 'allow' }
 
   const policies = await listPoliciesForAgent(db, agentId)
   const matching = policies.filter(policy => policy.tool_id === tool.tool_id || policy.tool_id === '*')
@@ -103,14 +114,14 @@ export async function describeToolForAgent(db: Database, agentId: string, toolId
   }
 }
 
-export async function callTool(db: Database, agentId: string, toolId: string, input: unknown, sessionId?: string) {
+export async function callTool(db: Database, agentId: string, toolId: string, input: unknown, sessionId?: string, permissionOverride?: ToolPermissionOverride) {
   const tool = await getEnabledTool(db, toolId)
   if (!tool) {
     await writeToolAudit(db, { agent_id: agentId, session_id: sessionId, tool_id: toolId, input, status: 'error', error_code: 'UNKNOWN_TOOL' })
     return { ok: false as const, toolId, error: { code: 'UNKNOWN_TOOL', message: 'Tool does not exist or is disabled' } }
   }
 
-  const policy = await checkPolicy(db, agentId, tool, input, sessionId)
+  const policy = await checkPolicy(db, agentId, tool, input, sessionId, permissionOverride)
   if (policy.decision === 'deny') {
     await writeToolAudit(db, { agent_id: agentId, session_id: sessionId, tool_id: toolId, input, status: policy.code === 'VALIDATION_FAILED' ? 'error' : 'denied', error_code: policy.code })
     return { ok: false as const, toolId, error: { code: policy.code, message: policy.message } }

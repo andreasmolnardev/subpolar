@@ -21,7 +21,11 @@ function fail(code: number, value: unknown): never {
 
 function parseArgs(args: string[]): { agentId: string; command: string[] } {
   const index = args.findIndex(arg => arg === '--agentId' || arg.startsWith('--agentId='))
-  if (index === -1) fail(EXIT.general, { ok: false, error: { code: 'MISSING_AGENT_ID', message: 'Missing --agentId' } })
+  if (index === -1) {
+    const agentId = process.env.SUBPOLAR_AGENT_ID
+    if (!agentId) fail(EXIT.general, { ok: false, error: { code: 'MISSING_AGENT_ID', message: 'Missing SUBPOLAR_AGENT_ID' } })
+    return { agentId, command: args }
+  }
   const current = args[index]
   const agentId = current.includes('=') ? current.slice(current.indexOf('=') + 1) : args[index + 1]
   if (!agentId) fail(EXIT.general, { ok: false, error: { code: 'MISSING_AGENT_ID', message: 'Missing --agentId value' } })

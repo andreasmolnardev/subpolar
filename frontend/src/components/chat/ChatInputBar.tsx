@@ -33,6 +33,7 @@ export interface PendingSessionPrompt {
   prompt: string;
   model?: string;
   agent?: string;
+  permission?: string;
 }
 
 const PERMISSION_OPTIONS = [
@@ -271,6 +272,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           prompt,
           model: selectedModel === "__auto__" ? undefined : selectedModel,
           agent: selectedAgentForRequest,
+          permission: selectedPermission,
         },
         {
           onSuccess: () => {
@@ -297,6 +299,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
               prompt,
               model: selectedModel === "__auto__" ? undefined : selectedModel,
               agent: selectedAgentForRequest,
+              permission: selectedPermission,
             } satisfies PendingSessionPrompt,
           },
         });
@@ -315,6 +318,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             prompt,
             model: selectedModel === "__auto__" ? undefined : selectedModel,
             agent: selectedAgentForRequest,
+            permission: selectedPermission,
           } satisfies PendingSessionPrompt,
         },
       });
@@ -335,6 +339,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     onSend,
     selectedAgentForRequest,
     selectedModel,
+    selectedPermission,
     selectedProject,
     sendImmediately,
     sendPrompt,

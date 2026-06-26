@@ -87,7 +87,7 @@ export function SettingsDialog() {
     { id: 'shortcuts', icon: Keyboard, label: 'Keyboard Shortcuts', description: 'Customize keyboard shortcuts' },
     { id: 'opencode', icon: Code, label: 'OpenCode Config', description: 'Manage OpenCode configurations, commands, and agents' },
     { id: 'integrations', icon: Plug, label: 'Integrations', description: 'Configure MCP, calendars, and mail' },
-    { id: 'providers', icon: Key, label: 'Providers', description: 'Manage AI provider API keys' },
+    { id: 'providers', icon: Key, label: 'Models', description: 'Manage AI providers and default models' },
   ]
 
   const handleOpenMobileView = useCallback((view: SettingsView) => {

@@ -394,6 +394,7 @@ export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: 
       parts,
       model,
       agent,
+      permission,
       variant,
       queued,
     }: {
@@ -402,6 +403,7 @@ export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: 
       parts?: ContentPart[];
       model?: string;
       agent?: string;
+      permission?: string;
       variant?: string;
       queued?: boolean;
     }) => {
@@ -480,6 +482,10 @@ export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: 
 
       if (agent) {
         requestData.agent = agent;
+      }
+
+      if (permission) {
+        (requestData as SendPromptRequest & { permission?: string }).permission = permission;
       }
 
       if (variant) {

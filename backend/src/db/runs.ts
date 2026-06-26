@@ -9,6 +9,7 @@ export type StoredRun = {
   runtime: RuntimeId
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
   error: string | null
+  metadata: Record<string, unknown>
   createdAt: number
   updatedAt: number
 }
@@ -32,6 +33,7 @@ function toRun(record: Record<string, unknown>): StoredRun {
     runtime: 'pi',
     status: record.status === 'running' || record.status === 'completed' || record.status === 'failed' || record.status === 'cancelled' ? record.status : 'queued',
     error: typeof record.error === 'string' && record.error.length > 0 ? record.error : null,
+    metadata: record.metadata && typeof record.metadata === 'object' ? record.metadata as Record<string, unknown> : {},
     createdAt: Number(record.created_at ?? Date.now()),
     updatedAt: Number(record.updated_at ?? Date.now()),
   }

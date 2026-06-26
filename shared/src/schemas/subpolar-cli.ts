@@ -52,18 +52,18 @@ export const AgentToolPolicySchema = z.object({
 })
 
 export const ToolListRequestSchema = z.object({
-  agentId: z.string(),
+  agentId: z.string().optional(),
   sessionId: z.string().optional(),
 })
 
 export const ToolDescribeRequestSchema = z.object({
-  agentId: z.string(),
+  agentId: z.string().optional(),
   toolId: z.string(),
   sessionId: z.string().optional(),
 })
 
 export const ToolCallRequestSchema = z.object({
-  agentId: z.string(),
+  agentId: z.string().optional(),
   toolId: z.string(),
   input: z.unknown().optional().default({}),
   sessionId: z.string().optional(),

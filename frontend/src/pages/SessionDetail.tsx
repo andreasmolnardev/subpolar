@@ -188,6 +188,7 @@ export function SessionDetail() {
       prompt: pendingPrompt.prompt,
       model: pendingPrompt.model,
       agent: pendingPrompt.agent,
+      permission: pendingPrompt.permission,
       queued: true,
     })
 

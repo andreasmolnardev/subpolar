@@ -103,11 +103,14 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
   app.post('/:id/runs', async (c) => {
     if (!runtimeRegistry) return c.json({ error: 'Runtime registry is unavailable' }, 503)
 
-    const body = await c.req.json().catch(() => ({})) as { agentId?: unknown; runtime?: unknown; projectId?: unknown; model?: unknown }
+    const body = await c.req.json().catch(() => ({})) as { agentId?: unknown; runtime?: unknown; projectId?: unknown; model?: unknown; permissionOverride?: unknown }
     const agentId = typeof body.agentId === 'string' ? body.agentId : 'default'
     const model = body.model && typeof body.model === 'object' ? body.model as Record<string, unknown> : undefined
+    const permissionOverride = body.permissionOverride === 'ask' || body.permissionOverride === 'none' || body.permissionOverride === 'allow_all'
+      ? body.permissionOverride
+      : undefined
     const runtime: RuntimeId = 'pi'
-    const run = await createRun(db, { sessionId: c.req.param('id'), agentId, runtime })
+    const run = await createRun(db, { sessionId: c.req.param('id'), agentId, runtime, metadata: permissionOverride ? { permissionOverride } : undefined })
     const directory = c.req.query('directory')
 
     void executeRun(db, runtimeRegistry, run.runId, typeof body.projectId === 'string' ? body.projectId : null, model, directory)

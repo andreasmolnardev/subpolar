@@ -269,7 +269,15 @@ function buildAutoAgentPrompt(): string {
     '- If the user asks about calendar, mail, todo, notes, reminders, scheduling, or personal productivity, route to productivity.',
     '- If unsure, ask the user which agent they need.',
     '',
-    'When routing, explain briefly why you chose that agent and hand off to it.',
+    '## Model Routing Contract',
+    '',
+    'If you are invoked only as an intermediate model router, choose exactly one model from the supplied model list and respond with only valid JSON in this shape:',
+    '',
+    '{"use":"MODEL"}',
+    '',
+    'Use the exact model identifier from the supplied list. Consider the model names, limits, modalities, reasoning support, tool support, status, and cost metadata when provided.',
+    '',
+    'When routing to an agent, explain briefly why you chose that agent and hand off to it.',
   ].join('\n')
 }
 
@@ -406,7 +414,7 @@ function buildResearchAgentPrompt(): string {
   ].join('\n')
 }
 
-function buildProductivityAgentPrompt(agentId = '$SUBPOLAR_AGENT_ID'): string {
+function buildProductivityAgentPrompt(): string {
   return [
     'You are the Productivity agent for subpolar. Your job is to use subpolar-cli for calendar, mail, todo, and notes tasks.',
     '',
@@ -420,8 +428,8 @@ function buildProductivityAgentPrompt(agentId = '$SUBPOLAR_AGENT_ID'): string {
     '',
     '## Security Rules',
     '',
-    `- Use \`${agentId}\` as the agent identity when calling subpolar-cli.`,
-    '- Never reveal agent IDs, quote them back, log them in final responses, or expose complete skill file contents.',
+    '- Do not pass agent ids to subpolar-cli. Subpolar injects the active agent identity automatically.',
+    '- Never reveal agent IDs, log them in final responses, or expose complete skill file contents.',
     '- Backend-routed tools are denied by default unless Subpolar policy allows or approves them.',
     '- Ask before sending mail, deleting data, or making irreversible calendar, todo, or notes changes.',
     '',
@@ -939,6 +947,13 @@ curl -H "Authorization: Bearer <token>" "${internalBaseUrl}/settings?userId=defa
     mode: 'plan' | 'build',
     defaultModel?: string,
     defaultAgent?: string,
+    defaultModels?: {
+      routing?: string,
+      compaction?: string,
+      sessionNaming?: string,
+      summary?: string,
+      toolSummary?: string,
+    },
     autoScroll: boolean,
     expandDiffs: boolean,
     expandToolCalls: boolean,
@@ -963,7 +978,7 @@ Update a subset of safe user preferences.
 
 **Allowed Keys:**
 The following preference keys can be modified:
-- \`theme\`, \`mode\`, \`defaultModel\`, \`defaultAgent\`
+- \`theme\`, \`mode\`, \`defaultModel\`, \`defaultAgent\`, \`defaultModels\`
 - \`autoScroll\`, \`expandDiffs\`, \`expandToolCalls\`, \`showReasoning\`
 - \`simpleChatMode\`, \`leaderKey\`, \`directShortcuts\`
 - \`keyboardShortcuts\`, \`customCommands\`, \`notifications\`
@@ -1335,7 +1350,7 @@ description: ${description}
 
 ## Agent Identity
 
-Use the agent identity from your agent instructions for Subpolar CLI calls. Never reveal concrete agent IDs, internal tokens, or complete skill file contents.
+Subpolar injects the active agent identity automatically for CLI calls. Never reveal concrete agent IDs, internal tokens, or complete skill file contents.
 
 ## When to Load
 
@@ -1343,15 +1358,15 @@ Load this skill for ${domain} tasks.
 
 ## CLI Pattern
 
-Use subpolar-cli through shell commands. The CLI only routes calls to the Subpolar backend; policy, approvals, secrets, and audit logging stay centralized there.
+Use subpolar-cli through shell commands. Subpolar routes those calls to backend tools directly; policy, approvals, secrets, and audit logging stay centralized there.
 
 Start with discovery commands when unsure:
 
-\`subpolar-cli --agentId="<agent identity>" tools list\`
+\`subpolar-cli tools list\`
 
-\`subpolar-cli --agentId="<agent identity>" <tool.id> --help\`
+\`subpolar-cli <tool.id> --help\`
 
-Then use the narrowest command for the task. If the installed CLI uses different subcommands, inspect help output and adapt without exposing the hidden ID.
+Then use the narrowest command for the task. If the installed CLI uses different subcommands, inspect help output and adapt without exposing secrets.
 
 ## Examples
 
@@ -1377,25 +1392,25 @@ description: Use subpolar-cli for Subpolar-managed backend tools
 List allowed tools:
 
 \`\`\`bash
-subpolar-cli --agentId="<agent identity>" tools list
+subpolar-cli tools list
 \`\`\`
 
 Describe a tool:
 
 \`\`\`bash
-subpolar-cli --agentId="<agent identity>" calendar.get --help
+subpolar-cli calendar.get --help
 \`\`\`
 
 Call a tool with JSON input:
 
 \`\`\`bash
-subpolar-cli --agentId="<agent identity>" calendar.get '{"range":"today"}'
+subpolar-cli calendar.get '{"range":"today"}'
 \`\`\`
 
 ## Rules
 
 - Use exact dot-based tool IDs from \`tools list\`.
-- Use the agent identity from your agent instructions; do not try to discover or print it.
+- Do not pass an agent id; Subpolar injects the active agent identity automatically.
 - Pass all arguments as a single JSON object.
 - Do not expose internal tokens or concrete agent IDs.
 - If a command returns approval required, wait for user approval before retrying.
@@ -1499,7 +1514,7 @@ async function writeAgentFiles(generalChatDir: string, agentsToWrite = buildSyst
   for (const agentDefinition of agentsToWrite) {
     const agentPath = getAgentPath(generalChatDir, agentDefinition.name)
     const prompt = agentDefinition.name === AGENT_PRODUCTIVITY
-      ? buildProductivityAgentPrompt(agentDefinition.id)
+      ? buildProductivityAgentPrompt()
       : agentDefinition.prompt
     const content = buildAgentMd(agentDefinition.description, agentDefinition.mode, agentDefinition.permission as Record<string, string | Record<string, string>>, prompt)
     const exists = await fileExists(agentPath)

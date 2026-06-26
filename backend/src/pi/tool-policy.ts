@@ -1,5 +1,7 @@
 import { callTool } from '../services/subpolar-tool-router'
 import type { Database } from '../db/schema'
+import { getRun } from '../db/runs'
+import type { ToolPermissionOverride } from '../services/subpolar-tool-router'
 
 const PI_TOOL_IDS = {
   read: 'pi.read',
@@ -32,9 +34,15 @@ export function mapPiToolName(toolName: string): string | null {
   return Object.prototype.hasOwnProperty.call(PI_TOOL_IDS, toolName) ? PI_TOOL_IDS[toolName as PiToolName] : null
 }
 
+function parsePermissionOverride(value: unknown): ToolPermissionOverride | undefined {
+  return value === 'ask' || value === 'none' || value === 'allow_all' ? value : undefined
+}
+
 export async function authorizePiToolCall(db: Database, input: PiToolAuthorizationInput): Promise<PiToolAuthorizationResult> {
   const toolId = mapPiToolName(input.toolName)
   if (!toolId) return { ok: false, decision: 'deny', message: `Unknown Pi tool: ${input.toolName}` }
+  const run = await getRun(db, input.runId)
+  const permissionOverride = parsePermissionOverride(run?.metadata.permissionOverride)
 
   const result = await callTool(db, input.agentId, toolId, {
     runId: input.runId,
@@ -42,7 +50,7 @@ export async function authorizePiToolCall(db: Database, input: PiToolAuthorizati
     toolName: input.toolName,
     cwd: input.cwd,
     input: input.input,
-  }, input.sessionId)
+  }, input.sessionId, permissionOverride)
 
   if (result.ok) return { ok: true, decision: 'allow' }
   if ('approvalRequired' in result && result.approvalRequired) {

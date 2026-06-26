@@ -14,6 +14,7 @@ import {
   type ProviderConfig,
   type IntegrationConfig,
   type IntegrationSettings,
+  type DefaultModels,
   type SkillFileInfo,
   type CreateSkillRequest,
   type UpdateSkillRequest,
@@ -21,7 +22,7 @@ import {
 } from '@subpolar/shared'
 import type { NotificationPreferences } from '@subpolar/shared/types'
 
-export type { TTSConfig, STTConfig, OpenCodeConfigContent, ModelConfig, ProviderConfig, NotificationPreferences, SkillFileInfo, CreateSkillRequest, UpdateSkillRequest, SkillScope, IntegrationConfig, IntegrationSettings }
+export type { TTSConfig, STTConfig, OpenCodeConfigContent, ModelConfig, ProviderConfig, NotificationPreferences, SkillFileInfo, CreateSkillRequest, UpdateSkillRequest, SkillScope, IntegrationConfig, IntegrationSettings, DefaultModels }
 export { DEFAULT_TTS_CONFIG, DEFAULT_STT_CONFIG, DEFAULT_KEYBOARD_SHORTCUTS, DEFAULT_USER_PREFERENCES, DEFAULT_LEADER_KEY, BLOCKED_SERVER_ENV_KEYS, DEFAULT_SERVER_ENV_VARS, DEFAULT_INTEGRATION_SETTINGS }
 
 export interface CustomCommand {
@@ -51,6 +52,7 @@ export interface UserPreferences {
   theme: string
   mode: 'plan' | 'build'
   defaultModel?: string
+  defaultModels?: DefaultModels
   defaultAgent?: string
   autoScroll: boolean
   expandDiffs: boolean

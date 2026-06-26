@@ -89,7 +89,7 @@ function buildToolAccess(agent?: Agent, policies: AgentToolPolicy[] = []): ToolA
     type: 'subpolar',
     id: policy.tool_id,
     permission: policyPermission(policy.effect),
-    command: `subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" ${policy.tool_id}`,
+    command: `subpolar-cli ${policy.tool_id}`,
   }))
   return [
     ...base,
@@ -157,7 +157,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
 
   const addToolAccess = () => {
     const defaultTool = subpolarTools[0]?.tool_id ?? 'calendar.get'
-    const next = [...toolAccess, { type: 'subpolar' as const, id: defaultTool, permission: 'allow' as const, command: `subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" ${defaultTool}` }]
+    const next = [...toolAccess, { type: 'subpolar' as const, id: defaultTool, permission: 'allow' as const, command: `subpolar-cli ${defaultTool}` }]
     form.setValue('toolAccess', next, { shouldDirty: true, shouldValidate: true })
     setSelectedToolIndex(next.length - 1)
   }
@@ -458,7 +458,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                           </SelectContent>
                         </Select>
                       ) : selectedTool.type === 'subpolar' && subpolarTools.length > 0 ? (
-                        <Select value={selectedTool.id} onValueChange={(value) => updateSelectedTool({ id: value, command: `subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" ${value}` })}>
+                        <Select value={selectedTool.id} onValueChange={(value) => updateSelectedTool({ id: value, command: `subpolar-cli ${value}` })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {subpolarTools.map((tool: SubpolarTool) => <SelectItem key={tool.tool_id} value={tool.tool_id}>{tool.tool_id}</SelectItem>)}
@@ -484,7 +484,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                     </div>
                     <div className="space-y-2 sm:col-span-2">
                       <label className="text-sm font-medium">CLI Pattern</label>
-                      <Input value={selectedTool.command || ''} placeholder={selectedTool.type === 'subpolar' ? 'subpolar-cli --agentId="$SUBPOLAR_AGENT_ID" calendar.get' : 'rg *'} onChange={(event) => updateSelectedTool({ command: event.target.value })} />
+                      <Input value={selectedTool.command || ''} placeholder={selectedTool.type === 'subpolar' ? 'subpolar-cli calendar.get' : 'rg *'} onChange={(event) => updateSelectedTool({ command: event.target.value })} />
                       <p className="text-xs text-muted-foreground">For skills this can document required CLI utility permissions. For Subpolar tools, use the dot-based tool ID above.</p>
                     </div>
                   </div>
