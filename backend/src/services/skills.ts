@@ -114,12 +114,12 @@ async function fetchOpenCodeSkills(openCodeClient: OpenCodeClient, directory: st
       directory,
     })
     if (!response.ok) {
-      logger.warn(`Failed to fetch skills from OpenCode (${response.status})`)
+      logger.warn(`Failed to fetch skills from PiInternal (${response.status})`)
       return []
     }
     return await response.json() as OpenCodeSkillInfo[]
   } catch (error) {
-    logger.warn('Error fetching skills from OpenCode:', error)
+    logger.warn('Error fetching skills from PiInternal:', error)
     return []
   }
 }

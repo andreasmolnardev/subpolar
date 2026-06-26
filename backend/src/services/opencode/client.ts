@@ -23,7 +23,7 @@ export class UpstreamError extends Error {
     public readonly bodyText: string,
     message?: string,
   ) {
-    super(message ?? `OpenCode upstream returned ${status}`)
+    super(message ?? `PiInternal upstream returned ${status}`)
     this.name = 'UpstreamError'
   }
 }
@@ -102,7 +102,7 @@ export class FetchOpenCodeClient implements OpenCodeClient {
 
       const body = await response.text()
       if (!response.ok) {
-        logger.warn(`OpenCode upstream ${req.method} ${url.pathname}${url.search} returned ${response.status}: ${body || response.statusText}`)
+        logger.warn(`PiInternal upstream ${req.method} ${url.pathname}${url.search} returned ${response.status}: ${body || response.statusText}`)
       }
       return new Response(body, {
         status: response.status,
@@ -199,16 +199,16 @@ export class FetchOpenCodeClient implements OpenCodeClient {
     })
 
     if (response.ok) {
-      logger.info(`Set OpenCode auth for provider: ${providerId}`)
+      logger.info(`Set PiInternal auth for provider: ${providerId}`)
       return true
     }
 
     if (response.status === 502) {
-      logger.error(`Failed to set OpenCode auth for provider: ${providerId}`)
+      logger.error(`Failed to set PiInternal auth for provider: ${providerId}`)
       return false
     }
 
-    logger.error(`Failed to set OpenCode auth: ${response.status} ${response.statusText}`)
+    logger.error(`Failed to set PiInternal auth: ${response.status} ${response.statusText}`)
     return false
   }
 
@@ -219,16 +219,16 @@ export class FetchOpenCodeClient implements OpenCodeClient {
     })
 
     if (response.ok) {
-      logger.info(`Deleted OpenCode auth for provider: ${providerId}`)
+      logger.info(`Deleted PiInternal auth for provider: ${providerId}`)
       return true
     }
 
     if (response.status === 502) {
-      logger.error(`Failed to delete OpenCode auth for provider: ${providerId}`)
+      logger.error(`Failed to delete PiInternal auth for provider: ${providerId}`)
       return false
     }
 
-    logger.error(`Failed to delete OpenCode auth: ${response.status} ${response.statusText}`)
+    logger.error(`Failed to delete PiInternal auth: ${response.status} ${response.statusText}`)
     return false
   }
 

@@ -316,7 +316,7 @@ class SSEAggregator {
 
     const url = `http://127.0.0.1:${OPENCODE_PORT}/global/event`
     const wasConnectedBefore = this.everConnected
-    logger.info(`SSE connecting to OpenCode global stream: ${url}`)
+    logger.info(`SSE connecting to PiInternal global stream: ${url}`)
 
     const authHeader = this.passwordResolver
       ? await getOpenCodeBasicAuthHeader(this.passwordResolver)

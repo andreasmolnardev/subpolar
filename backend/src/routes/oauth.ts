@@ -78,7 +78,7 @@ export function createOAuthRoutes(openCodeClient: OpenCodeClient, openCodeSuperv
       try {
         await reloadOpenCodeConfig(openCodeSupervisor)
       } catch (reloadError) {
-        logger.warn(`Failed to reload OpenCode config after OAuth callback for ${providerId}:`, reloadError)
+        logger.warn(`Failed to reload PiInternal config after OAuth callback for ${providerId}:`, reloadError)
       }
 
       return c.json(data)

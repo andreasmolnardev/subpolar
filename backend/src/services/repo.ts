@@ -1198,7 +1198,7 @@ export async function getSiblingRepos(
 
     return [...repoSiblings, ...workspaceSiblings]
   } catch (error) {
-    logger.warn('Failed to list OpenCode workspaces:', error)
+    logger.warn('Failed to list PiInternal workspaces:', error)
     return repoSiblings
   }
 }

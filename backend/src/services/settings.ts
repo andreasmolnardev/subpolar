@@ -291,7 +291,7 @@ export class SettingsService {
       updatedAt: now,
     }
 
-    logger.info(`Created OpenCode config '${config.name}' for user: ${userId}`)
+    logger.info(`Created PiInternal config '${config.name}' for user: ${userId}`)
     return config
   }
 
@@ -347,7 +347,7 @@ export class SettingsService {
       updatedAt: now,
     }
 
-    logger.info(`Updated OpenCode config '${configName}' for user: ${userId}`)
+    logger.info(`Updated PiInternal config '${configName}' for user: ${userId}`)
     return config
   }
 
@@ -357,7 +357,7 @@ export class SettingsService {
         `user_id = "${userId}" && config_name = "${configName}"`
       )
       await this.pb.collection('opencode_configs').delete(record.id)
-      logger.info(`Deleted OpenCode config '${configName}' for user: ${userId}`)
+      logger.info(`Deleted PiInternal config '${configName}' for user: ${userId}`)
       await this.ensureSingleConfigIsDefault(userId)
       return true
     } catch {
@@ -516,7 +516,7 @@ export class SettingsService {
         userId,
         { suppressAutoDefault: true },
       )
-      logger.warn(`Archived broken OpenCode config as '${backupName}'`)
+      logger.warn(`Archived broken PiInternal config as '${backupName}'`)
       return backupName
     } catch (error) {
       logger.error('Failed to archive broken config:', error)

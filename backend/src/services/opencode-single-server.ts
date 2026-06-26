@@ -182,7 +182,7 @@ class OpenCodeServerManager {
 
     try {
       if (this.isHealthy) {
-        logger.info('OpenCode server already running and healthy')
+        logger.info('PiInternal server already running and healthy')
         return
       }
 
@@ -237,7 +237,7 @@ class OpenCodeServerManager {
     const openCodeServerPort = getOpenCodeServerPort()
     const existingProcesses = await this.findProcessesByPort(openCodeServerPort)
     if (existingProcesses.length > 0) {
-      logger.info(`OpenCode server already running on port ${openCodeServerPort}`)
+      logger.info(`PiInternal server already running on port ${PiInternalServerPort}`)
       const healthy = await this.checkHealth()
       if (healthy) {
         if (isDevelopment) {
@@ -258,7 +258,7 @@ class OpenCodeServerManager {
           return
         }
       } else {
-        logger.warn('Killing unhealthy OpenCode server')
+        logger.warn('Killing unhealthy PiInternal server')
         for (const proc of existingProcesses) {
           try {
             process.kill(proc.pid, 'SIGKILL')
@@ -272,9 +272,9 @@ class OpenCodeServerManager {
 
     const openCodeServerDirectory = getOpenCodeServerDirectory()
     const openCodeConfigPath = getOpenCodeConfigPath()
-    logger.info(`OpenCode server working directory: ${openCodeServerDirectory}`)
-    logger.info(`OpenCode XDG_CONFIG_HOME: ${path.join(openCodeServerDirectory, '.config')}`)
-    logger.info(`OpenCode will use ?directory= parameter for session isolation`)
+    logger.info(`PiInternal server working directory: ${PiInternalServerDirectory}`)
+    logger.info(`PiInternal XDG_CONFIG_HOME: ${path.join(PiInternalServerDirectory, '.config')}`)
+    logger.info(`PiInternal will use ?directory= parameter for session isolation`)
 
     const gitEnv = createGitEnv(gitCredentials)
     const knownHostsPath = path.join(getWorkspacePath(), 'config', 'known_hosts')
@@ -283,7 +283,7 @@ class OpenCodeServerManager {
 
     const sshCredentials = gitCredentials.filter(cred => cred.type === 'ssh' && cred.sshPrivateKeyEncrypted)
     if (sshCredentials.length > 0) {
-      logger.info(`Setting up ${sshCredentials.length} SSH credential(s) for OpenCode server`)
+      logger.info(`Setting up ${sshCredentials.length} SSH credential(s) for PiInternal server`)
 
       const sshConfigEntries: Array<{ hostname: string, port: string, keyPath: string }> = []
 
@@ -312,7 +312,7 @@ class OpenCodeServerManager {
         sshConfigPath = path.join(getWorkspacePath(), 'config', 'ssh_config')
         await writeSSHConfig(sshConfigPath, sshConfigContent)
         gitSshCommand = buildSSHCommandWithConfig(sshConfigPath, knownHostsPath)
-        logger.info(`OpenCode server SSH config written to ${sshConfigPath} with ${sshConfigEntries.length} host(s)`)
+        logger.info(`PiInternal server SSH config written to ${sshConfigPath} with ${sshConfigEntries.length} host(s)`)
       } else {
         gitSshCommand = buildSSHCommandWithKnownHosts(knownHostsPath)
         logger.warn(`No SSH credentials could be set up, using default known_hosts only`)
@@ -321,7 +321,7 @@ class OpenCodeServerManager {
       gitSshCommand = buildSSHCommandWithKnownHosts(knownHostsPath)
     }
 
-    logger.info(`OpenCode server GIT_SSH_COMMAND: ${gitSshCommand}`)
+    logger.info(`PiInternal server GIT_SSH_COMMAND: ${gitSshCommand}`)
 
     await this.initializeOpencodeBinDirectory()
     const configuredPlugins = await this.getConfiguredPlugins(openCodeConfigPath)
@@ -378,16 +378,16 @@ class OpenCodeServerManager {
       if (code !== null && code !== 0) {
         const fallback = `Server exited with code ${code}${stderrOutput ? `: ${stderrOutput.slice(-500)}` : ''}`
         this.lastStartupError = formatStartupError(stderrOutput, fallback)
-        logger.error('OpenCode server process exited:', this.lastStartupError)
+        logger.error('PiInternal server process exited:', this.lastStartupError)
       } else if (signal) {
         this.lastStartupError = `Server terminated by signal ${signal}`
-        logger.error('OpenCode server process terminated:', this.lastStartupError)
+        logger.error('PiInternal server process terminated:', this.lastStartupError)
       }
     })
 
     this.serverPid = this.serverProcess.pid ?? null
 
-    logger.info(`OpenCode server started with PID ${this.serverPid}`)
+    logger.info(`PiInternal server started with PID ${this.serverPid}`)
 
     const healthTimeoutMs = configuredPluginCount > 0 ? 120000 : 30000
     const healthy = await this.waitForHealth(healthTimeoutMs)
@@ -395,7 +395,7 @@ class OpenCodeServerManager {
       const fallback = `Server failed to become healthy after ${Math.round(healthTimeoutMs / 1000)}s${stderrOutput ? `. Last error: ${stderrOutput.slice(-500)}` : ''}`
       this.lastStartupError = formatStartupError(stderrOutput, fallback)
       if (configuredPluginCount > 0 && retryAfterPluginInstall) {
-        logger.warn(`OpenCode server did not become healthy after installing ${configuredPluginCount} configured plugin(s); restarting once`)
+        logger.warn(`PiInternal server did not become healthy after installing ${configuredPluginCount} configured plugin(s); restarting once`)
         await this.stop(true)
         await new Promise(r => setTimeout(r, 1000))
         await this.start(false, true)
@@ -405,13 +405,13 @@ class OpenCodeServerManager {
     }
 
     this.isHealthy = true
-    logger.info('OpenCode server is healthy')
+    logger.info('PiInternal server is healthy')
 
     await this.fetchVersion()
     if (this.version) {
-      logger.info(`OpenCode version: ${this.version}`)
+      logger.info(`PiInternal version: ${this.version}`)
       if (!this.isVersionSupported()) {
-        logger.warn(`OpenCode version ${this.version} is below minimum required version ${MIN_OPENCODE_VERSION}`)
+        logger.warn(`PiInternal version ${this.version} is below minimum required version ${MIN_PiInternal_VERSION}`)
         logger.warn('Some features like MCP management may not work correctly')
       }
     }
@@ -429,7 +429,7 @@ class OpenCodeServerManager {
     try {
       if (!this.serverPid) return
 
-      logger.info('Stopping OpenCode server')
+      logger.info('Stopping PiInternal server')
       try {
         process.kill(this.serverPid, 'SIGTERM')
       } catch (error) {
@@ -495,7 +495,7 @@ class OpenCodeServerManager {
             stdio: 'inherit',
             timeout: 30000
           })
-          logger.info('OpenCode bin directory initialized successfully')
+          logger.info('PiInternal bin directory initialized successfully')
         } catch (error) {
           logger.error('bun init failed:', error)
           throw new Error(`bun init failed: ${error}`)
@@ -503,7 +503,7 @@ class OpenCodeServerManager {
       }
 
     } catch (error) {
-      logger.error('Failed to initialize OpenCode bin directory:', error)
+      logger.error('Failed to initialize PiInternal bin directory:', error)
     }
   }
 
@@ -565,7 +565,7 @@ class OpenCodeServerManager {
     if (npmPlugins.length === 0) return
 
     const cacheHome = process.env.XDG_CACHE_HOME || path.join(process.env.HOME || '/home/node', '.cache')
-    logger.info(`Pre-installing ${npmPlugins.length} configured OpenCode plugin(s)`)
+    logger.info(`Pre-installing ${npmPlugins.length} configured PiInternal plugin(s)`)
 
     for (const plugin of npmPlugins) {
       const installSpec = this.getPluginInstallSpec(plugin)
@@ -575,12 +575,12 @@ class OpenCodeServerManager {
 
       try {
         await fs.access(packageJsonPath)
-        logger.info(`OpenCode plugin already installed: ${plugin}`)
+        logger.info(`PiInternal plugin already installed: ${plugin}`)
         continue
       } catch (error) {
         const errorCode = error && typeof error === 'object' && 'code' in error ? (error as NodeJS.ErrnoException).code : ''
         if (errorCode !== 'ENOENT') {
-          logger.warn(`Could not check OpenCode plugin install state for ${plugin}:`, error)
+          logger.warn(`Could not check PiInternal plugin install state for ${plugin}:`, error)
         }
       }
 
@@ -588,23 +588,23 @@ class OpenCodeServerManager {
       if (!await fs.access(path.join(installDir, 'package.json')).then(() => true).catch(() => false)) {
         const init = spawnSync('bun', ['init', '-y'], { cwd: installDir, encoding: 'utf8', timeout: 30000 })
         if (init.status !== 0) {
-          logger.warn(`Failed to initialize OpenCode plugin cache for ${plugin}: ${init.stderr || init.stdout}`)
+          logger.warn(`Failed to initialize PiInternal plugin cache for ${plugin}: ${init.stderr || init.stdout}`)
           continue
         }
       }
 
       const result = spawnSync('bun', ['add', '--ignore-scripts', installSpec], { cwd: installDir, encoding: 'utf8', timeout: PLUGIN_INSTALL_TIMEOUT_MS })
       if (result.status === 0) {
-        logger.info(`Installed OpenCode plugin: ${plugin}`)
+        logger.info(`Installed PiInternal plugin: ${plugin}`)
         continue
       }
 
       if (result.error) {
-        logger.warn(`Failed to install OpenCode plugin ${plugin}: ${result.error.message}`)
+        logger.warn(`Failed to install PiInternal plugin ${plugin}: ${result.error.message}`)
         continue
       }
 
-      logger.warn(`Failed to install OpenCode plugin ${plugin}: ${result.stderr || result.stdout}`)
+      logger.warn(`Failed to install PiInternal plugin ${plugin}: ${result.stderr || result.stdout}`)
     }
   }
 
@@ -615,7 +615,7 @@ class OpenCodeServerManager {
     }
 
     try {
-      logger.info('Restarting OpenCode server (full process restart)')
+      logger.info('Restarting PiInternal server (full process restart)')
       await this.stop(true)
       await new Promise(r => setTimeout(r, 1000))
       await this.start(false, true)
@@ -631,7 +631,7 @@ class OpenCodeServerManager {
     }
 
     try {
-      logger.info('Reloading OpenCode configuration (via API)')
+      logger.info('Reloading PiInternal configuration (via API)')
       try {
         const configPath = getOpenCodeConfigFilePath()
         const fileContent = await fs.readFile(configPath, 'utf-8')
@@ -658,14 +658,14 @@ class OpenCodeServerManager {
           logger.info(`Persisted cleaned config to ${configPath} after removing fields: ${patchResult.removedFields.join(', ')}`)
         }
 
-        logger.info('OpenCode configuration reloaded successfully')
+        logger.info('PiInternal configuration reloaded successfully')
         await new Promise(r => setTimeout(r, 500))
         const healthy = await this.checkHealth()
         if (!healthy) {
           throw new Error('Server unhealthy after config reload')
         }
       } catch (error) {
-        logger.error('Failed to reload OpenCode config:', error)
+        logger.error('Failed to reload PiInternal config:', error)
         throw error
       }
     } finally {
@@ -699,7 +699,7 @@ class OpenCodeServerManager {
   }
 
   async reinitializeBinDirectory(): Promise<void> {
-    logger.info('Reinitializing OpenCode bin directory')
+    logger.info('Reinitializing PiInternal bin directory')
     await this.initializeOpencodeBinDirectory()
   }
 
@@ -728,7 +728,7 @@ class OpenCodeServerManager {
         return this.version
       }
     } catch (error) {
-      logger.warn('Failed to get OpenCode version:', error)
+      logger.warn('Failed to get PiInternal version:', error)
     }
     return null
   }

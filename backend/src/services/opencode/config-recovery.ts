@@ -163,32 +163,32 @@ export async function patchConfigWithRecovery(
     })
 
     if (response.ok) {
-      logger.info('Patched OpenCode config via API')
+      logger.info('Patched PiInternal config via API')
       return { success: true, appliedConfig: config }
     }
 
     const responseText = await response.text()
-    logger.warn(`OpenCode PATCH response (${response.status}): ${responseText.slice(0, 500)}`)
+    logger.warn(`PiInternal PATCH response (${response.status}): ${responseText.slice(0, 500)}`)
     const { details, errorMessage: initialError } = parseErrorResponse(responseText)
 
     if (details.length === 0) {
-      logger.error(`Failed to patch OpenCode config: ${initialError}`)
+      logger.error(`Failed to patch PiInternal config: ${initialError}`)
       return { success: false, error: initialError, details }
     }
 
-    logger.warn(`OpenCode rejected config with validation errors: ${initialError}`)
+    logger.warn(`PiInternal rejected config with validation errors: ${initialError}`)
 
     const problematicPaths = [...new Set(details.map((d) => d.path))]
     const removablePaths = problematicPaths.filter((path) => path !== 'root' && path.split('.').length <= 3)
     const nonRemovablePaths = problematicPaths.filter((path) => path === 'root' || path.split('.').length > 3)
 
     if (nonRemovablePaths.length > 0) {
-      logger.error(`Failed to patch OpenCode config: ${initialError}`)
+      logger.error(`Failed to patch PiInternal config: ${initialError}`)
       return { success: false, error: initialError, details }
     }
 
     if (removablePaths.length === 0) {
-      logger.error(`Failed to patch OpenCode config: ${initialError}`)
+      logger.error(`Failed to patch PiInternal config: ${initialError}`)
       return { success: false, error: initialError, details }
     }
 
@@ -210,7 +210,7 @@ export async function patchConfigWithRecovery(
     })
 
     if (retryResponse.ok) {
-      logger.info('Patched OpenCode config via API after removing invalid fields')
+      logger.info('Patched PiInternal config via API after removing invalid fields')
       return {
         success: true,
         appliedConfig: cleanedConfig,
@@ -221,7 +221,7 @@ export async function patchConfigWithRecovery(
 
     const retryResponseText = await retryResponse.text()
     const { details: retryDetails, errorMessage } = parseErrorResponse(retryResponseText)
-    logger.error(`Failed to patch OpenCode config even after removing invalid fields: ${errorMessage}`)
+    logger.error(`Failed to patch PiInternal config even after removing invalid fields: ${errorMessage}`)
 
     return {
       success: false,
@@ -231,7 +231,7 @@ export async function patchConfigWithRecovery(
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    logger.error('Failed to patch OpenCode config:', error)
+    logger.error('Failed to patch PiInternal config:', error)
     return { success: false, error: errorMessage }
   }
 }

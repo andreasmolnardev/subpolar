@@ -130,7 +130,7 @@ async function fetchSkillContent(slugs: string[], repoPath: string, openCodeClie
       directory: repoPath,
     })
     if (!response.ok) {
-      logger.warn(`Failed to fetch skills from OpenCode (${response.status}), falling back to name-only injection`)
+      logger.warn(`Failed to fetch skills from PiInternal (${response.status}), falling back to name-only injection`)
       return []
     }
     const skills = await response.json() as SkillInfo[]
@@ -139,7 +139,7 @@ async function fetchSkillContent(slugs: string[], repoPath: string, openCodeClie
       .map((slug) => {
         const skill = skills.find((s) => s.name === slug || s.name.endsWith(`/${slug}`) || s.name.endsWith(`-${slug}`))
         if (!skill) {
-          logger.warn(`Skill "${slug}" not found in OpenCode skill list`)
+          logger.warn(`Skill "${slug}" not found in PiInternal skill list`)
           return null
         }
         return [
@@ -159,7 +159,7 @@ async function fetchSkillContent(slugs: string[], repoPath: string, openCodeClie
 
     return skillBlocks
   } catch (error) {
-    logger.warn('Error fetching skills from OpenCode, falling back to name-only injection:', error)
+    logger.warn('Error fetching skills from PiInternal, falling back to name-only injection:', error)
     return []
   }
 }

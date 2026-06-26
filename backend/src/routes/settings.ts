@@ -394,12 +394,12 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       let reloadError: string | undefined
       if (credentialsChanged || identityChanged) {
         const changeType = [credentialsChanged && 'credentials', identityChanged && 'identity'].filter(Boolean).join(' and ')
-        logger.info(`Git ${changeType} changed, reloading OpenCode configuration`)
+        logger.info(`Git ${changeType} changed, reloading PiInternal configuration`)
         try {
           await reloadOpenCodeConfig(openCodeSupervisor)
           serverRestarted = true
         } catch (error) {
-          logger.warn('Failed to reload OpenCode config after git settings change:', error)
+          logger.warn('Failed to reload PiInternal config after git settings change:', error)
           reloadError = error instanceof Error ? error.message : 'Unknown error'
         }
       }
@@ -494,7 +494,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       const configs = await settingsService.getOpenCodeConfigs(userId)
       return c.json(configs)
     } catch (error) {
-      logger.error('Failed to get OpenCode configs:', error)
+      logger.error('Failed to get PiInternal configs:', error)
       return c.json({ error: 'Failed to get OpenCode configs' }, 500)
     }
   })
@@ -573,7 +573,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       const config = await settingsService.createOpenCodeConfig(validated, userId)
       return c.json(config)
     } catch (error) {
-      logger.error('Failed to create OpenCode config:', error)
+      logger.error('Failed to create PiInternal config:', error)
       if (error instanceof z.ZodError) {
         return c.json({ error: 'Invalid config data', details: error.issues }, 400)
       }
@@ -606,7 +606,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
         if (restartRequired) {
           await writeFileContent(configPath, config.rawContent)
           logger.info(`Wrote default config to: ${configPath}`)
-          logger.info('OpenCode configuration requires process restart')
+          logger.info('PiInternal configuration requires process restart')
           opencodeServerManager.clearStartupError()
           await restartOpenCode(openCodeSupervisor)
         } else {
@@ -636,7 +636,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       
       return c.json(config)
     } catch (error) {
-      logger.error('Failed to update OpenCode config:', error)
+      logger.error('Failed to update PiInternal config:', error)
       if (error instanceof z.ZodError) {
         return c.json({ error: 'Invalid config data', details: error.issues }, 400)
       }
@@ -656,7 +656,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       
       return c.json({ success: true })
     } catch (error) {
-      logger.error('Failed to delete OpenCode config:', error)
+      logger.error('Failed to delete PiInternal config:', error)
       return c.json({ error: 'Failed to delete OpenCode config' }, 500)
     }
   })
@@ -727,7 +727,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       
       return c.json(config)
     } catch (error) {
-      logger.error('Failed to set default OpenCode config:', error)
+      logger.error('Failed to set default PiInternal config:', error)
       return c.json({ error: 'Failed to set default OpenCode config' }, 500)
     }
   })
@@ -743,19 +743,19 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       
       return c.json(config)
     } catch (error) {
-      logger.error('Failed to get default OpenCode config:', error)
+      logger.error('Failed to get default PiInternal config:', error)
       return c.json({ error: 'Failed to get default OpenCode config' }, 500)
     }
   })
 
   app.post('/opencode-restart', async (c) => {
     try {
-      logger.info('Manual OpenCode server restart requested')
+      logger.info('Manual PiInternal server restart requested')
       opencodeServerManager.clearStartupError()
       await restartOpenCode(openCodeSupervisor)
       return c.json({ success: true, message: 'OpenCode server restarted successfully' })
     } catch (error) {
-      logger.error('Failed to restart OpenCode server:', error)
+      logger.error('Failed to restart PiInternal server:', error)
       const startupError = opencodeServerManager.getLastStartupError()
       return c.json({
         error: 'Failed to restart OpenCode server',
@@ -768,7 +768,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
     try {
       return c.json(await getOpenCodeImportStatus())
     } catch (error) {
-      logger.error('Failed to get OpenCode import status:', error)
+      logger.error('Failed to get PiInternal import status:', error)
       return c.json({
         error: 'Failed to get OpenCode import status',
         details: error instanceof Error ? error.message : 'Unknown error'
@@ -815,7 +815,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
         ...result,
       })
     } catch (error) {
-      logger.error('Failed to import existing OpenCode host data:', error)
+      logger.error('Failed to import existing PiInternal host data:', error)
       if (error instanceof z.ZodError) {
         return c.json({ error: 'Invalid OpenCode import request', details: error.issues }, 400)
       }
@@ -835,11 +835,11 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
 
   app.post('/opencode-reload', async (c) => {
     try {
-      logger.info('OpenCode configuration reload requested')
+      logger.info('PiInternal configuration reload requested')
       await reloadOpenCodeConfig(openCodeSupervisor)
       return c.json({ success: true, message: 'OpenCode configuration reloaded successfully' })
     } catch (error) {
-      logger.error('Failed to reload OpenCode config:', error)
+      logger.error('Failed to reload PiInternal config:', error)
       if (error instanceof ConfigReloadError) {
         const details = error.validationIssues.length > 0
           ? error.validationIssues.map((issue) => `${issue.path}: ${issue.message}`).join('; ')
@@ -861,7 +861,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
   app.post('/opencode-rollback', async (c) => {
     try {
       const userId = c.req.query('userId') || 'default'
-      logger.info('OpenCode config rollback requested')
+      logger.info('PiInternal config rollback requested')
 
       const rollbackConfig = settingsService.rollbackToLastKnownGoodHealth(userId)
       if (!rollbackConfig) {
@@ -911,41 +911,41 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
         configName: rollbackConfig
       })
     } catch (error) {
-      logger.error('Failed to rollback OpenCode config:', error)
+      logger.error('Failed to rollback PiInternal config:', error)
       return c.json({ error: 'Failed to rollback OpenCode config' }, 500)
     }
   })
 
   app.post('/opencode-upgrade', async (c) => {
     const oldVersion = opencodeServerManager.getVersion()
-    logger.info(`Current OpenCode version: ${oldVersion}`)
+    logger.info(`Current PiInternal version: ${oldVersion}`)
 
     try {
       const installMethod = getOpenCodeInstallMethod()
-      logger.info(`Running opencode upgrade --method ${installMethod} with 90s timeout...`)
+      logger.info(`Running PiInternal upgrade --method ${installMethod} with 90s timeout...`)
       const { output: upgradeOutput, timedOut } = execWithTimeout(`opencode upgrade --method ${installMethod} 2>&1`, 90000)
       logger.info(`Upgrade output: ${upgradeOutput}`)
 
       if (timedOut) {
-        logger.warn('OpenCode upgrade timed out after 90 seconds')
+        logger.warn('PiInternal upgrade timed out after 90 seconds')
         throw new Error('Upgrade command timed out after 90 seconds')
       }
 
       const newVersion = opencodeServerManager.getVersion() || await opencodeServerManager.fetchVersion()
-      logger.info(`New OpenCode version: ${newVersion}`)
+      logger.info(`New PiInternal version: ${newVersion}`)
 
       const upgraded = oldVersion && newVersion && compareVersions(newVersion, oldVersion) > 0
 
       if (upgraded) {
-        logger.info(`OpenCode upgraded from v${oldVersion} to v${newVersion}`)
+        logger.info(`PiInternal upgraded from v${oldVersion} to v${newVersion}`)
         opencodeServerManager.clearStartupError()
         try {
           await reloadOpenCodeConfig(openCodeSupervisor)
-          logger.info('OpenCode server reloaded after upgrade')
+          logger.info('PiInternal server reloaded after upgrade')
         } catch (reloadError) {
           logger.warn('Config reload after upgrade failed, attempting full restart:', reloadError)
           await restartOpenCode(openCodeSupervisor)
-          logger.info('OpenCode server restarted after upgrade')
+          logger.info('PiInternal server restarted after upgrade')
         }
 
         return c.json({
@@ -956,7 +956,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
           upgraded: true
         })
       } else {
-        logger.info('OpenCode is already up to date or version unchanged')
+        logger.info('PiInternal is already up to date or version unchanged')
         return c.json({
           success: true,
           message: 'OpenCode is already up to date',
@@ -966,8 +966,8 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
         })
       }
     } catch (error) {
-      logger.error('Failed to upgrade OpenCode:', error)
-      logger.warn('Attempting to recover OpenCode server...')
+      logger.error('Failed to upgrade PiInternal:', error)
+      logger.warn('Attempting to recover PiInternal server...')
 
       let recovered = false
       let recoveryMessage = ''
@@ -975,11 +975,11 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       opencodeServerManager.clearStartupError()
       try {
         await restartOpenCode(openCodeSupervisor)
-        logger.warn('OpenCode server restarted after upgrade failure')
+        logger.warn('PiInternal server restarted after upgrade failure')
         recovered = true
         recoveryMessage = 'Server recovered'
       } catch (recoveryError) {
-        logger.error('Failed to recover OpenCode server:', recoveryError)
+        logger.error('Failed to recover PiInternal server:', recoveryError)
         recovered = false
         recoveryMessage = recoveryError instanceof Error ? recoveryError.message : 'Unknown error'
       }
@@ -1018,7 +1018,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
 
   app.get('/opencode-versions', async (c) => {
     try {
-      logger.info('Fetching available OpenCode versions from GitHub')
+      logger.info('Fetching available PiInternal versions from GitHub')
       
       const response = await fetch('https://api.github.com/repos/sst/opencode/releases?per_page=20', {
         headers: {
@@ -1054,7 +1054,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
         currentVersion
       })
     } catch (error) {
-      logger.error('Failed to fetch OpenCode versions:', error)
+      logger.error('Failed to fetch PiInternal versions:', error)
       return c.json({
         error: 'Failed to fetch versions',
         details: error instanceof Error ? error.message : 'Unknown error'
@@ -1064,7 +1064,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
 
   app.post('/opencode-install-version', async (c) => {
     const oldVersion = opencodeServerManager.getVersion()
-    logger.info(`Current OpenCode version: ${oldVersion}`)
+    logger.info(`Current PiInternal version: ${oldVersion}`)
 
     try {
       const body = await c.req.json()
@@ -1075,10 +1075,10 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
         throw new Error('Invalid version format. Must be in MAJOR.MINOR.PATCH format (e.g., 1.2.27)')
       }
 
-      logger.info(`Installing OpenCode version: ${version}`)
+      logger.info(`Installing PiInternal version: ${version}`)
       const versionArg = version.startsWith('v') ? version : `v${version}`
       const installMethod = getOpenCodeInstallMethod()
-      logger.info(`Running opencode upgrade ${versionArg} --method ${installMethod} with 90s timeout...`)
+      logger.info(`Running PiInternal upgrade ${versionArg} --method ${installMethod} with 90s timeout...`)
 
       const { output: upgradeOutput, timedOut } = execWithTimeout(
         ['opencode', 'upgrade', versionArg, '--method', installMethod],
@@ -1087,16 +1087,16 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       logger.info(`Upgrade output: ${upgradeOutput}`)
 
       if (timedOut) {
-        logger.warn('OpenCode version install timed out after 90 seconds')
+        logger.warn('PiInternal version install timed out after 90 seconds')
         throw new Error('Version install command timed out after 90 seconds')
       }
 
       const newVersion = await opencodeServerManager.fetchVersion()
-      logger.info(`New OpenCode version: ${newVersion}`)
+      logger.info(`New PiInternal version: ${newVersion}`)
 
       opencodeServerManager.clearStartupError()
       await restartOpenCode(openCodeSupervisor)
-      logger.info('OpenCode server restarted after version change')
+      logger.info('PiInternal server restarted after version change')
 
       return c.json({
         success: true,
@@ -1105,8 +1105,8 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
         newVersion
       })
     } catch (error) {
-      logger.error('Failed to install OpenCode version:', error)
-      logger.warn('Attempting to recover OpenCode server...')
+      logger.error('Failed to install PiInternal version:', error)
+      logger.warn('Attempting to recover PiInternal server...')
 
       let recovered = false
       let recoveryMessage = ''
@@ -1114,11 +1114,11 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       opencodeServerManager.clearStartupError()
       try {
         await restartOpenCode(openCodeSupervisor)
-        logger.warn('OpenCode server restarted after install failure')
+        logger.warn('PiInternal server restarted after install failure')
         recovered = true
         recoveryMessage = 'Server recovered'
       } catch (recoveryError) {
-        logger.error('Failed to recover OpenCode server:', recoveryError)
+        logger.error('Failed to recover PiInternal server:', recoveryError)
         recovered = false
         recoveryMessage = recoveryError instanceof Error ? recoveryError.message : 'Unknown error'
       }
@@ -1273,7 +1273,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       logger.info(`Updated AGENTS.md at: ${agentsMdPath}`)
       
       await restartOpenCode(openCodeSupervisor)
-      logger.info('Restarted OpenCode server after AGENTS.md update')
+      logger.info('Restarted PiInternal server after AGENTS.md update')
       
       return c.json({ success: true })
     } catch (error) {
@@ -1342,9 +1342,9 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       
       try {
         await restartOpenCode(openCodeSupervisor)
-        logger.info('Restarted OpenCode server after skill creation')
+        logger.info('Restarted PiInternal server after skill creation')
       } catch (restartError) {
-        logger.warn('Failed to restart OpenCode server after skill creation:', restartError)
+        logger.warn('Failed to restart PiInternal server after skill creation:', restartError)
       }
       
       return c.json(skill)
@@ -1380,9 +1380,9 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       
       try {
         await restartOpenCode(openCodeSupervisor)
-        logger.info('Restarted OpenCode server after skill update')
+        logger.info('Restarted PiInternal server after skill update')
       } catch (restartError) {
-        logger.warn('Failed to restart OpenCode server after skill update:', restartError)
+        logger.warn('Failed to restart PiInternal server after skill update:', restartError)
       }
       
       return c.json(skill)
@@ -1419,9 +1419,9 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       
       try {
         await restartOpenCode(openCodeSupervisor)
-        logger.info('Restarted OpenCode server after skill deletion')
+        logger.info('Restarted PiInternal server after skill deletion')
       } catch (restartError) {
-        logger.warn('Failed to restart OpenCode server after skill deletion:', restartError)
+        logger.warn('Failed to restart PiInternal server after skill deletion:', restartError)
       }
       
       return c.json({ success: true })
@@ -1676,7 +1676,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       const isSet = source !== 'none'
       return c.json({ isSet, source })
     } catch (error) {
-      logger.error('Failed to get OpenCode server auth status:', error)
+      logger.error('Failed to get PiInternal server auth status:', error)
       return c.json({ error: 'Failed to get OpenCode server auth status' }, 500)
     }
   })
@@ -1701,7 +1701,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
           await opencodeServerManager.restart()
           sseAggregator.reconnect()
         } catch (restoreError) {
-          logger.error('Failed to restore OpenCode server auth runtime after restart failure:', restoreError)
+          logger.error('Failed to restore PiInternal server auth runtime after restart failure:', restoreError)
         }
         throw restartError
       }
@@ -1713,7 +1713,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       const isSet = source !== 'none'
       return c.json({ isSet, source })
     } catch (error) {
-      logger.error('Failed to update OpenCode server auth:', error)
+      logger.error('Failed to update PiInternal server auth:', error)
       if (error instanceof z.ZodError) {
         return c.json({ error: 'Invalid request data', details: error.issues }, 400)
       }

@@ -72,7 +72,7 @@ export function createProvidersRoutes(db: Database, openCodeClient: OpenCodeClie
       const state = await readModelStateFromDb(db)
       return c.json(state)
     } catch (error) {
-      logger.error('Failed to read OpenCode model state from DB:', error)
+      logger.error('Failed to read PiInternal model state from DB:', error)
       return c.json({ recent: [], favorite: [], variant: {} })
     }
   })
@@ -98,7 +98,7 @@ export function createProvidersRoutes(db: Database, openCodeClient: OpenCodeClie
       
       return c.json(nextState)
     } catch (error) {
-      logger.error('Failed to update OpenCode model state:', error)
+      logger.error('Failed to update PiInternal model state:', error)
       if (error instanceof z.ZodError) {
         return c.json({ error: 'Invalid request data', details: error.issues }, 400)
       }
@@ -135,7 +135,7 @@ export function createProvidersRoutes(db: Database, openCodeClient: OpenCodeClie
       
       const openCodeSuccess = await openCodeClient.setProviderAuth(providerId, validated.apiKey)
       if (!openCodeSuccess) {
-        logger.warn(`Failed to set OpenCode auth for ${providerId}, saving locally only`)
+        logger.warn(`Failed to set PiInternal auth for ${providerId}, saving locally only`)
       }
       
       await authService.set(providerId, validated.apiKey)
@@ -143,7 +143,7 @@ export function createProvidersRoutes(db: Database, openCodeClient: OpenCodeClie
       try {
         await reloadOpenCodeConfig(openCodeSupervisor)
       } catch (reloadError) {
-        logger.warn(`Failed to reload OpenCode config after saving credentials for ${providerId}:`, reloadError)
+        logger.warn(`Failed to reload PiInternal config after saving credentials for ${providerId}:`, reloadError)
       }
       
       return c.json({ success: true })
@@ -162,7 +162,7 @@ export function createProvidersRoutes(db: Database, openCodeClient: OpenCodeClie
       
       const openCodeSuccess = await openCodeClient.deleteProviderAuth(providerId)
       if (!openCodeSuccess) {
-        logger.warn(`Failed to delete OpenCode auth for ${providerId}, removing locally only`)
+        logger.warn(`Failed to delete PiInternal auth for ${providerId}, removing locally only`)
       }
       
       await authService.delete(providerId)
@@ -170,7 +170,7 @@ export function createProvidersRoutes(db: Database, openCodeClient: OpenCodeClie
       try {
         await reloadOpenCodeConfig(openCodeSupervisor)
       } catch (reloadError) {
-        logger.warn(`Failed to reload OpenCode config after deleting credentials for ${providerId}:`, reloadError)
+        logger.warn(`Failed to reload PiInternal config after deleting credentials for ${providerId}:`, reloadError)
       }
       
       return c.json({ success: true })

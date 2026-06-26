@@ -99,7 +99,7 @@ export class OpenCodeSupervisor {
           return this.getStatus()
         }
 
-        this.recordFailure('OpenCode server failed to become healthy during startup')
+        this.recordFailure('PiInternal server failed to become healthy during startup')
       } catch (error) {
         this.recordFailure(error)
       }
@@ -166,7 +166,7 @@ export class OpenCodeSupervisor {
       return this.getStatus()
     })
 
-    logger.info('Stopped OpenCode supervisor')
+    logger.info('Stopped PiInternal supervisor')
   }
 
   getStatus(): OpenCodeLifecycleStatus {
@@ -214,7 +214,7 @@ export class OpenCodeSupervisor {
 
     this.consecutiveFailures += 1
     this.setState('unhealthy')
-    this.lastError = this.openCodeServerManager.getLastStartupError() ?? 'OpenCode health check failed'
+    this.lastError = this.openCodeServerManager.getLastStartupError() ?? 'PiInternal health check failed'
 
     if (respectThreshold && this.consecutiveFailures < this.failureThreshold) {
       return this.getStatus()
@@ -225,7 +225,7 @@ export class OpenCodeSupervisor {
 
   private async recover(reason: OpenCodeOperationReason): Promise<OpenCodeLifecycleStatus> {
     this.setState('recovering')
-    logger.warn(`OpenCode unhealthy during ${reason}, entering recovery`)
+    logger.warn(`PiInternal unhealthy during ${reason}, entering recovery`)
 
     for (const action of OPENCODE_RECOVERY_ACTIONS) {
       this.activeRecoveryAction = action
@@ -240,7 +240,7 @@ export class OpenCodeSupervisor {
           return this.getStatus()
         }
 
-        this.lastError = this.openCodeServerManager.getLastStartupError() ?? `Recovery action '${action}' did not restore OpenCode health`
+        this.lastError = this.openCodeServerManager.getLastStartupError() ?? `Recovery action '${action}' did not restore PiInternal health`
         logger.warn(this.lastError)
       } catch (error) {
         this.recordFailure(error)
@@ -296,7 +296,7 @@ export class OpenCodeSupervisor {
 
     const config = await this.settingsService.updateOpenCodeConfig(lastGood.configName, { content: lastGood.content }, this.userId)
     if (!config) {
-      throw new Error(`Failed to restore OpenCode config '${lastGood.configName}'`)
+      throw new Error(`Failed to restore PiInternal config '${lastGood.configName}'`)
     }
 
     await this.writeConfig(lastGood.content)
@@ -333,7 +333,7 @@ export class OpenCodeSupervisor {
 
   private startWatching(): void {
     if (!this.isWatchEnabled()) {
-      logger.info('OpenCode supervisor health polling disabled')
+      logger.info('PiInternal supervisor health polling disabled')
       return
     }
 
@@ -343,11 +343,11 @@ export class OpenCodeSupervisor {
 
     this.interval = setInterval(() => {
       void this.checkNow('health_poll').catch((error) => {
-        logger.warn('OpenCode supervisor health check encountered an unexpected error:', error)
+        logger.warn('PiInternal supervisor health check encountered an unexpected error:', error)
       })
     }, this.pollIntervalMs)
 
-    logger.info(`Started OpenCode supervisor health polling (${this.pollIntervalMs}ms)`)
+    logger.info(`Started PiInternal supervisor health polling (${this.pollIntervalMs}ms)`)
   }
 
   private markHealthy(): void {
@@ -363,7 +363,7 @@ export class OpenCodeSupervisor {
     this.consecutiveFailures += 1
     this.lastError = error instanceof Error
       ? error.message
-      : this.openCodeServerManager.getLastStartupError() ?? 'Unknown OpenCode lifecycle error'
+      : this.openCodeServerManager.getLastStartupError() ?? 'Unknown PiInternal lifecycle error'
     this.setState('unhealthy')
   }
 

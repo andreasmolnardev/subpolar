@@ -7,7 +7,7 @@ export function createInternalOpenCodeWorkspacesRoutes() {
     try {
       return c.json({ workspaces: [] })
     } catch (error) {
-      logger.error('Failed to list opencode workspaces:', error)
+      logger.error('Failed to list PiInternal workspaces:', error)
       return c.json({ error: getErrorMessage(error) }, 500)
     }
   })
