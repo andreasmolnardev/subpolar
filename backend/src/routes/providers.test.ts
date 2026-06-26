@@ -1,10 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { Hono } from 'hono'
 import { createProvidersRoutes } from './providers'
 import { join, dirname } from 'node:path'
-import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { createStubOpenCodeClient } from '../../test/helpers/stub-opencode-client'
 import type PocketBase from 'pocketbase'
 
 function createMockPocketBase(): PocketBase {
@@ -61,7 +60,7 @@ function createMockPocketBase(): PocketBase {
 
 function createTestApp(pb: PocketBase): Hono {
   const app = new Hono()
-  app.route('/providers', createProvidersRoutes(pb, createStubOpenCodeClient()))
+  app.route('/providers', createProvidersRoutes(pb))
   return app
 }
 
@@ -73,10 +72,10 @@ describe('providers routes', () => {
 
   beforeEach(async () => {
     pb = createMockPocketBase()
-    app = createTestApp(pb)
     tmpDir = await mkdtemp(join(tmpdir(), 'providers-test-'))
     originalWorkspacePath = process.env.WORKSPACE_PATH
     process.env.WORKSPACE_PATH = tmpDir
+    app = createTestApp(pb)
     
     const { getModelStatePath } = await import('./providers')
     const modelStatePath = getModelStatePath()
@@ -85,6 +84,8 @@ describe('providers routes', () => {
   })
 
   afterEach(async () => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
     if (originalWorkspacePath) {
       process.env.WORKSPACE_PATH = originalWorkspacePath
     } else {
@@ -191,6 +192,127 @@ describe('providers routes', () => {
 
       const uniqueKeys = new Set(finalData.recent.map((m) => `${m.providerID}/${m.modelID}`))
       expect(uniqueKeys.size).toBe(finalData.recent.length)
+    })
+  })
+
+  describe('credentials', () => {
+    it('writes API keys using Pi auth schema', async () => {
+      const res = await app.request('/providers/openai/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: 'test-key' }),
+      })
+
+      expect(res.status).toBe(200)
+
+      const { getAuthPath } = await import('@subpolar/shared/config/env')
+      const auth = JSON.parse(await readFile(getAuthPath(), 'utf8')) as Record<string, { type: string; key: string }>
+      expect(auth.openai).toEqual({ type: 'api_key', key: 'test-key' })
+    })
+
+    it('migrates legacy API key entries when saving credentials', async () => {
+      const { getAuthPath } = await import('@subpolar/shared/config/env')
+      const authPath = getAuthPath()
+      await mkdir(dirname(authPath), { recursive: true })
+      await writeFile(authPath, JSON.stringify({
+        anthropic: { type: 'apiKey', apiKey: 'legacy-key' },
+        openrouter: { type: 'api', key: 'old-key' },
+      }), 'utf8')
+
+      const res = await app.request('/providers/openai/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: 'test-key' }),
+      })
+
+      expect(res.status).toBe(200)
+      const auth = JSON.parse(await readFile(authPath, 'utf8')) as Record<string, { type: string; key: string }>
+      expect(auth.anthropic).toEqual({ type: 'api_key', key: 'legacy-key' })
+      expect(auth.openrouter).toEqual({ type: 'api_key', key: 'old-key' })
+      expect(auth.openai).toEqual({ type: 'api_key', key: 'test-key' })
+    })
+  })
+
+  describe('custom providers', () => {
+    it('discovers LM Studio models from the OpenAI-compatible models endpoint', async () => {
+      const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+        data: [
+          { id: 'openai/gpt-oss-20b' },
+          { id: 'qwen/qwen3.6-27b' },
+        ],
+      }), { status: 200 }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const res = await app.request('/providers/custom/discover-models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          baseUrl: 'http://brique-de-gaming:1234/v1',
+          apiKey: 'sk-lm-test',
+        }),
+      })
+
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({
+        models: ['openai/gpt-oss-20b', 'qwen/qwen3.6-27b'],
+      })
+      expect(fetchMock).toHaveBeenCalledWith('http://brique-de-gaming:1234/v1/models', {
+        headers: { Authorization: 'Bearer sk-lm-test' },
+      })
+    })
+
+    it('creates, lists, and deletes custom provider configs', async () => {
+      const provider = {
+        id: 'local-test',
+        name: 'Local Test',
+        baseUrl: 'http://localhost:1234/v1',
+        api: 'openai-completions',
+        authHeader: true,
+        models: [{ id: 'test-model' }],
+      }
+
+      const createRes = await app.request('/providers/custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(provider),
+      })
+
+      expect(createRes.status).toBe(200)
+
+      const listRes = await app.request('/providers/custom')
+      expect(listRes.status).toBe(200)
+      const listData = (await listRes.json()) as { providers: Array<{ id: string; models: Array<{ id: string }> }> }
+      expect(listData.providers).toHaveLength(1)
+      expect(listData.providers[0]?.id).toBe('local-test')
+      expect(listData.providers[0]?.models[0]?.id).toBe('test-model')
+
+      const { getPiModelsPath } = await import('@subpolar/shared/config/env')
+      const modelsJson = JSON.parse(await readFile(getPiModelsPath(), 'utf8')) as { providers: Record<string, unknown> }
+      expect(Object.keys(modelsJson.providers)).toEqual(['local-test'])
+
+      const deleteRes = await app.request('/providers/custom/local-test', { method: 'DELETE' })
+      expect(deleteRes.status).toBe(200)
+
+      const emptyRes = await app.request('/providers/custom')
+      const emptyData = (await emptyRes.json()) as { providers: unknown[] }
+      expect(emptyData.providers).toHaveLength(0)
+    })
+
+    it('rejects custom providers without models', async () => {
+      const res = await app.request('/providers/custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'empty',
+          name: 'Empty',
+          baseUrl: 'http://localhost:1234/v1',
+          api: 'openai-completions',
+          authHeader: false,
+          models: [],
+        }),
+      })
+
+      expect(res.status).toBe(400)
     })
   })
 })

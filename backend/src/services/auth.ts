@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import { AuthStorage } from '@earendil-works/pi-coding-agent'
 import { getAuthPath } from '@subpolar/shared/config/env'
 import { logger } from '../utils/logger'
 import { AuthCredentialsSchema } from '../../../shared/src/schemas/auth'
@@ -13,8 +14,14 @@ export class AuthService {
   private migrateEntry(entry: Record<string, unknown>): Record<string, unknown> {
     if (entry.type === 'apiKey' && typeof entry.apiKey === 'string') {
       return {
-        type: 'api',
+        type: 'api_key',
         key: entry.apiKey,
+      }
+    }
+    if (entry.type === 'api' && typeof entry.key === 'string') {
+      return {
+        type: 'api_key',
+        key: entry.key,
       }
     }
     return entry
@@ -52,23 +59,18 @@ export class AuthService {
   }
 
   async set(providerId: string, apiKey: string): Promise<void> {
-    const auth = await this.getAll()
-    auth[providerId] = {
-      type: 'api',
-      key: apiKey,
-    }
-
+    await this.getAll()
     await fs.mkdir(path.dirname(this.authPath), { recursive: true })
-    await fs.writeFile(this.authPath, JSON.stringify(auth, null, 2), { mode: 0o600 })
+    const authStorage = AuthStorage.create(this.authPath)
+    authStorage.set(providerId, { type: 'api_key', key: apiKey })
     
     logger.info(`Set credentials for provider: ${providerId}`)
   }
 
   async delete(providerId: string): Promise<void> {
-    const auth = await this.getAll()
-    delete auth[providerId]
-    
-    await fs.writeFile(this.authPath, JSON.stringify(auth, null, 2), { mode: 0o600 })
+    await this.getAll()
+    const authStorage = AuthStorage.create(this.authPath)
+    authStorage.remove(providerId)
     logger.info(`Deleted credentials for provider: ${providerId}`)
   }
 

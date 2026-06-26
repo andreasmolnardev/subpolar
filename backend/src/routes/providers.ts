@@ -2,11 +2,9 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import path from 'path'
 import { AuthService } from '../services/auth'
+import { PiCustomProviderService } from '../services/pi-providers'
 import { SetCredentialRequestSchema } from '../../../shared/src/schemas/auth'
 import { logger } from '../utils/logger'
-import type { OpenCodeClient } from '../services/opencode/client'
-import { opencodeServerManager } from '../services/opencode-single-server'
-import type { OpenCodeSupervisor } from '../services/opencode-supervisor'
 import type { Database } from '../db/schema'
 import { getWorkspacePath } from '@subpolar/shared/config/env'
 import {
@@ -35,8 +33,28 @@ const UpdateModelStateSchema = z.object({
   removeRecent: ModelSelectionSchema.optional(),
 }).strict()
 
+const DiscoverCustomProviderModelsSchema = z.object({
+  baseUrl: z.string().trim().min(1),
+  apiKey: z.string().trim().optional(),
+})
+
+const LmStudioModelSchema = z.object({
+  id: z.string().trim().min(1),
+})
+
+const LmStudioModelsResponseSchema = z.object({
+  data: z.array(LmStudioModelSchema).default([]),
+})
+
 export function getModelStatePath(): string {
   return path.join(getWorkspacePath(), '.opencode', 'state', 'opencode', 'model.json')
+}
+
+function getLmStudioModelsUrl(baseUrl: string): string {
+  const url = new URL(baseUrl)
+  url.pathname = url.pathname.replace(/\/(?:api\/)?v1\/?$/, '')
+  const root = url.toString().endsWith('/') ? url.toString() : `${url.toString()}/`
+  return new URL('v1/models', root).toString()
 }
 
 async function mirrorModelStateToFile(state: OpenCodeModelStateRecord): Promise<void> {
@@ -54,18 +72,10 @@ async function mirrorModelStateToFile(state: OpenCodeModelStateRecord): Promise<
   }
 }
 
-async function reloadOpenCodeConfig(openCodeSupervisor?: OpenCodeSupervisor): Promise<void> {
-  if (openCodeSupervisor) {
-    await openCodeSupervisor.reloadConfig('settings_reload')
-    return
-  }
-
-  await opencodeServerManager.reloadConfig()
-}
-
-export function createProvidersRoutes(db: Database, openCodeClient: OpenCodeClient, openCodeSupervisor?: OpenCodeSupervisor) {
+export function createProvidersRoutes(db: Database) {
   const app = new Hono()
   const authService = new AuthService()
+  const customProviderService = new PiCustomProviderService()
 
   app.get('/model-state', async (c) => {
     try {
@@ -132,20 +142,9 @@ export function createProvidersRoutes(db: Database, openCodeClient: OpenCodeClie
       const providerId = c.req.param('id')
       const body = await c.req.json()
       const validated = SetCredentialRequestSchema.parse(body)
-      
-      const openCodeSuccess = await openCodeClient.setProviderAuth(providerId, validated.apiKey)
-      if (!openCodeSuccess) {
-        logger.warn(`Failed to set PiInternal auth for ${providerId}, saving locally only`)
-      }
-      
+
       await authService.set(providerId, validated.apiKey)
-      
-      try {
-        await reloadOpenCodeConfig(openCodeSupervisor)
-      } catch (reloadError) {
-        logger.warn(`Failed to reload PiInternal config after saving credentials for ${providerId}:`, reloadError)
-      }
-      
+
       return c.json({ success: true })
     } catch (error) {
       logger.error('Failed to set provider credentials:', error)
@@ -159,24 +158,77 @@ export function createProvidersRoutes(db: Database, openCodeClient: OpenCodeClie
   app.delete('/:id/credentials', async (c) => {
     try {
       const providerId = c.req.param('id')
-      
-      const openCodeSuccess = await openCodeClient.deleteProviderAuth(providerId)
-      if (!openCodeSuccess) {
-        logger.warn(`Failed to delete PiInternal auth for ${providerId}, removing locally only`)
-      }
-      
+
       await authService.delete(providerId)
-      
-      try {
-        await reloadOpenCodeConfig(openCodeSupervisor)
-      } catch (reloadError) {
-        logger.warn(`Failed to reload PiInternal config after deleting credentials for ${providerId}:`, reloadError)
-      }
-      
+
       return c.json({ success: true })
     } catch (error) {
       logger.error('Failed to delete provider credentials:', error)
       return c.json({ error: 'Failed to delete provider credentials' }, 500)
+    }
+  })
+
+  app.get('/custom', async (c) => {
+    try {
+      return c.json({ providers: await customProviderService.list() })
+    } catch (error) {
+      logger.error('Failed to list custom providers:', error)
+      return c.json({ error: 'Failed to list custom providers' }, 500)
+    }
+  })
+
+  app.post('/custom', async (c) => {
+    try {
+      const provider = await customProviderService.upsert(await c.req.json())
+      return c.json({ provider })
+    } catch (error) {
+      logger.error('Failed to save custom provider:', error)
+      if (error instanceof z.ZodError) {
+        return c.json({ error: 'Invalid request data', details: error.issues }, 400)
+      }
+      return c.json({ error: 'Failed to save custom provider' }, 500)
+    }
+  })
+
+  app.post('/custom/discover-models', async (c) => {
+    try {
+      const body = DiscoverCustomProviderModelsSchema.parse(await c.req.json())
+      const headers: Record<string, string> = {}
+      if (body.apiKey) headers.Authorization = `Bearer ${body.apiKey}`
+
+      const modelsUrl = getLmStudioModelsUrl(body.baseUrl)
+      logger.info(`Discovering LM Studio models from ${modelsUrl} with authorization header: ${headers.Authorization ? 'yes' : 'no'}`)
+
+      const response = await fetch(modelsUrl, { headers })
+      logger.info(`LM Studio model discovery returned HTTP ${response.status}`)
+      if (!response.ok) {
+        return c.json({ error: `LM Studio returned ${response.status}` }, 502)
+      }
+
+      const parsed = LmStudioModelsResponseSchema.parse(await response.json())
+      const models = parsed.data.map((model) => model.id)
+      logger.info(`LM Studio model discovery parsed ${models.length} model${models.length === 1 ? '' : 's'}: ${models.join(', ')}`)
+
+      return c.json({ models })
+    } catch (error) {
+      logger.error('Failed to discover custom provider models:', error)
+      if (error instanceof z.ZodError) {
+        return c.json({ error: 'Invalid request data', details: error.issues }, 400)
+      }
+      return c.json({ error: 'Failed to discover custom provider models' }, 500)
+    }
+  })
+
+  app.delete('/custom/:id', async (c) => {
+    try {
+      const deleted = await customProviderService.delete(c.req.param('id'))
+      return c.json({ success: true, deleted })
+    } catch (error) {
+      logger.error('Failed to delete custom provider:', error)
+      if (error instanceof z.ZodError) {
+        return c.json({ error: 'Invalid provider id', details: error.issues }, 400)
+      }
+      return c.json({ error: 'Failed to delete custom provider' }, 500)
     }
   })
 

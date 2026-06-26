@@ -104,6 +104,42 @@ export interface Provider {
   isConnected?: boolean;
 }
 
+export type PiProviderApiType =
+  | "anthropic-messages"
+  | "openai-completions"
+  | "openai-responses"
+  | "azure-openai-responses"
+  | "openai-codex-responses"
+  | "mistral-conversations"
+  | "google-generative-ai"
+  | "google-vertex"
+  | "bedrock-converse-stream";
+
+export interface CustomProviderConfig {
+  id: string;
+  name: string;
+  baseUrl: string;
+  api: PiProviderApiType;
+  apiKey?: string;
+  headers?: Record<string, string>;
+  authHeader: boolean;
+  models: Array<{
+    id: string;
+    name?: string;
+    reasoning?: boolean;
+    input?: ("text" | "image")[];
+    contextWindow?: number;
+    maxTokens?: number;
+    cost?: {
+      input: number;
+      output: number;
+      cacheRead: number;
+      cacheWrite: number;
+    };
+  }>;
+  modelOverrides?: Record<string, unknown>;
+}
+
 export interface ProviderWithModels {
   id: string;
   name: string;
@@ -155,6 +191,13 @@ function classifyProviderSource(providerId: string, isFromConfig: boolean): Prov
   return "configured";
 }
 
+const modelModalities = ["text", "audio", "image", "video", "pdf"] as const;
+
+function enabledModalities(capabilities: Record<string, boolean> | undefined): ("text" | "audio" | "image" | "video" | "pdf")[] {
+  if (!capabilities) return ["text"];
+  return modelModalities.filter((modality) => capabilities[modality]);
+}
+
 
 interface OpenCodeProviderResponse {
   all: OpenCodeProvider[];
@@ -181,34 +224,31 @@ async function getProvidersFromOpenCodeServer(directory?: string): Promise<Provi
         const models: Record<string, Model> = {};
 
         Object.entries(openCodeProvider.models).forEach(([modelId, openCodeModel]) => {
+          const capabilities = openCodeModel.capabilities;
           models[modelId] = {
-            id: openCodeModel.api.id || modelId,
+            id: openCodeModel.api?.id || openCodeModel.id || modelId,
             key: modelId,
-            name: openCodeModel.name,
-            attachment: openCodeModel.capabilities.attachment,
-            reasoning: openCodeModel.capabilities.reasoning,
-            temperature: openCodeModel.capabilities.temperature,
-            tool_call: openCodeModel.capabilities.toolcall,
+            name: openCodeModel.name || openCodeModel.id || modelId,
+            attachment: capabilities?.attachment ?? capabilities?.input?.image ?? false,
+            reasoning: capabilities?.reasoning ?? false,
+            temperature: capabilities?.temperature ?? false,
+            tool_call: capabilities?.toolcall ?? true,
             cost: {
-              input: openCodeModel.cost.input,
-              output: openCodeModel.cost.output,
-              cache_read: openCodeModel.cost.cache?.read ?? 0,
-              cache_write: openCodeModel.cost.cache?.write ?? 0,
+              input: openCodeModel.cost?.input ?? 0,
+              output: openCodeModel.cost?.output ?? 0,
+              cache_read: openCodeModel.cost?.cache?.read ?? 0,
+              cache_write: openCodeModel.cost?.cache?.write ?? 0,
             },
             limit: {
-              context: openCodeModel.limit.context,
-              output: openCodeModel.limit.output,
+              context: openCodeModel.limit?.context ?? 0,
+              output: openCodeModel.limit?.output ?? 0,
             },
             modalities: {
-              input: Object.keys(openCodeModel.capabilities.input).filter(
-                (key) => openCodeModel.capabilities.input[key as keyof typeof openCodeModel.capabilities.input]
-              ) as ("text" | "audio" | "image" | "video" | "pdf")[],
-              output: Object.keys(openCodeModel.capabilities.output).filter(
-                (key) => openCodeModel.capabilities.output[key as keyof typeof openCodeModel.capabilities.output]
-              ) as ("text" | "audio" | "image" | "video" | "pdf")[],
+              input: enabledModalities(capabilities?.input),
+              output: enabledModalities(capabilities?.output),
             },
             provider: {
-              npm: openCodeModel.api.npm,
+              npm: openCodeModel.api?.npm ?? "pi",
             },
             variants: openCodeModel.variants,
           };
@@ -218,6 +258,7 @@ async function getProvidersFromOpenCodeServer(directory?: string): Promise<Provi
           id: openCodeProvider.id,
           name: openCodeProvider.name,
           env: openCodeProvider.env,
+          source: openCodeProvider.source === "custom" ? "configured" : "builtin",
           models,
           options: openCodeProvider.options,
           isConnected: connectedSet.has(openCodeProvider.id),
@@ -337,7 +378,7 @@ export async function getProvidersWithModels(directory?: string): Promise<Provid
         env: provider.env || [],
         npm: provider.npm,
         models,
-        source: "builtin" as ProviderSource,
+        source: provider.source ?? "builtin",
         isConnected: provider.isConnected ?? false,
       };
     });
@@ -399,6 +440,37 @@ export const providerCredentialsApi = {
 
   delete: async (providerId: string): Promise<void> => {
     await fetchWrapper(`${API_BASE_URL}/api/providers/${providerId}/credentials`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+export const customProvidersApi = {
+  list: async (): Promise<CustomProviderConfig[]> => {
+    const { providers } = await fetchWrapper<{ providers: CustomProviderConfig[] }>(`${API_BASE_URL}/api/providers/custom`);
+    return providers;
+  },
+
+  save: async (provider: CustomProviderConfig): Promise<CustomProviderConfig> => {
+    const { provider: savedProvider } = await fetchWrapper<{ provider: CustomProviderConfig }>(`${API_BASE_URL}/api/providers/custom`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(provider),
+    });
+    return savedProvider;
+  },
+
+  discoverModels: async (baseUrl: string, apiKey?: string): Promise<string[]> => {
+    const { models } = await fetchWrapper<{ models: string[] }>(`${API_BASE_URL}/api/providers/custom/discover-models`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ baseUrl, apiKey }),
+    });
+    return models;
+  },
+
+  delete: async (providerId: string): Promise<void> => {
+    await fetchWrapper(`${API_BASE_URL}/api/providers/custom/${encodeURIComponent(providerId)}`, {
       method: 'DELETE',
     });
   },

@@ -1,7 +1,13 @@
 import { useCallback, useRef } from 'react'
 import { useUrlParams } from './useUrlParams'
 
-type Tab = 'account' | 'general' | 'chat' | 'appearance' | 'notifications' | 'voice' | 'git' | 'shortcuts' | 'opencode' | 'providers' | 'integrations' | 'menu'
+const settingsTabs = ['account', 'general', 'chat', 'appearance', 'notifications', 'voice', 'shortcuts', 'providers', 'integrations', 'menu'] as const
+
+type Tab = typeof settingsTabs[number]
+
+function isSettingsTab(value: string | null): value is Tab {
+  return settingsTabs.some((tab) => tab === value)
+}
 
 interface UseSettingsDialogReturn {
   isOpen: boolean
@@ -16,7 +22,8 @@ export function useSettingsDialog(): UseSettingsDialogReturn {
   const { searchParams, updateParams } = useUrlParams()
 
   const isOpen = searchParams.get('settings') === 'open'
-  const activeTab = (searchParams.get('settingsTab') as Tab) || 'account'
+  const requestedTab = searchParams.get('settingsTab')
+  const activeTab = isSettingsTab(requestedTab) ? requestedTab : 'account'
 
   const activeTabRef = useRef(activeTab)
   activeTabRef.current = activeTab

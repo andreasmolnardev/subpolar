@@ -15,16 +15,8 @@ vi.mock('@/components/settings/AppearanceSettings', () => ({
   AppearanceSettings: () => <div data-testid="appearance-settings">Appearance Settings Content</div>,
 }))
 
-vi.mock('@/components/settings/GitSettings', () => ({
-  GitSettings: () => <div data-testid="git-settings">Git Settings Content</div>,
-}))
-
 vi.mock('@/components/settings/KeyboardShortcuts', () => ({
   KeyboardShortcuts: () => <div data-testid="shortcuts-settings">Keyboard Shortcuts Content</div>,
-}))
-
-vi.mock('@/components/settings/OpenCodeConfigManager', () => ({
-  OpenCodeConfigManager: () => <div data-testid="opencode-settings">OpenCode Config Content</div>,
 }))
 
 vi.mock('@/components/settings/ProviderSettings', () => ({
@@ -45,10 +37,6 @@ vi.mock('@/components/settings/VoiceSettings', () => ({
 
 vi.mock('@/components/settings/NotificationSettings', () => ({
   NotificationSettings: () => <div data-testid="notification-settings">Notification Settings Content</div>,
-}))
-
-vi.mock('@/components/settings/VersionSelectDialog', () => ({
-  VersionSelectDialog: () => <div data-testid="version-select-dialog">Version Select Dialog</div>,
 }))
 
 vi.mock('@/hooks/useMobile', () => ({
@@ -125,12 +113,13 @@ describe('SettingsDialog', () => {
     expect(screen.getByTestId('dialog-open')).toBeInTheDocument()
 
     expect(screen.getAllByText('Account').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('General').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('General Settings').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Chat').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Appearance').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Git').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Shortcuts').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('OpenCode').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Providers').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Keyboard Shortcuts').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Models').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Integrations').length).toBeGreaterThanOrEqual(1)
+    expect(screen.queryByText('Git')).not.toBeInTheDocument()
+    expect(screen.queryByText('OpenCode Config')).not.toBeInTheDocument()
   })
 })

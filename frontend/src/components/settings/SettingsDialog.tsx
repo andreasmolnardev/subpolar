@@ -2,33 +2,23 @@ import { useState, useEffect, useCallback } from 'react'
 import { AppearanceSettings } from '@/components/settings/AppearanceSettings'
 import { ChatSettings } from '@/components/settings/ChatSettings'
 import { GeneralSettings } from '@/components/settings/GeneralSettings'
-import { GitSettings } from '@/components/settings/GitSettings'
 import { KeyboardShortcuts } from '@/components/settings/KeyboardShortcuts'
-import { OpenCodeConfigManager } from '@/components/settings/OpenCodeConfigManager'
-import { OpenCodeServerAuthSettings } from '@/components/settings/OpenCodeServerAuthSettings'
-import { ManagerTokenSettings } from '@/components/settings/ManagerTokenSettings'
-import { ServerEnvVarsSettings } from '@/components/settings/ServerEnvVarsSettings'
-import { ServerHealthStatus } from '@/components/settings/ServerHealthStatus'
 import { ProviderSettings } from '@/components/settings/ProviderSettings'
 import { AccountSettings } from '@/components/settings/AccountSettings'
 import { VoiceSettings } from '@/components/settings/VoiceSettings'
 import { NotificationSettings } from '@/components/settings/NotificationSettings'
 import { IntegrationsSettings } from '@/components/settings/IntegrationsSettings'
-import { VersionSelectDialog } from '@/components/settings/VersionSelectDialog'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { Settings2, Keyboard, Code, ChevronLeft, Key, GitBranch, User, Volume2, Bell, X, MessageSquare, Palette, Plug } from 'lucide-react'
+import { Settings2, Keyboard, ChevronLeft, Key, User, Volume2, Bell, X, MessageSquare, Palette, Plug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSettingsDialog } from '@/hooks/useSettingsDialog'
 
-type SettingsView = 'menu' | 'general' | 'chat' | 'appearance' | 'git' | 'shortcuts' | 'opencode' | 'providers' | 'integrations' | 'account' | 'voice' | 'notifications'
+type SettingsView = 'menu' | 'general' | 'chat' | 'appearance' | 'shortcuts' | 'providers' | 'integrations' | 'account' | 'voice' | 'notifications'
 
 export function SettingsDialog() {
   const { isOpen, close, activeTab, setActiveTab } = useSettingsDialog()
   const [mobileView, setMobileView] = useState<SettingsView>('menu')
-  const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false)
   const [sectionHistory, setSectionHistory] = useState<SettingsView[]>([])
-  const [authSectionsOpen, setAuthSectionsOpen] = useState(true)
-  const toggleAuthSections = useCallback(() => setAuthSectionsOpen((open) => !open), [])
 
   const pushSectionHistory = useCallback((view: SettingsView) => {
     if (view === 'menu') return
@@ -68,13 +58,13 @@ export function SettingsDialog() {
       return
     }
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isVersionDialogOpen) {
+      if (e.key === 'Escape') {
         close()
       }
     }
     document.addEventListener('keydown', handleKeyDown, { capture: true })
     return () => document.removeEventListener('keydown', handleKeyDown, { capture: true })
-  }, [isOpen, close, isVersionDialogOpen])
+  }, [isOpen, close])
 
   const menuItems = [
     { id: 'account', icon: User, label: 'Account', description: 'Profile, passkeys, and sign out' },
@@ -83,9 +73,7 @@ export function SettingsDialog() {
     { id: 'appearance', icon: Palette, label: 'Appearance', description: 'Theme and visual preferences' },
     { id: 'notifications', icon: Bell, label: 'Notifications', description: 'Push notification preferences' },
     { id: 'voice', icon: Volume2, label: 'Voice', description: 'Text-to-speech and speech-to-text settings' },
-    { id: 'git', icon: GitBranch, label: 'Git', description: 'Git identity and credentials for repositories' },
     { id: 'shortcuts', icon: Keyboard, label: 'Keyboard Shortcuts', description: 'Customize keyboard shortcuts' },
-    { id: 'opencode', icon: Code, label: 'OpenCode Config', description: 'Manage OpenCode configurations, commands, and agents' },
     { id: 'integrations', icon: Plug, label: 'Integrations', description: 'Configure MCP, calendars, and mail' },
     { id: 'providers', icon: Key, label: 'Models', description: 'Manage AI providers and default models' },
   ]
@@ -145,17 +133,7 @@ export function SettingsDialog() {
                 {activeTab === 'appearance' && <AppearanceSettings />}
                 {activeTab === 'notifications' && <NotificationSettings />}
                 {activeTab === 'voice' && <VoiceSettings />}
-                {activeTab === 'git' && <GitSettings />}
                 {activeTab === 'shortcuts' && <KeyboardShortcuts />}
-                {activeTab === 'opencode' && (
-                  <div className="space-y-6">
-                    <ServerHealthStatus onOpenVersionDialog={() => setIsVersionDialogOpen(true)} />
-                    <OpenCodeServerAuthSettings isOpen={authSectionsOpen} onToggle={toggleAuthSections} />
-                    <ManagerTokenSettings isOpen={authSectionsOpen} onToggle={toggleAuthSections} />
-                    <ServerEnvVarsSettings />
-                    <OpenCodeConfigManager hideHealthStatus />
-                  </div>
-                )}
                 {activeTab === 'providers' && <ProviderSettings />}
                 {activeTab === 'integrations' && <IntegrationsSettings />}
               </div>
@@ -218,27 +196,13 @@ export function SettingsDialog() {
               {mobileView === 'appearance' && <div key="appearance"><AppearanceSettings /></div>}
               {mobileView === 'notifications' && <div key="notifications"><NotificationSettings /></div>}
              {mobileView === 'voice' && <div key="voice"><VoiceSettings /></div>}
-             {mobileView === 'git' && <div key="git"><GitSettings /></div>}
               {mobileView === 'shortcuts' && <div key="shortcuts"><KeyboardShortcuts /></div>}
-                {mobileView === 'opencode' && (
-                  <div key="opencode" className="space-y-6">
-                    <ServerHealthStatus onOpenVersionDialog={() => setIsVersionDialogOpen(true)} />
-                    <OpenCodeServerAuthSettings />
-                    <ManagerTokenSettings />
-                    <ServerEnvVarsSettings />
-                    <OpenCodeConfigManager hideHealthStatus />
-                  </div>
-                )}
                {mobileView === 'providers' && <div key="providers"><ProviderSettings /></div>}
                {mobileView === 'integrations' && <div key="integrations"><IntegrationsSettings /></div>}
            </div>
         </div>
 
       </DialogContent>
-      <VersionSelectDialog
-        open={isVersionDialogOpen}
-        onOpenChange={setIsVersionDialogOpen}
-      />
     </Dialog>
   )
 }

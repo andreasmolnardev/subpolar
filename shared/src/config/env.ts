@@ -142,6 +142,7 @@ export const getConfigPath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSP
 export const getOpenCodeConfigFilePath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSPACE.CONFIG_DIR, 'opencode.json')
 export const getAgentsMdPath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSPACE.CONFIG_DIR, 'AGENTS.md')
 export const getAuthPath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSPACE.AUTH_FILE)
+export const getPiModelsPath = () => path.join(ENV.WORKSPACE.BASE_PATH, '.subpolar', 'pi', 'models.json')
 export const getApiUrl = (port: number = ENV.SERVER.PORT): string => {
   const host = ENV.SERVER.HOST
   

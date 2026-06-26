@@ -1,120 +1,45 @@
 import { Hono } from 'hono'
-import type { OpenCodeClient } from '../services/opencode/client'
 import { z } from 'zod'
-import { logger } from '../utils/logger'
+import { getPiProviders } from '../runtime/pi/models'
 import {
   OAuthAuthorizeRequestSchema,
-  OAuthAuthorizeResponseSchema,
-  OAuthCallbackRequestSchema
+  OAuthCallbackRequestSchema,
 } from '../../../shared/src/schemas/auth'
-import { opencodeServerManager } from '../services/opencode-single-server'
-import type { OpenCodeSupervisor } from '../services/opencode-supervisor'
 
-async function reloadOpenCodeConfig(openCodeSupervisor?: OpenCodeSupervisor): Promise<void> {
-  if (openCodeSupervisor) {
-    await openCodeSupervisor.reloadConfig('settings_reload')
-    return
-  }
-
-  await opencodeServerManager.reloadConfig()
-}
-
-export function createOAuthRoutes(openCodeClient: OpenCodeClient, openCodeSupervisor?: OpenCodeSupervisor) {
+export function createOAuthRoutes() {
   const app = new Hono()
 
   app.post('/:id/oauth/authorize', async (c) => {
     try {
-      const providerId = c.req.param('id')
-      const body = await c.req.json()
-      const validated = OAuthAuthorizeRequestSchema.parse(body)
-      
-      const response = await openCodeClient.forward({
-        method: 'POST',
-        path: `/provider/${encodeURIComponent(providerId)}/oauth/authorize`,
-        body: JSON.stringify(validated),
-        headers: { 'Content-Type': 'application/json' },
-      })
-
-      if (!response.ok) {
-        const error = await response.text()
-        logger.error(`OAuth authorize failed for ${providerId}:`, error)
-        return c.json({ error: 'OAuth authorization failed' }, 500)
-      }
-
-      const data = await response.json()
-      const validatedResponse = OAuthAuthorizeResponseSchema.parse(data)
-      
-      return c.json(validatedResponse)
+      await OAuthAuthorizeRequestSchema.parseAsync(await c.req.json())
+      return c.json({ error: `Pi OAuth is not implemented for ${c.req.param('id')}` }, 501)
     } catch (error) {
-      logger.error('OAuth authorize error:', error)
       if (error instanceof z.ZodError) {
         return c.json({ error: 'Invalid request data', details: error.issues }, 400)
       }
-      return c.json({ error: 'OAuth authorization failed' }, 500)
+      return c.json({ error: 'OAuth authorization is not implemented' }, 501)
     }
   })
 
   app.post('/:id/oauth/callback', async (c) => {
     try {
-      const providerId = c.req.param('id')
-      const body = await c.req.json()
-      const validated = OAuthCallbackRequestSchema.parse(body)
-      
-      const response = await openCodeClient.forward({
-        method: 'POST',
-        path: `/provider/${encodeURIComponent(providerId)}/oauth/callback`,
-        body: JSON.stringify(validated),
-        headers: { 'Content-Type': 'application/json' },
-      })
-
-      if (!response.ok) {
-        const error = await response.text()
-        logger.error(`OAuth callback failed for ${providerId}:`, error)
-        return c.json({ error: 'OAuth callback failed' }, 500)
-      }
-
-      const data = await response.json()
-
-      try {
-        await reloadOpenCodeConfig(openCodeSupervisor)
-      } catch (reloadError) {
-        logger.warn(`Failed to reload PiInternal config after OAuth callback for ${providerId}:`, reloadError)
-      }
-
-      return c.json(data)
+      await OAuthCallbackRequestSchema.parseAsync(await c.req.json())
+      return c.json({ error: `Pi OAuth is not implemented for ${c.req.param('id')}` }, 501)
     } catch (error) {
-      logger.error('OAuth callback error:', error)
       if (error instanceof z.ZodError) {
         return c.json({ error: 'Invalid request data', details: error.issues }, 400)
       }
-      return c.json({ error: 'OAuth callback failed' }, 500)
+      return c.json({ error: 'OAuth callback is not implemented' }, 501)
     }
   })
 
   app.get('/auth-methods', async (c) => {
-    try {
-      const response = await openCodeClient.forward({
-        method: 'GET',
-        path: '/provider/auth',
-      })
-
-      if (!response.ok) {
-        const error = await response.text()
-        logger.error('Failed to get provider auth methods:', error)
-        return c.json({ error: 'Failed to get provider auth methods' }, 500)
-      }
-
-      const data = await response.json()
-      
-      // The OpenCode server returns the format we need directly
-      return c.json({ providers: data })
-    } catch (error) {
-      logger.error('Provider auth methods error:', error)
-      if (error instanceof z.ZodError) {
-        return c.json({ error: 'Invalid response data', details: error.issues }, 500)
-      }
-      return c.json({ error: 'Failed to get provider auth methods' }, 500)
-    }
+    const providers = await getPiProviders()
+    return c.json({
+      providers: Object.fromEntries(
+        providers.all.map((provider) => [provider.id, [{ type: 'api', label: 'API Key' }]]),
+      ),
+    })
   })
 
   return app

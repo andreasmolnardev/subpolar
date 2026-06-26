@@ -6,6 +6,7 @@ import {
   ModelRegistry,
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
+import { getAuthPath, getPiModelsPath } from '@subpolar/shared/config/env'
 import path from 'path'
 import type { RuntimeAdapter, RuntimeEvent, RuntimeRunInput } from './types'
 
@@ -141,8 +142,8 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
   private async createSession(input: RuntimeRunInput, queue: RuntimeEventQueue) {
     this.setRuntimeEnvironment(input)
     const cwd = input.cwd ?? process.cwd()
-    const authStorage = AuthStorage.create()
-    const modelRegistry = ModelRegistry.create(authStorage)
+    const authStorage = AuthStorage.create(getAuthPath())
+    const modelRegistry = ModelRegistry.create(authStorage, getPiModelsPath())
     const modelId = this.getModelArg(input.model)
     const model = modelId ? this.findModel(modelRegistry, modelId) : undefined
     const thinkingLevel = this.getThinkingLevel(input.model)

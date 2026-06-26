@@ -1,18 +1,34 @@
 import { AuthStorage, ModelRegistry } from '@earendil-works/pi-coding-agent'
+import { getAuthPath, getPiModelsPath } from '@subpolar/shared/config/env'
+import { readJsonSafe } from '../../utils/atomic-json'
 
 type PiModel = {
   provider: string
   id: string
+  name?: string
+  api?: string
   contextWindow: number
   maxTokens: number
   reasoning: boolean
   input: string[]
+  cost?: {
+    input?: number
+    output?: number
+    cacheRead?: number
+    cacheWrite?: number
+  }
+}
+
+type PiModelsConfig = {
+  providers?: Record<string, {
+    name?: string
+  }>
 }
 
 export type PiProviderResponse = {
   all: Array<{
     id: string
-    source: 'builtin'
+    source: 'custom' | 'builtin'
     name: string
     env: string[]
     options: Record<string, unknown>
@@ -30,6 +46,10 @@ export type PiProviderResponse = {
       cost: {
         input: number
         output: number
+        cache: {
+          read: number
+          write: number
+        }
       }
       limit: {
         context: number
@@ -72,32 +92,48 @@ function toPiModel(value: unknown): PiModel | null {
   return {
     provider,
     id,
+    name: typeof model.name === 'string' ? model.name : undefined,
+    api: typeof model.api === 'string' ? model.api : undefined,
     contextWindow: typeof model.contextWindow === 'number' ? model.contextWindow : 0,
     maxTokens: typeof model.maxTokens === 'number' ? model.maxTokens : 0,
     reasoning: model.reasoning === true,
     input: Array.isArray(model.input) ? model.input.filter((item): item is string => typeof item === 'string') : ['text'],
+    cost: model.cost && typeof model.cost === 'object' ? model.cost as PiModel['cost'] : undefined,
   }
 }
 
-async function listPiModels(): Promise<PiModel[]> {
-  const authStorage = AuthStorage.create()
-  const modelRegistry = ModelRegistry.create(authStorage)
-  const models = await modelRegistry.getAvailable()
-  return models.flatMap((model) => {
+function createPiProviderRegistry(): ReturnType<typeof ModelRegistry.create> {
+  const authStorage = AuthStorage.create(getAuthPath())
+  return ModelRegistry.create(authStorage, getPiModelsPath())
+}
+
+function listPiModels(modelRegistry: ReturnType<typeof ModelRegistry.create>): PiModel[] {
+  return modelRegistry.getAll().flatMap((model: unknown) => {
     const parsed = toPiModel(model)
     return parsed ? [parsed] : []
   })
 }
 
+async function readCustomProviderNames(): Promise<Map<string, string>> {
+  const config = await readJsonSafe<PiModelsConfig>(getPiModelsPath(), { providers: {} })
+  const names = new Map<string, string>()
+  for (const [providerId, provider] of Object.entries(config.providers ?? {})) {
+    names.set(providerId, provider.name ?? providerId)
+  }
+  return names
+}
+
 export async function getPiProviders(): Promise<PiProviderResponse> {
-  const models = await listPiModels()
+  const modelRegistry = createPiProviderRegistry()
+  const models = listPiModels(modelRegistry)
+  const customProviderNames = await readCustomProviderNames()
   const providers = new Map<string, PiProviderResponse['all'][number]>()
 
   for (const model of models) {
     const provider = providers.get(model.provider) ?? {
       id: model.provider,
-      source: 'builtin' as const,
-      name: model.provider,
+      source: customProviderNames.has(model.provider) ? 'custom' as const : 'builtin' as const,
+      name: customProviderNames.get(model.provider) ?? modelRegistry.getProviderDisplayName(model.provider),
       env: [],
       options: {},
       models: {},
@@ -106,17 +142,21 @@ export async function getPiProviders(): Promise<PiProviderResponse> {
     provider.models[model.id] = {
       id: model.id,
       providerID: model.provider,
-      name: model.id,
+      name: model.name ?? model.id,
       api: {
-        id: model.id,
+        id: model.api ?? model.id,
         npm: 'pi',
       },
       status: 'active',
       headers: {},
       options: {},
       cost: {
-        input: 0,
-        output: 0,
+        input: model.cost?.input ?? 0,
+        output: model.cost?.output ?? 0,
+        cache: {
+          read: model.cost?.cacheRead ?? 0,
+          write: model.cost?.cacheWrite ?? 0,
+        },
       },
       limit: {
         context: model.contextWindow,
@@ -147,9 +187,13 @@ export async function getPiProviders(): Promise<PiProviderResponse> {
     providers.set(model.provider, provider)
   }
 
+  const connected = Array.from(providers.keys()).filter((providerId) => (
+    modelRegistry.getProviderAuthStatus(providerId).configured
+  ))
+
   return {
     all: Array.from(providers.values()),
-    connected: Array.from(providers.keys()),
+    connected,
     default: {},
   }
 }
