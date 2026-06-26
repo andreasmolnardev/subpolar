@@ -6,6 +6,7 @@ import {
   ModelRegistry,
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
+import path from 'path'
 import type { RuntimeAdapter, RuntimeEvent, RuntimeRunInput } from './types'
 
 type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
@@ -139,27 +140,30 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
 
   private async createSession(input: RuntimeRunInput, queue: RuntimeEventQueue) {
     this.setRuntimeEnvironment(input)
+    const cwd = input.cwd ?? process.cwd()
     const authStorage = AuthStorage.create()
     const modelRegistry = ModelRegistry.create(authStorage)
     const modelId = this.getModelArg(input.model)
     const model = modelId ? this.findModel(modelRegistry, modelId) : undefined
     const thinkingLevel = this.getThinkingLevel(input.model)
     const loader = new DefaultResourceLoader({
-      cwd: process.cwd(),
+      cwd,
       agentDir: getAgentDir(),
       additionalExtensionPaths: [this.options.extensionPath ?? 'backend/src/pi/extension.ts'],
+      additionalSkillPaths: [path.join(cwd, '.opencode', 'skills')],
       systemPromptOverride: () => input.systemPrompt,
     })
 
     await loader.reload()
+    this.setSkillEnvironment(loader.getSkills().skills)
     const result = await createAgentSession({
-      cwd: process.cwd(),
+      cwd,
       authStorage,
       modelRegistry,
       model,
       thinkingLevel,
       resourceLoader: loader,
-      sessionManager: SessionManager.inMemory(process.cwd()),
+      sessionManager: SessionManager.inMemory(cwd),
     })
 
     result.session.subscribe((event: unknown) => {
@@ -196,6 +200,15 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
     process.env.SUBPOLAR_AGENT_ID = input.agentId
     process.env.SUBPOLAR_SESSION_ID = input.sessionId
     process.env.SUBPOLAR_RUN_ID = input.runId
+  }
+
+  private setSkillEnvironment(skills: Array<{ name: string; description: string; filePath: string; baseDir: string }>): void {
+    process.env.SUBPOLAR_PI_SKILLS = JSON.stringify(skills.map(skill => ({
+      name: skill.name,
+      description: skill.description,
+      filePath: skill.filePath,
+      baseDir: skill.baseDir,
+    })))
   }
 
   private createPromptMessage(input: RuntimeRunInput): string {

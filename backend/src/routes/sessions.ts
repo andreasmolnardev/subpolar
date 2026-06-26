@@ -288,6 +288,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       sessionId: run.sessionId,
       agentId: run.agentId,
       projectId,
+      cwd: directory,
       messages,
       model,
     })) {

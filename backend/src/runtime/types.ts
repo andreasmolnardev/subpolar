@@ -13,6 +13,7 @@ export type RuntimeRunInput = {
   sessionId: string
   agentId: string
   projectId?: string | null
+  cwd?: string
   messages: RuntimeMessage[]
   systemPrompt?: string
   model?: Record<string, unknown>
