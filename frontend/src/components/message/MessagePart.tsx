@@ -140,7 +140,7 @@ export const MessagePart = memo(function MessagePart({ part, role, allParts, par
     case 'reasoning':
       if (simpleChatMode || !showReasoning) return null
       return (
-        <details className="group my-2 text-sm text-muted-foreground">
+        <details open={isActiveGenerationStep} className="group my-2 text-sm text-muted-foreground">
           <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md py-1 text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
             <Brain className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className={isActiveGenerationStep ? 'reasoning-text-trail font-medium' : 'font-medium text-muted-foreground'}>Reasoning</span>

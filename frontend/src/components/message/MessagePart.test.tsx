@@ -675,6 +675,23 @@ describe('MessagePart', () => {
       expect(screen.getByText('This is the reasoning text')).toBeInTheDocument()
       expect(screen.getByText('Reasoning')).toBeInTheDocument()
     })
+
+    it('opens reasoning while it is the active generation step', () => {
+      setupSettings({
+        simpleChatMode: false,
+        showReasoning: true,
+        expandToolCalls: false,
+        expandDiffs: true,
+        autoScroll: true,
+        theme: 'dark',
+        mode: 'build',
+      })
+
+      const part = createReasoningPart()
+      const { container } = render(<MessagePart part={part} isActiveGenerationStep />)
+
+      expect(container.querySelector('details')).toHaveAttribute('open')
+    })
   })
 
   describe('synthetic text parts', () => {
