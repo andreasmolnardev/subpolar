@@ -5,6 +5,7 @@ import { createMessage, createRun, getRun, getSessionStatuses, listMessages, upd
 import type { RuntimeId, RuntimeUsage } from '../runtime/types'
 import type { RuntimeRegistry } from '../runtime/registry'
 import { sseAggregator } from '../services/sse-aggregator'
+import { logger } from '../utils/logger'
 
 export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegistry) {
   const app = new Hono()
@@ -113,11 +114,83 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
     const run = await createRun(db, { sessionId: c.req.param('id'), agentId, runtime, metadata: permissionOverride ? { permissionOverride } : undefined })
     const directory = c.req.query('directory')
 
+    void maybeGenerateSessionTitle(db, runtimeRegistry, c.req.param('id'), model, directory)
+
     void executeRun(db, runtimeRegistry, run.runId, typeof body.projectId === 'string' ? body.projectId : null, model, directory)
     return c.json({ run }, 201)
   })
 
   return app
+}
+
+async function maybeGenerateSessionTitle(db: Database, runtimeRegistry: RuntimeRegistry, sessionId: string, model?: Record<string, unknown>, directory?: string): Promise<void> {
+  try {
+    const session = await getSessionRecord(db, sessionId)
+    if (!session || session.title) return
+
+    const messages = await listMessages(db, sessionId)
+    const firstMessage = messages[0]
+    if (messages.length !== 1 || !firstMessage || firstMessage.role !== 'user') return
+
+    const title = await generateSessionTitle(runtimeRegistry, sessionId, firstMessage.content, model, directory)
+    if (!title) return
+
+    await upsertSessionRecord(db, { sessionId: session.id, title })
+    const updated = await getSessionRecord(db, sessionId)
+    if (!updated || !directory) return
+
+    sseAggregator.publish(directory, {
+      type: 'session.updated',
+      properties: {
+        info: {
+          id: updated.id,
+          title: updated.title ?? null,
+          directory: updated.directory ?? '',
+          projectID: updated.projectId ?? undefined,
+          time: { created: updated.createdAt, updated: updated.updatedAt },
+        },
+      },
+    })
+  } catch (error) {
+    logger.warn('Auto title generation failed', error)
+  }
+}
+
+async function generateSessionTitle(runtimeRegistry: RuntimeRegistry, sessionId: string, userMessage: string, model?: Record<string, unknown>, directory?: string): Promise<string | null> {
+  let content = ''
+  const prompt = `for the following session log, output a brief title in 3 - 6 words\n\nUser: ${userMessage}`
+
+  for await (const event of runtimeRegistry.get('pi').run({
+    runId: crypto.randomUUID(),
+    sessionId,
+    agentId: 'session-naming',
+    cwd: directory,
+    messages: [{
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: prompt,
+      createdAt: Date.now(),
+    }],
+    model,
+  })) {
+    if (event.type === 'message.delta') content += event.content
+    if (event.type === 'run.failed') throw new Error(event.error)
+  }
+
+  return cleanSessionTitle(content)
+}
+
+function cleanSessionTitle(content: string): string | null {
+  const title = content
+    .trim()
+    .replace(/^title:\s*/i, '')
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!title) return null
+  return title.split(/\s+/).slice(0, 6).join(' ')
 }
 
 function createEmptyUsage() {
