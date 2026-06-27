@@ -153,6 +153,7 @@ export class SubpolarClient {
         cacheWrite?: number
         cost?: { total?: number }
       } : undefined
+      const tools = Array.isArray(message.metadata?.tools) ? message.metadata.tools : []
       return {
         info: {
         id: message.id,
@@ -164,6 +165,19 @@ export class SubpolarClient {
         parts: [
           ...(reasoning ? [{ id: `${message.id}-reasoning`, sessionID, messageID: message.id, type: 'reasoning', text: reasoning, time: { start: message.createdAt } }] : []),
           ...(message.content ? [{ id: `${message.id}-text`, sessionID, messageID: message.id, type: 'text', text: message.content }] : []),
+          ...tools.map((tool, index) => {
+            const item = tool && typeof tool === 'object' ? tool as Record<string, unknown> : {}
+            const callID = typeof item.callID === 'string' ? item.callID : `tool-${index}`
+            return {
+              id: `${message.id}-tool-${callID}`,
+              sessionID,
+              messageID: message.id,
+              type: 'tool',
+              callID,
+              tool: typeof item.tool === 'string' ? item.tool : 'unknown',
+              state: item.state && typeof item.state === 'object' ? item.state : { status: 'error', input: {}, error: 'Tool state unavailable', time: { start: message.createdAt, end: message.createdAt } },
+            }
+          }),
           ...(message.role === 'assistant' && completedAt ? [{
             id: `${message.id}-step-finish`,
             sessionID,

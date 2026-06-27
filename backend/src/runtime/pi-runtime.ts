@@ -10,6 +10,8 @@ import { getAuthPath, getPiModelsPath } from '@subpolar/shared/config/env'
 import path from 'path'
 import type { RuntimeAdapter, RuntimeEvent, RuntimeRunInput } from './types'
 
+type SessionManagerMessage = Parameters<SessionManager['appendMessage']>[0]
+
 type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
 
 type PiRuntimeAdapterOptions = {
@@ -52,6 +54,8 @@ type PiSdkEvent = {
   args?: unknown
   output?: unknown
   result?: unknown
+  delta?: unknown
+  data?: unknown
   error?: string
   isError?: boolean
   messageId?: string
@@ -157,6 +161,9 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
 
     await loader.reload()
     this.setSkillEnvironment(loader.getSkills().skills)
+    const sessionManager = SessionManager.inMemory(cwd)
+    this.seedSessionHistory(sessionManager, input)
+
     const result = await createAgentSession({
       cwd,
       authStorage,
@@ -164,7 +171,7 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
       model,
       thinkingLevel,
       resourceLoader: loader,
-      sessionManager: SessionManager.inMemory(cwd),
+      sessionManager,
     })
 
     result.session.subscribe((event: unknown) => {
@@ -217,6 +224,54 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
     return lastUserMessage?.content ?? ''
   }
 
+  private seedSessionHistory(sessionManager: SessionManager, input: RuntimeRunInput): void {
+    const lastUserIndex = input.messages.findLastIndex(message => message.role === 'user')
+    for (const [index, message] of input.messages.entries()) {
+      if (!message.content || index === lastUserIndex) continue
+      const sessionMessage = this.toSessionManagerMessage(message)
+      if (sessionMessage) sessionManager.appendMessage(sessionMessage)
+    }
+  }
+
+  private toSessionManagerMessage(message: RuntimeRunInput['messages'][number]): SessionManagerMessage | null {
+    const timestamp = message.createdAt
+    if (message.role === 'user' || message.role === 'system') {
+      return {
+        role: 'user',
+        content: [{ type: 'text', text: message.content }],
+        timestamp,
+      } as SessionManagerMessage
+    }
+    if (message.role === 'assistant') {
+      const model = typeof message.metadata?.modelID === 'string' ? message.metadata.modelID : 'unknown'
+      const finishReason = typeof message.metadata?.finishReason === 'string' ? message.metadata.finishReason : 'stop'
+      return {
+        role: 'assistant',
+        content: [{ type: 'text', text: message.content }],
+        api: 'messages',
+        provider: 'unknown',
+        model,
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            total: 0,
+          },
+        },
+        stopReason: finishReason,
+        timestamp,
+      } as SessionManagerMessage
+    }
+    return null
+  }
+
   private mapEvent(event: PiSdkEvent): RuntimeEvent | null {
     const type = String(event.type ?? '')
     if (type === 'message_update') {
@@ -251,11 +306,30 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
         input: event.input ?? event.args ?? {},
       }
     }
+    if (type === 'tool_execution_update') {
+      return {
+        type: 'tool.updated',
+        toolCallId: typeof event.toolCallId === 'string' ? event.toolCallId : typeof event.id === 'string' ? event.id : crypto.randomUUID(),
+        output: event.output ?? event.delta ?? event.data ?? event.result ?? null,
+      }
+    }
     if (type === 'tool_execution_end') {
       const toolCallId = typeof event.toolCallId === 'string' ? event.toolCallId : typeof event.id === 'string' ? event.id : crypto.randomUUID()
       const error = event.isError && typeof event.error === 'string' ? event.error : null
-      if (error) return { type: 'tool.failed', toolCallId, error }
-      return { type: 'tool.completed', toolCallId, output: event.output ?? event.result ?? null }
+      if (error) return {
+        type: 'tool.failed',
+        toolCallId,
+        error,
+        toolName: typeof event.toolName === 'string' ? event.toolName : typeof event.name === 'string' ? event.name : undefined,
+        input: event.input ?? event.args,
+      }
+      return {
+        type: 'tool.completed',
+        toolCallId,
+        output: event.output ?? event.result ?? null,
+        toolName: typeof event.toolName === 'string' ? event.toolName : typeof event.name === 'string' ? event.name : undefined,
+        input: event.input ?? event.args,
+      }
     }
     if (type === 'agent_end') return { type: 'run.completed' }
     if (type === 'error') return { type: 'run.failed', error: typeof event.error === 'string' ? event.error : 'Pi runtime failed' }

@@ -1,9 +1,5 @@
-import { EventSource } from 'eventsource'
 import { logger } from '../utils/logger'
-import { ENV } from '@subpolar/shared/config/env'
-import { DEFAULTS } from '@subpolar/shared/config'
 import type { SSEEventEnvelope, SSEEventPayload } from '@subpolar/shared'
-import { getOpenCodeBasicAuthHeader, type OpenCodePasswordResolver } from './opencode/auth'
 import { encodeSSEFrame } from '../utils/sse-frame'
 
 type SSEClientCallback = (event: string, data: string) => void
@@ -40,9 +36,6 @@ interface PendingQuestion {
 type SessionStatusValue = { type: string } & Record<string, unknown>
 type SessionStatusMap = Record<string, SessionStatusValue>
 
-const OPENCODE_PORT = ENV.OPENCODE.PORT
-const { RECONNECT_DELAY_MS, MAX_RECONNECT_DELAY_MS } = DEFAULTS.SSE
-
 class SSEAggregator {
   private static instance: SSEAggregator
   private clients: Map<string, SSEClient> = new Map()
@@ -50,14 +43,8 @@ class SSEAggregator {
   private activeSessions: Map<string, Set<string>> = new Map()
   private eventListeners: Set<SSEEventListener> = new Set()
   private subagentSessions: Map<string, Set<string>> = new Map()
-  private upstream: EventSource | null = null
-  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null
-  private reconnectDelay: number = RECONNECT_DELAY_MS
-  private upstreamConnected = false
-  private everConnected = false
   private started = false
   private pendingActionsFetcher: PendingActionsFetcher | null = null
-  private passwordResolver: OpenCodePasswordResolver | null = null
 
   private constructor() {}
 
@@ -65,19 +52,9 @@ class SSEAggregator {
     this.pendingActionsFetcher = fetcher
   }
 
-  setPasswordResolver(resolver: OpenCodePasswordResolver | null): void {
-    this.passwordResolver = resolver
-  }
-
   reconnect(): void {
     if (!this.started) return
-    logger.info('SSE forcing upstream reconnect (auth changed)')
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout)
-      this.reconnectTimeout = null
-    }
-    this.reconnectDelay = RECONNECT_DELAY_MS
-    void this.connectUpstream()
+    logger.info('SSE reconnect requested; no upstream stream is configured')
   }
 
   static getInstance(): SSEAggregator {
@@ -90,7 +67,6 @@ class SSEAggregator {
   start(): void {
     if (this.started) return
     this.started = true
-    void this.connectUpstream()
   }
 
   addClient(id: string, callback: SSEClientCallback, writeFrame: SSEClientFrameWriter, directories: string[]): () => void {
@@ -307,76 +283,6 @@ class SSEAggregator {
     logger.info(`replay: sent ${items.length} ${type} event(s) for ${directory} to client ${clientId}`)
   }
 
-  private async connectUpstream(): Promise<void> {
-    if (!this.started) return
-    if (this.upstream) {
-      this.upstream.close()
-      this.upstream = null
-    }
-
-    const url = `http://127.0.0.1:${OPENCODE_PORT}/global/event`
-    const wasConnectedBefore = this.everConnected
-    logger.info(`SSE connecting to PiInternal global stream: ${url}`)
-
-    const authHeader = this.passwordResolver
-      ? await getOpenCodeBasicAuthHeader(this.passwordResolver)
-      : getOpenCodeBasicAuthHeader()
-
-    if (!this.started) return
-
-    const init: ConstructorParameters<typeof EventSource>[1] = authHeader
-      ? {
-          fetch: (input, fetchInit) =>
-            fetch(input, {
-              ...fetchInit,
-              headers: {
-                ...(fetchInit?.headers ?? {}),
-                Authorization: authHeader,
-              },
-            }),
-        }
-      : undefined
-
-    const es = new EventSource(url, init)
-    this.upstream = es
-
-    es.onopen = () => {
-      logger.info('SSE global stream connected')
-      this.upstreamConnected = true
-      this.reconnectDelay = RECONNECT_DELAY_MS
-      this.everConnected = true
-      if (wasConnectedBefore) {
-        void this.replayPendingActionsForAllClients()
-        void this.replaySessionStatusesForAllClients()
-      }
-    }
-
-    es.onerror = (event) => {
-      this.upstreamConnected = false
-      if (es === this.upstream) {
-        const code = (event as { code?: number }).code
-        const message = (event as { message?: string }).message
-        logger.warn(`SSE upstream error${code ? ` (code=${code})` : ''}${message ? `: ${message}` : ''}`)
-        es.close()
-        this.upstream = null
-        this.automationReconnect()
-      }
-    }
-
-    es.onmessage = (event) => {
-      this.handleUpstreamMessage(event.data)
-    }
-  }
-
-  private automationReconnect(): void {
-    if (!this.started || this.reconnectTimeout) return
-    this.reconnectTimeout = setTimeout(() => {
-      this.reconnectTimeout = null
-      this.reconnectDelay = Math.min(this.reconnectDelay * 2, MAX_RECONNECT_DELAY_MS)
-      void this.connectUpstream()
-    }, this.reconnectDelay)
-  }
-
   onEvent(listener: SSEEventListener): () => void {
     this.eventListeners.add(listener)
     return () => { this.eventListeners.delete(listener) }
@@ -491,7 +397,7 @@ class SSEAggregator {
 
   getConnectionStatus(): { connected: number; total: number } {
     const total = this.started ? 1 : 0
-    return { connected: this.upstreamConnected ? 1 : 0, total }
+    return { connected: total, total }
   }
 
   getClientCount(): number {
@@ -541,16 +447,6 @@ class SSEAggregator {
 
   shutdown(): void {
     this.started = false
-
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout)
-      this.reconnectTimeout = null
-    }
-    if (this.upstream) {
-      this.upstream.close()
-      this.upstream = null
-    }
-    this.upstreamConnected = false
 
     this.activeSessions.clear()
     this.subagentSessions.clear()

@@ -32,8 +32,9 @@ export type RuntimeEvent =
   | { type: 'message.reasoning.delta'; content: string }
   | { type: 'message.completed'; messageId: string; model?: string; usage?: RuntimeUsage; reason?: string }
   | { type: 'tool.requested'; toolCallId: string; toolName: string; input: unknown }
-  | { type: 'tool.completed'; toolCallId: string; output: unknown }
-  | { type: 'tool.failed'; toolCallId: string; error: string }
+  | { type: 'tool.updated'; toolCallId: string; output: unknown }
+  | { type: 'tool.completed'; toolCallId: string; output: unknown; toolName?: string; input?: unknown }
+  | { type: 'tool.failed'; toolCallId: string; error: string; toolName?: string; input?: unknown }
   | { type: 'run.completed' }
   | { type: 'run.failed'; error: string }
 

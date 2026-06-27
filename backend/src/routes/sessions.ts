@@ -211,6 +211,22 @@ function getModelId(model?: Record<string, unknown>): string | undefined {
   return `${providerID}/${modelID}`
 }
 
+type StoredToolPart = {
+  callID: string
+  tool: string
+  state: Record<string, unknown>
+}
+
+function recordToString(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value === null || value === undefined) return ''
+  return JSON.stringify(value, null, 2)
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
 function normalizeUsage(usage: RuntimeUsage) {
   return {
     input: usage.input,
@@ -241,6 +257,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
   let assistantMessageStarted = false
   let assistantTextPartStarted = false
   let reasoningPartStarted = false
+  const toolParts = new Map<string, StoredToolPart>()
 
   const publish = (event: Parameters<typeof sseAggregator.publish>[1]) => {
     if (directory) sseAggregator.publish(directory, event)
@@ -263,7 +280,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
   }
 
   const finishAssistantMessage = async () => {
-    if (!assistantContent && !reasoningContent) return
+    if (!assistantContent && !reasoningContent && toolParts.size === 0) return
     await createMessage(db, {
       sessionId: run.sessionId,
       role: 'assistant',
@@ -275,6 +292,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
         modelID: assistantModelId,
         finishReason: assistantFinishReason,
         usage: assistantUsage,
+        tools: [...toolParts.values()],
       },
     })
     if (!assistantMessageStarted) return
@@ -291,6 +309,24 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       },
     })
     publishStepFinishPart()
+  }
+
+  const publishToolPart = (toolPart: StoredToolPart) => {
+    publishAssistantMessageStarted()
+    publish({
+      type: 'message.part.updated',
+      properties: {
+        part: {
+          id: `${assistantMessageId}-tool-${toolPart.callID}`,
+          sessionID: run.sessionId,
+          messageID: assistantMessageId,
+          type: 'tool',
+          callID: toolPart.callID,
+          tool: toolPart.tool,
+          state: toolPart.state,
+        },
+      },
+    })
   }
 
   const publishReasoningPartStarted = () => {
@@ -401,6 +437,54 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
         assistantModelId = event.model ?? assistantModelId
         assistantFinishReason = event.reason ?? assistantFinishReason
         assistantUsage = event.usage ? normalizeUsage(event.usage) : assistantUsage
+      }
+      if (event.type === 'tool.requested') {
+        const state = {
+          status: 'running',
+          input: asRecord(event.input),
+          time: { start: Date.now() },
+        }
+        const toolPart = { callID: event.toolCallId, tool: event.toolName, state }
+        toolParts.set(event.toolCallId, toolPart)
+        publishToolPart(toolPart)
+      }
+      if (event.type === 'tool.updated') {
+        const existing = toolParts.get(event.toolCallId)
+        if (existing) {
+          existing.state = {
+            ...existing.state,
+            metadata: {
+              ...asRecord(existing.state.metadata),
+              output: recordToString(event.output),
+            },
+          }
+          publishToolPart(existing)
+        }
+      }
+      if (event.type === 'tool.completed') {
+        const existing = toolParts.get(event.toolCallId) ?? { callID: event.toolCallId, tool: event.toolName ?? 'unknown', state: { input: asRecord(event.input), time: { start: Date.now() } } }
+        existing.state = {
+          status: 'completed',
+          input: asRecord(existing.state.input),
+          output: recordToString(event.output),
+          title: existing.tool,
+          metadata: asRecord(existing.state.metadata),
+          time: { start: Number(asRecord(existing.state.time).start ?? Date.now()), end: Date.now() },
+        }
+        toolParts.set(event.toolCallId, existing)
+        publishToolPart(existing)
+      }
+      if (event.type === 'tool.failed') {
+        const existing = toolParts.get(event.toolCallId) ?? { callID: event.toolCallId, tool: event.toolName ?? 'unknown', state: { input: asRecord(event.input), time: { start: Date.now() } } }
+        existing.state = {
+          status: 'error',
+          input: asRecord(existing.state.input),
+          error: event.error,
+          metadata: asRecord(existing.state.metadata),
+          time: { start: Number(asRecord(existing.state.time).start ?? Date.now()), end: Date.now() },
+        }
+        toolParts.set(event.toolCallId, existing)
+        publishToolPart(existing)
       }
       if (event.type === 'run.failed') {
         await finishAssistantMessage()

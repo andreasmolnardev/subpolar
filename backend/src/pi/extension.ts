@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs'
+import { createBashToolDefinition } from '@earendil-works/pi-coding-agent'
 
 type PiToolAuthorizationRequest = {
   agentId: string
@@ -41,8 +42,12 @@ type SkillLoadParams = {
 }
 
 type ExtensionToolResult = {
-  content: Array<{ type: 'text'; text: string }>
-  details: Record<string, unknown>
+  content: unknown[]
+  details: unknown
+}
+
+type ExtensionToolContext = {
+  cwd: string
 }
 
 type ExtensionApi = {
@@ -55,7 +60,7 @@ type ExtensionApi = {
     promptSnippet?: string
     promptGuidelines?: string[]
     parameters: unknown
-    execute: (toolCallId: string, params: unknown) => Promise<ExtensionToolResult>
+    execute: (toolCallId: string, params: unknown, signal?: AbortSignal, onUpdate?: (result: ExtensionToolResult) => void, ctx?: ExtensionToolContext) => Promise<ExtensionToolResult>
   }) => void
 }
 
@@ -84,6 +89,16 @@ const skillLoadParameters = {
     },
   },
   required: ['name'],
+  additionalProperties: false,
+}
+
+const bashParameters = {
+  type: 'object',
+  properties: {
+    command: { type: 'string', description: 'The command to execute' },
+    timeout: { type: 'number', description: 'Optional timeout in seconds' },
+  },
+  required: ['command'],
   additionalProperties: false,
 }
 
@@ -171,6 +186,80 @@ function textResult(text: string, details: Record<string, unknown>): ExtensionTo
   }
 }
 
+function shellWords(command: string): string[] {
+  const words: string[] = []
+  let current = ''
+  let quote: 'single' | 'double' | null = null
+  let escaping = false
+
+  for (const char of command.trim()) {
+    if (escaping) {
+      current += char
+      escaping = false
+      continue
+    }
+    if (char === '\\' && quote !== 'single') {
+      escaping = true
+      continue
+    }
+    if (char === "'" && quote !== 'double') {
+      quote = quote === 'single' ? null : 'single'
+      continue
+    }
+    if (char === '"' && quote !== 'single') {
+      quote = quote === 'double' ? null : 'double'
+      continue
+    }
+    if (/\s/.test(char) && !quote) {
+      if (current) words.push(current)
+      current = ''
+      continue
+    }
+    current += char
+  }
+
+  if (current) words.push(current)
+  return words
+}
+
+export function parseSubpolarCliCommand(command: string): { path: string; body: Record<string, unknown> } | null {
+  const words = shellWords(command)
+  if (words[0] !== 'subpolar-cli') return null
+
+  const agentIndex = words.findIndex(word => word === '--agentId' || word.startsWith('--agentId='))
+  const agentArg = agentIndex === -1 ? undefined : words[agentIndex]
+  const agentId = agentArg === undefined ? process.env.SUBPOLAR_AGENT_ID : agentArg.includes('=') ? agentArg.slice(agentArg.indexOf('=') + 1) : words[agentIndex + 1]
+  const agentValueIndex = agentIndex !== -1 && agentArg && !agentArg.includes('=') ? agentIndex + 1 : -1
+  const args = words.slice(1).filter((_, index) => index !== agentIndex - 1 && index !== agentValueIndex - 1)
+
+  if (args[0] === 'tools' && args[1] === 'list') return { path: '/tools/list', body: { agentId } }
+  const toolId = args[0]
+  if (!toolId) return { path: '/tools/list', body: { agentId } }
+  if (args[1] === '--help') return { path: '/tools/describe', body: { agentId, toolId } }
+
+  let input: unknown = {}
+  if (args[1]) input = JSON.parse(args[1])
+  return { path: '/tools/call', body: { agentId, toolId, input, sessionId: process.env.SUBPOLAR_SESSION_ID } }
+}
+
+async function callSubpolarCli(command: string): Promise<ExtensionToolResult | null> {
+  const parsed = parseSubpolarCliCommand(command)
+  if (!parsed) return null
+
+  const baseUrl = requiredEnv('SUBPOLAR_BASE_URL').replace(/\/+$/, '')
+  const token = requiredEnv('SUBPOLAR_INTERNAL_TOKEN')
+  const response = await fetch(`${baseUrl}/api/subpolar-cli${parsed.path}`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(parsed.body),
+  })
+  const result = await response.json().catch(() => ({ ok: false, error: { code: 'BAD_BACKEND_RESPONSE', message: 'Backend returned non-JSON response' } }))
+  return textResult(JSON.stringify(result, null, 2), { routedToBackend: true, status: response.status })
+}
+
 function discoverSkills(params: SkillDiscoverParams): ExtensionToolResult {
   const query = params.query?.trim().toLowerCase()
   const limit = Number.isFinite(params.limit) && params.limit && params.limit > 0 ? Math.floor(params.limit) : undefined
@@ -223,10 +312,32 @@ function registerSkillTools(pi: ExtensionApi): void {
   })
 }
 
+function registerBashTool(pi: ExtensionApi): void {
+  if (!pi.registerTool) return
+
+  pi.registerTool({
+    name: 'bash',
+    label: 'bash',
+    description: 'Execute bash commands. subpolar-cli commands are routed directly to the Subpolar backend.',
+    promptSnippet: 'Execute bash commands. Use subpolar-cli for Subpolar-managed backend tools.',
+    parameters: bashParameters,
+    async execute(toolCallId, params, signal, onUpdate, ctx) {
+      const input = params && typeof params === 'object' ? params as { command?: unknown } : {}
+      if (typeof input.command === 'string') {
+        const routed = await callSubpolarCli(input.command)
+        if (routed) return routed
+      }
+      const bash = createBashToolDefinition(ctx?.cwd ?? process.cwd())
+      return bash.execute(toolCallId, params as { command: string; timeout?: number }, signal, onUpdate, ctx as never)
+    },
+  })
+}
+
 export default function subpolarPiExtension(pi: ExtensionApi) {
   const register = pi.hook ?? pi.on
   if (!register) return
   registerSkillTools(pi)
+  registerBashTool(pi)
   register.call(pi, 'project_trust', () => ({ trusted: 'no' }))
   register.call(pi, 'tool_call', (event) => authorizeToolCall(event as PiToolCall))
 }
