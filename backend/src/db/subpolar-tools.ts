@@ -4,6 +4,17 @@ import { getAgentBySlug } from './subpolar-agents'
 
 export type ToolSeed = Omit<ToolDefinition, 'id' | 'created_at' | 'updated_at'>
 export type PolicySeed = Omit<AgentToolPolicy, 'id' | 'created_at' | 'updated_at'>
+export type ToolApprovalRecord = {
+  id: string
+  agent_id: string
+  session_id?: string
+  tool_id: string
+  input: unknown
+  reason: string
+  status: 'pending' | 'approved' | 'rejected'
+  created_at: number
+  resolved_at?: number
+}
 
 function toTool(record: Record<string, unknown>): ToolDefinition {
   return {
@@ -34,6 +45,21 @@ function toPolicy(record: Record<string, unknown>): AgentToolPolicy {
     constraints: (record.constraints && typeof record.constraints === 'object' ? record.constraints : {}) as Record<string, unknown>,
     created_at: Number(record.created_at ?? Date.now()),
     updated_at: Number(record.updated_at ?? Date.now()),
+  }
+}
+
+function toApproval(record: Record<string, unknown>): ToolApprovalRecord {
+  const status = String(record.status)
+  return {
+    id: String(record.id),
+    agent_id: String(record.agent_id),
+    session_id: typeof record.session_id === 'string' ? record.session_id : undefined,
+    tool_id: String(record.tool_id),
+    input: record.input,
+    reason: String(record.reason ?? ''),
+    status: status === 'approved' || status === 'rejected' ? status : 'pending',
+    created_at: Number(record.created_at ?? Date.now()),
+    resolved_at: record.resolved_at === undefined ? undefined : Number(record.resolved_at),
   }
 }
 
@@ -97,6 +123,23 @@ export async function upsertPolicy(db: PocketBase, definition: PolicySeed): Prom
 export async function createApproval(db: PocketBase, data: { agent_id: string; session_id?: string; tool_id: string; input: unknown; reason: string }): Promise<string> {
   const created = await db.collection('tool_approvals').create({ ...data, status: 'pending', created_at: Date.now() })
   return String((created as unknown as { id: string }).id)
+}
+
+export async function getApproval(db: PocketBase, approvalId: string): Promise<ToolApprovalRecord | null> {
+  const record = await db.collection('tool_approvals').getOne(approvalId).catch(() => null)
+  return record ? toApproval(record as unknown as Record<string, unknown>) : null
+}
+
+export async function listPendingApprovals(db: PocketBase, sessionId?: string): Promise<ToolApprovalRecord[]> {
+  const filters = ['status = "pending"']
+  if (sessionId) filters.push(`session_id = "${sessionId.replaceAll('"', '\\"')}"`)
+  const records = await db.collection('tool_approvals').getFullList({ filter: filters.join(' && '), sort: '-created_at' })
+  return records.map(record => toApproval(record as unknown as Record<string, unknown>))
+}
+
+export async function respondToApproval(db: PocketBase, approvalId: string, approved: boolean): Promise<ToolApprovalRecord> {
+  const updated = await db.collection('tool_approvals').update(approvalId, { status: approved ? 'approved' : 'rejected', resolved_at: Date.now() })
+  return toApproval(updated as unknown as Record<string, unknown>)
 }
 
 export async function writeToolAudit(db: PocketBase, data: Omit<ToolAuditRecord, 'id' | 'created_at'>): Promise<void> {

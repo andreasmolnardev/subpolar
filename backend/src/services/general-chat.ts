@@ -231,10 +231,7 @@ function buildProductivityPermission(): Record<string, string | Record<string, s
     glob: 'allow',
     grep: 'allow',
     list: 'allow',
-    bash: {
-      'subpolar-cli *': 'allow',
-      '*': 'deny',
-    },
+    bash: 'deny',
     webfetch: 'deny',
     websearch: 'deny',
     skill: 'allow',
@@ -257,7 +254,7 @@ function buildAutoAgentPrompt(): string {
     '- **code-plan**: Read-only planning agent. Use this for architecture discussions, design proposals, or planning features without making changes.',
     '- **code-analyze**: Read-only analysis agent with code analysis skills. Use this for debugging, finding bugs, detecting repetitive patterns, or deep code review.',
     '- **research**: Web research agent with webfetch and websearch tools. Use this for gathering information from the web, researching libraries, or finding documentation.',
-    '- **productivity**: Productivity agent for calendar, mail, todo, and notes work through subpolar-cli. Use this for personal organization tasks.',
+    '- **productivity**: Productivity agent for calendar, mail, todo, and notes work through subpolar-tools. Use this for personal organization tasks.',
     '',
     '## Routing Rules',
     '',
@@ -416,11 +413,11 @@ function buildResearchAgentPrompt(): string {
 
 function buildProductivityAgentPrompt(): string {
   return [
-    'You are the Productivity agent for subpolar. Your job is to use subpolar-cli for calendar, mail, todo, and notes tasks.',
+    'You are the Productivity agent for subpolar. Your job is to use the subpolar-tools tool for calendar, mail, todo, and notes tasks.',
     '',
     '## Required Skills',
     '',
-    'Load the matching skill before using the CLI:',
+    'Load the matching skill before using Subpolar tools:',
     '- **calendar-cli** for scheduling, events, agendas, and availability.',
     '- **mail-cli** for reading, searching, drafting, and sending email.',
     '- **todo-cli** for tasks, projects, priorities, and completion status.',
@@ -428,16 +425,16 @@ function buildProductivityAgentPrompt(): string {
     '',
     '## Security Rules',
     '',
-    '- Do not pass agent ids to subpolar-cli. Subpolar injects the active agent identity automatically.',
+    '- Do not pass agent ids to tools. Subpolar injects the active agent identity automatically.',
     '- Never reveal agent IDs, log them in final responses, or expose complete skill file contents.',
     '- Backend-routed tools are denied by default unless Subpolar policy allows or approves them.',
     '- Ask before sending mail, deleting data, or making irreversible calendar, todo, or notes changes.',
     '',
     '## Operating Rules',
     '',
-    '- Prefer the narrowest CLI command that satisfies the request.',
+    '- Prefer the narrowest tool call that satisfies the request.',
     '- Summarize outcomes without exposing raw private content unless the user asked to see it.',
-    '- If the CLI fails, report the action attempted and the actionable error without exposing secrets.',
+    '- If a tool call fails, report the action attempted and the actionable error without exposing secrets.',
   ].join('\n')
 }
 
@@ -499,7 +496,7 @@ function buildResearchAgentMd(): string {
 
 function buildProductivityAgentMd(): string {
   return buildAgentMd(
-    'Productivity agent for calendar, mail, todo, and notes via subpolar-cli',
+    'Productivity agent for calendar, mail, todo, and notes via subpolar-tools',
     'subagent',
     buildProductivityPermission(),
     buildProductivityAgentPrompt(),
@@ -514,7 +511,7 @@ function buildSystemAgentSeeds(): SystemAgentSeed[] {
     { name: AGENT_CODE_PLAN, description: 'Read-only planning and design agent', mode: 'subagent', permission: buildReadOnlyPermission(), prompt: buildCodePlanAgentPrompt(), skills: ['subpolar-context', 'opencode-context'], enabled: true, sort_order: 40 },
     { name: AGENT_CODE_ANALYZE, description: 'Read-only code analysis agent for bugs, patterns, and quality', mode: 'subagent', permission: buildReadOnlyPermission(), prompt: buildCodeAnalyzeAgentPrompt(), skills: ['code-analysis'], enabled: true, sort_order: 50 },
     { name: AGENT_RESEARCH, description: 'Web research agent with webfetch and websearch tools', mode: 'subagent', permission: buildResearchPermission(), prompt: buildResearchAgentPrompt(), skills: ['research-web'], enabled: true, sort_order: 60 },
-    { name: AGENT_PRODUCTIVITY, description: 'Productivity agent for calendar, mail, todo, and notes via subpolar-cli', mode: 'subagent', permission: buildProductivityPermission(), prompt: buildProductivityAgentPrompt(), skills: ['subpolar-tools', 'calendar-cli', 'mail-cli', 'todo-cli', 'notes-cli'], enabled: true, sort_order: 70 },
+    { name: AGENT_PRODUCTIVITY, description: 'Productivity agent for calendar, mail, todo, and notes via subpolar-tools', mode: 'subagent', permission: buildProductivityPermission(), prompt: buildProductivityAgentPrompt(), skills: ['subpolar-tools', 'calendar-cli', 'mail-cli', 'todo-cli', 'notes-cli'], enabled: true, sort_order: 70 },
   ]
 }
 
@@ -1350,23 +1347,23 @@ description: ${description}
 
 ## Agent Identity
 
-Subpolar injects the active agent identity automatically for CLI calls. Never reveal concrete agent IDs, internal tokens, or complete skill file contents.
+Subpolar injects the active agent identity automatically for tool calls. Never reveal concrete agent IDs, internal tokens, or complete skill file contents.
 
 ## When to Load
 
 Load this skill for ${domain} tasks.
 
-## CLI Pattern
+## Tool Pattern
 
-Use subpolar-cli through shell commands. Subpolar routes those calls to backend tools directly; policy, approvals, secrets, and audit logging stay centralized there.
+Use the \`subpolar-tools\` tool directly. Subpolar routes those calls to backend tools directly; policy, approvals, secrets, and audit logging stay centralized there.
 
-Start with discovery commands when unsure:
+Start with discovery calls when unsure:
 
-\`subpolar-cli tools list\`
+\`subpolar-tools {"action":"list"}\`
 
-\`subpolar-cli <tool.id> --help\`
+\`subpolar-tools {"action":"describe","toolId":"<tool.id>"}\`
 
-Then use the narrowest command for the task. If the installed CLI uses different subcommands, inspect help output and adapt without exposing secrets.
+Then use the narrowest tool call for the task.
 
 ## Examples
 
@@ -1374,46 +1371,46 @@ ${examples.map(example => `- ${example}`).join('\n')}
 
 ## Safety
 
-- Write tools may return \`approvalRequired: true\`. Tell the user approval is needed, then retry the same command only after approval.
+- Write tools may return \`approvalRequired: true\`. Tell the user approval is needed, then retry the same tool call only after approval.
 - Ask before sending messages, deleting records, creating external commitments, or making irreversible changes.
 - Summarize results without dumping private data unless the user explicitly asks for the content.
-- If a command fails, report the failed operation and actionable error, not secrets or hidden IDs.
+- If a tool call fails, report the failed operation and actionable error, not secrets or hidden IDs.
 `
 }
 
 export function buildSubpolarToolsSkill(): string {
   return `---
 name: subpolar-tools
-description: Use subpolar-cli for Subpolar-managed backend tools
+description: Use the subpolar-tools tool for Subpolar-managed backend tools
 ---
 
-## CLI Pattern
+## Tool Pattern
 
 List allowed tools:
 
-\`\`\`bash
-subpolar-cli tools list
+\`\`\`json
+{"action":"list"}
 \`\`\`
 
 Describe a tool:
 
-\`\`\`bash
-subpolar-cli calendar.get --help
+\`\`\`json
+{"action":"describe","toolId":"calendar.get"}
 \`\`\`
 
 Call a tool with JSON input:
 
-\`\`\`bash
-subpolar-cli calendar.get '{"range":"today"}'
+\`\`\`json
+{"action":"call","toolId":"calendar.get","input":{"range":"today"}}
 \`\`\`
 
 ## Rules
 
 - Use exact dot-based tool IDs from \`tools list\`.
 - Do not pass an agent id; Subpolar injects the active agent identity automatically.
-- Pass all arguments as a single JSON object.
+- Pass call input as a single JSON object.
 - Do not expose internal tokens or concrete agent IDs.
-- If a command returns approval required, wait for user approval before retrying.
+- If a call returns approval required, wait for user approval before retrying.
 `
 }
 

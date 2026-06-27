@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { authorizeToolCall, createAuthorizationRequest, parseSubpolarCliCommand } from '../../src/pi/extension'
+import { authorizeToolCall, createAuthorizationRequest } from '../../src/pi/extension'
 
 const envKeys = [
   'SUBPOLAR_AGENT_ID',
@@ -62,21 +62,12 @@ describe('pi extension authorization', () => {
     await expect(authorizeToolCall({ id: 'tool-call-1', name: 'edit', input: {} })).resolves.toEqual({ block: true, reason: 'pi.edit requires approval' })
   })
 
-  it('parses subpolar-cli list commands for backend routing', () => {
-    process.env.SUBPOLAR_AGENT_ID = 'productivity'
+  it('allows subpolar-tools to route through backend tool policy', async () => {
+    setEnv()
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
 
-    expect(parseSubpolarCliCommand('subpolar-cli tools list')).toEqual({
-      path: '/tools/list',
-      body: { agentId: 'productivity' },
-    })
-  })
-
-  it('parses subpolar-cli tool calls for backend routing', () => {
-    process.env.SUBPOLAR_SESSION_ID = 'session-1'
-
-    expect(parseSubpolarCliCommand('subpolar-cli --agentId productivity calendar.get \'{"range":"today"}\'')).toEqual({
-      path: '/tools/call',
-      body: { agentId: 'productivity', toolId: 'calendar.get', input: { range: 'today' }, sessionId: 'session-1' },
-    })
+    await expect(authorizeToolCall({ id: 'tool-call-1', name: 'subpolar-tools', input: { action: 'list' } })).resolves.toBeUndefined()
+    expect(fetch).not.toHaveBeenCalled()
   })
 })

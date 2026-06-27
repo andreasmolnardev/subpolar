@@ -25,6 +25,8 @@ type ActivePiProcess = {
   dispose: () => void
 }
 
+const defaultExtensionPath = new URL('../pi/extension.ts', import.meta.url).pathname
+
 type PiSdkEvent = {
   type?: string
   message?: {
@@ -154,7 +156,7 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
     const loader = new DefaultResourceLoader({
       cwd,
       agentDir: getAgentDir(),
-      additionalExtensionPaths: [this.options.extensionPath ?? 'backend/src/pi/extension.ts'],
+      additionalExtensionPaths: [this.options.extensionPath ?? defaultExtensionPath],
       additionalSkillPaths: [path.join(cwd, '.opencode', 'skills')],
       systemPromptOverride: () => input.systemPrompt,
     })

@@ -64,7 +64,7 @@ type ExtensionApi = {
   }) => void
 }
 
-const SKILL_TOOL_NAMES = new Set(['skill-discover', 'skill-load'])
+const INTERNAL_TOOL_NAMES = new Set(['skill-discover', 'skill-load', 'subpolar-tools'])
 const skillDiscoverParameters = {
   type: 'object',
   properties: {
@@ -102,6 +102,28 @@ const bashParameters = {
   additionalProperties: false,
 }
 
+const subpolarToolsParameters = {
+  type: 'object',
+  properties: {
+    action: {
+      type: 'string',
+      enum: ['list', 'describe', 'call'],
+      description: 'Whether to list available tools, describe one tool, or call one tool',
+    },
+    toolId: {
+      type: 'string',
+      description: 'Dot-based Subpolar tool id. Required for describe and call.',
+    },
+    input: {
+      type: 'object',
+      description: 'JSON object input for call actions',
+      additionalProperties: true,
+    },
+  },
+  required: ['action'],
+  additionalProperties: false,
+}
+
 function requiredEnv(name: string): string {
   const value = process.env[name]
   if (!value) throw new Error(`${name} is required`)
@@ -135,7 +157,7 @@ export async function authorizeToolCall(toolCall: PiToolCall): Promise<void | { 
   try {
     const baseUrl = requiredEnv('SUBPOLAR_BASE_URL').replace(/\/+$/, '')
     const token = requiredEnv('SUBPOLAR_INTERNAL_TOKEN')
-    if (SKILL_TOOL_NAMES.has(request.toolName)) return undefined
+    if (INTERNAL_TOOL_NAMES.has(request.toolName)) return undefined
     const response = await fetch(`${baseUrl}/api/pi/tools/authorize`, {
       method: 'POST',
       headers: {
@@ -186,78 +208,29 @@ function textResult(text: string, details: Record<string, unknown>): ExtensionTo
   }
 }
 
-function shellWords(command: string): string[] {
-  const words: string[] = []
-  let current = ''
-  let quote: 'single' | 'double' | null = null
-  let escaping = false
-
-  for (const char of command.trim()) {
-    if (escaping) {
-      current += char
-      escaping = false
-      continue
-    }
-    if (char === '\\' && quote !== 'single') {
-      escaping = true
-      continue
-    }
-    if (char === "'" && quote !== 'double') {
-      quote = quote === 'single' ? null : 'single'
-      continue
-    }
-    if (char === '"' && quote !== 'single') {
-      quote = quote === 'double' ? null : 'double'
-      continue
-    }
-    if (/\s/.test(char) && !quote) {
-      if (current) words.push(current)
-      current = ''
-      continue
-    }
-    current += char
-  }
-
-  if (current) words.push(current)
-  return words
-}
-
-export function parseSubpolarCliCommand(command: string): { path: string; body: Record<string, unknown> } | null {
-  const words = shellWords(command)
-  if (words[0] !== 'subpolar-cli') return null
-
-  const agentIndex = words.findIndex(word => word === '--agentId' || word.startsWith('--agentId='))
-  const agentArg = agentIndex === -1 ? undefined : words[agentIndex]
-  const agentId = agentArg === undefined ? process.env.SUBPOLAR_AGENT_ID : agentArg.includes('=') ? agentArg.slice(agentArg.indexOf('=') + 1) : words[agentIndex + 1]
-  const agentValueIndex = agentIndex !== -1 && agentArg && !agentArg.includes('=') ? agentIndex + 1 : -1
-  const args = words.slice(1).filter((_, index) => index !== agentIndex - 1 && index !== agentValueIndex - 1)
-
-  if (args[0] === 'tools' && args[1] === 'list') return { path: '/tools/list', body: { agentId } }
-  const toolId = args[0]
-  if (!toolId) return { path: '/tools/list', body: { agentId } }
-  if (args[1] === '--help') return { path: '/tools/describe', body: { agentId, toolId } }
-
-  let input: unknown = {}
-  if (args[1]) input = JSON.parse(args[1])
-  return { path: '/tools/call', body: { agentId, toolId, input, sessionId: process.env.SUBPOLAR_SESSION_ID } }
-}
-
-async function callSubpolarCli(command: string): Promise<ExtensionToolResult | null> {
-  const parsed = parseSubpolarCliCommand(command)
-  if (!parsed) return null
-
+async function callSubpolarBackend(path: string, body: Record<string, unknown>): Promise<ExtensionToolResult> {
   const baseUrl = requiredEnv('SUBPOLAR_BASE_URL').replace(/\/+$/, '')
   const token = requiredEnv('SUBPOLAR_INTERNAL_TOKEN')
-  const response = await fetch(`${baseUrl}/api/subpolar-cli${parsed.path}`, {
+  const response = await fetch(`${baseUrl}/api/subpolar-cli${path}`, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${token}`,
       'content-type': 'application/json',
     },
-    body: JSON.stringify(parsed.body),
+    body: JSON.stringify(body),
   })
   const result = await response.json().catch(() => ({ ok: false, error: { code: 'BAD_BACKEND_RESPONSE', message: 'Backend returned non-JSON response' } }))
   return textResult(JSON.stringify(result, null, 2), { routedToBackend: true, status: response.status })
+}
+
+async function callSubpolarTools(params: unknown): Promise<ExtensionToolResult> {
+  const input = params && typeof params === 'object' ? params as { action?: unknown; toolId?: unknown; input?: unknown } : {}
+  const agentId = process.env.SUBPOLAR_AGENT_ID
+  if (input.action === 'list') return callSubpolarBackend('/tools/list', { agentId })
+  if (typeof input.toolId !== 'string' || input.toolId.length === 0) return textResult('toolId is required for describe and call actions', { ok: false })
+  if (input.action === 'describe') return callSubpolarBackend('/tools/describe', { agentId, toolId: input.toolId })
+  if (input.action === 'call') return callSubpolarBackend('/tools/call', { agentId, toolId: input.toolId, input: input.input ?? {}, sessionId: process.env.SUBPOLAR_SESSION_ID })
+  return textResult('action must be one of: list, describe, call', { ok: false })
 }
 
 function discoverSkills(params: SkillDiscoverParams): ExtensionToolResult {
@@ -312,21 +285,32 @@ function registerSkillTools(pi: ExtensionApi): void {
   })
 }
 
+function registerSubpolarTools(pi: ExtensionApi): void {
+  if (!pi.registerTool) return
+
+  pi.registerTool({
+    name: 'subpolar-tools',
+    label: 'Subpolar Tools',
+    description: 'List, describe, and call Subpolar-managed backend tools directly.',
+    promptSnippet: 'Use subpolar-tools for Subpolar-managed backend tools instead of shell commands.',
+    promptGuidelines: ['Use action=list when unsure which tools are available.', 'Use action=describe before calling an unfamiliar tool.', 'Use action=call with exact dot-based tool ids and JSON object input.'],
+    parameters: subpolarToolsParameters,
+    async execute(_toolCallId, params) {
+      return callSubpolarTools(params)
+    },
+  })
+}
+
 function registerBashTool(pi: ExtensionApi): void {
   if (!pi.registerTool) return
 
   pi.registerTool({
     name: 'bash',
     label: 'bash',
-    description: 'Execute bash commands. subpolar-cli commands are routed directly to the Subpolar backend.',
-    promptSnippet: 'Execute bash commands. Use subpolar-cli for Subpolar-managed backend tools.',
+    description: 'Execute bash commands.',
+    promptSnippet: 'Execute bash commands.',
     parameters: bashParameters,
     async execute(toolCallId, params, signal, onUpdate, ctx) {
-      const input = params && typeof params === 'object' ? params as { command?: unknown } : {}
-      if (typeof input.command === 'string') {
-        const routed = await callSubpolarCli(input.command)
-        if (routed) return routed
-      }
       const bash = createBashToolDefinition(ctx?.cwd ?? process.cwd())
       return bash.execute(toolCallId, params as { command: string; timeout?: number }, signal, onUpdate, ctx as never)
     },
@@ -337,6 +321,7 @@ export default function subpolarPiExtension(pi: ExtensionApi) {
   const register = pi.hook ?? pi.on
   if (!register) return
   registerSkillTools(pi)
+  registerSubpolarTools(pi)
   registerBashTool(pi)
   register.call(pi, 'project_trust', () => ({ trusted: 'no' }))
   register.call(pi, 'tool_call', (event) => authorizeToolCall(event as PiToolCall))

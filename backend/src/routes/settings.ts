@@ -6,7 +6,7 @@ import { resolve, dirname } from 'path'
 import type { Database } from '../db/schema'
 import { SettingsService } from '../services/settings'
 import { writeFileContent, readFileContent, fileExists } from '../services/file-operations'
-import { patchConfigWithRecovery } from '../services/opencode/config-recovery'
+
 import type { OpenCodeClient } from '../services/opencode/client'
 import { getOpenCodeConfigFilePath, getAgentsMdPath } from '@subpolar/shared/config/env'
 import {
@@ -71,18 +71,6 @@ function getOpenCodeInstallMethod(): string {
   }
   
   return 'curl'
-}
-
-function getOpenCodeConfigContentToWrite(
-  rawContent: string,
-  appliedConfig?: Record<string, unknown>,
-  removedFields?: string[]
-): string {
-  if (!appliedConfig || !removedFields || removedFields.length === 0) {
-    return rawContent
-  }
-
-  return JSON.stringify(appliedConfig, null, 2)
 }
 
 async function reloadOpenCodeConfig(openCodeSupervisor?: OpenCodeSupervisor): Promise<void> {
@@ -461,22 +449,7 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
           return c.json(config)
         }
 
-        const patchResult = await patchConfigWithRecovery(openCodeClient, provisionalConfig.content)
-        if (!patchResult.success) {
-          await settingsService.deleteOpenCodeConfig(provisionalConfig.name, userId)
-          return c.json({ 
-            error: 'Config validation failed', 
-            details: patchResult.error,
-            validationIssues: patchResult.details,
-            removedFields: patchResult.removedFields
-          }, 400)
-        }
-
-        const contentToWrite = getOpenCodeConfigContentToWrite(
-          provisionalConfig.rawContent,
-          patchResult.appliedConfig,
-          patchResult.removedFields
-        )
+        const contentToWrite = provisionalConfig.rawContent
         const config = await settingsService.updateOpenCodeConfig(provisionalConfig.name, {
           content: contentToWrite,
           isDefault: true,
@@ -538,27 +511,8 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
           opencodeServerManager.clearStartupError()
           await restartOpenCode(openCodeSupervisor)
         } else {
-          const patchResult = await patchConfigWithRecovery(openCodeClient, config.content)
-          if (!patchResult.success) {
-            return c.json({ 
-              error: 'Config saved but failed to apply', 
-              details: patchResult.error,
-              validationIssues: patchResult.details,
-              removedFields: patchResult.removedFields
-            }, 500)
-          }
-          
-          const contentToWrite = patchResult.removedFields && patchResult.removedFields.length > 0
-            ? JSON.stringify(patchResult.appliedConfig ?? config.content, null, 2)
-            : config.rawContent
-          
-          await writeFileContent(configPath, contentToWrite)
+          await writeFileContent(configPath, config.rawContent)
           logger.info(`Wrote default config to: ${configPath}`)
-          
-          if (patchResult.removedFields && patchResult.removedFields.length > 0) {
-            logger.info(`Config applied with auto-removed fields: ${patchResult.removedFields.join(', ')}`)
-            return c.json({ ...config, removedFields: patchResult.removedFields })
-          }
         }
       }
       
@@ -616,23 +570,8 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
         return c.json(config)
       }
 
-      const patchResult = await patchConfigWithRecovery(openCodeClient, existingConfig.content)
-      if (!patchResult.success) {
-        return c.json({ 
-          error: 'Config validation failed', 
-          details: patchResult.error,
-          validationIssues: patchResult.details,
-          removedFields: patchResult.removedFields
-        }, 400)
-      }
-
-      const contentToWrite = getOpenCodeConfigContentToWrite(
-        existingConfig.rawContent,
-        patchResult.appliedConfig,
-        patchResult.removedFields
-      )
       const updatedConfig = await settingsService.updateOpenCodeConfig(configName, {
-        content: contentToWrite,
+        content: existingConfig.rawContent,
       }, userId)
 
       if (!updatedConfig) {
@@ -645,13 +584,8 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
       }
 
       const configPath = getOpenCodeConfigFilePath()
-      await writeFileContent(configPath, contentToWrite)
+      await writeFileContent(configPath, existingConfig.rawContent)
       logger.info(`Wrote default config '${configName}' to: ${configPath}`)
-
-      if (patchResult.removedFields && patchResult.removedFields.length > 0) {
-        logger.info(`Config applied with auto-removed fields: ${patchResult.removedFields.join(', ')}`)
-        return c.json({ ...config, removedFields: patchResult.removedFields })
-      }
       
       return c.json(config)
     } catch (error) {

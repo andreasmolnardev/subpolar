@@ -74,7 +74,7 @@ app.use('/*', async (c, next) => {
   const userAgent = c.req.header('user-agent') ?? '-'
 
   c.header('x-request-id', requestId)
-  logger.info(`Request ${requestId} -> ${c.req.method} ${target} origin=${origin} userAgent="${userAgent}"`)
+  logger.info(`${c.req.method} ${target} origin=${origin}"`)
 
   try {
     await next()
@@ -86,7 +86,7 @@ app.use('/*', async (c, next) => {
 
   const durationMs = Math.round(performance.now() - startedAt)
   const level = c.res.status >= 500 ? 'error' : c.res.status >= 400 ? 'warn' : 'info'
-  logger[level](`Request ${requestId} <- ${c.req.method} ${target} ${c.res.status} ${durationMs}ms`)
+  logger[level](`${c.req.method} ${target} ${c.res.status} ${durationMs}ms`)
 })
 
 app.use('/*', cors({
@@ -216,7 +216,7 @@ protectedApi.route('/automations', createAutomationRoutes(automationService!))
 protectedApi.route('/sessions', createSessionRoutes(db!, runtimeRegistry))
 protectedApi.route('/runs', createRunRoutes(db!, runtimeRegistry))
 protectedApi.route('/agent', createAgentRoutes(db!))
-protectedApi.route('/', createRuntimeRoutes())
+protectedApi.route('/', createRuntimeRoutes(db!))
 
 app.route('/api', protectedApi)
 

@@ -111,8 +111,12 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
       ? body.permissionOverride
       : undefined
     const runtime: RuntimeId = 'pi'
-    const run = await createRun(db, { sessionId: c.req.param('id'), agentId, runtime, metadata: permissionOverride ? { permissionOverride } : undefined })
     const directory = c.req.query('directory')
+    const metadata = {
+      ...(permissionOverride ? { permissionOverride } : {}),
+      ...(directory ? { directory } : {}),
+    }
+    const run = await createRun(db, { sessionId: c.req.param('id'), agentId, runtime, metadata })
 
     void maybeGenerateSessionTitle(db, runtimeRegistry, c.req.param('id'), model, directory)
 

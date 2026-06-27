@@ -77,19 +77,19 @@ function policyPermission(effect: AgentToolPolicy['effect']): 'allow' | 'ask' | 
 function buildToolAccess(agent?: Agent, policies: AgentToolPolicy[] = []): ToolAccess[] {
   const configured = agent?.toolAccess?.length ? agent.toolAccess.filter(tool => tool.type !== 'subpolar') : undefined
   const bashPermission = agent?.permission?.bash
+  const piBashPolicy = policies.find(policy => policy.tool_id === 'pi.bash')
   const fallback = [
     { type: 'builtin' as const, id: 'edit', permission: permissionFrom(agent?.permission?.edit, 'allow') },
     { type: 'builtin' as const, id: 'webfetch', permission: permissionFrom(agent?.permission?.webfetch, 'allow') },
-    { type: 'builtin' as const, id: 'other-bash', permission: typeof bashPermission === 'string' ? permissionFrom(bashPermission, 'ask') : 'deny' },
+    { type: 'builtin' as const, id: 'other-bash', permission: piBashPolicy ? policyPermission(piBashPolicy.effect) : typeof bashPermission === 'string' ? permissionFrom(bashPermission, 'ask') : 'deny' },
     ...(agent?.skills || []).map((skill): ToolAccess => ({ type: 'skill', id: skill, permission: 'allow' })),
     ...(agent?.allowedCommands || []).map((command): ToolAccess => ({ type: 'cli', id: command, command, permission: 'allow' })),
   ]
   const base = configured ?? fallback
-  const subpolar = policies.map((policy): ToolAccess => ({
+  const subpolar = policies.filter(policy => !policy.tool_id.startsWith('pi.')).map((policy): ToolAccess => ({
     type: 'subpolar',
     id: policy.tool_id,
     permission: policyPermission(policy.effect),
-    command: `subpolar-cli ${policy.tool_id}`,
   }))
   return [
     ...base,
@@ -100,7 +100,7 @@ function buildToolAccess(agent?: Agent, policies: AgentToolPolicy[] = []): ToolA
 interface AgentDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (name: string, agent: Agent) => void
+  onSubmit: (name: string, agent: Agent) => void | Promise<void>
   editingAgent?: { name: string; agent: Agent } | null
   availableSkills?: string[]
 }
@@ -142,6 +142,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
 
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentFormSchema),
+    mode: 'onChange',
     defaultValues: getDefaultValues(editingAgent)
   })
 
@@ -157,7 +158,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
 
   const addToolAccess = () => {
     const defaultTool = subpolarTools[0]?.tool_id ?? 'calendar.get'
-    const next = [...toolAccess, { type: 'subpolar' as const, id: defaultTool, permission: 'allow' as const, command: `subpolar-cli ${defaultTool}` }]
+    const next = [...toolAccess, { type: 'subpolar' as const, id: defaultTool, permission: 'allow' as const }]
     form.setValue('toolAccess', next, { shouldDirty: true, shouldValidate: true })
     setSelectedToolIndex(next.length - 1)
   }
@@ -173,7 +174,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
     form.setValue('toolAccess', next, { shouldDirty: true, shouldValidate: true })
   }
 
-  const handleSubmit = (values: AgentFormValues) => {
+  const handleSubmit = async (values: AgentFormValues) => {
     const agent: Agent = {
       prompt: values.prompt,
       description: values.description || undefined,
@@ -205,7 +206,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
       const otherBashPermission = builtinTools['other-bash']?.permission || 'deny'
       agent.tools = {
         edit: editPermission !== 'deny',
-        bash: otherBashPermission !== 'deny' || values.toolAccess.some(tool => tool.type === 'cli' || tool.type === 'subpolar'),
+        bash: otherBashPermission !== 'deny' || values.toolAccess.some(tool => tool.type === 'cli'),
         webfetch: webfetchPermission !== 'deny',
       }
       agent.permission = {
@@ -215,14 +216,11 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
       }
       agent.skills = Array.from(new Set(values.toolAccess.filter(tool => tool.type === 'skill').map(tool => tool.id)))
       agent.allowedCommands = Array.from(new Set(values.toolAccess.filter(tool => tool.type === 'cli').map(tool => tool.command || tool.id)))
-      const subpolarTools = values.toolAccess.filter(tool => tool.type === 'subpolar')
       const cliTools = values.toolAccess.filter(tool => tool.type === 'cli')
-      if (subpolarTools.length > 0 || cliTools.length > 0 || otherBashPermission !== 'deny') {
+      if (cliTools.length > 0 || otherBashPermission !== 'deny') {
         agent.permission = {
           ...agent.permission,
           bash: Object.fromEntries([
-            ['subpolar-cli *', 'allow'],
-            ...subpolarTools.map(tool => [`subpolar-cli * ${tool.id} *`, tool.permission]),
             ...cliTools.map(tool => [`${tool.command || tool.id} *`, tool.permission]),
             ['*', otherBashPermission],
           ]),
@@ -230,7 +228,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
       }
     }
 
-    onSubmit(values.name, agent)
+    await onSubmit(values.name, agent)
     form.reset()
     onOpenChange(false)
   }
@@ -437,7 +435,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                           <SelectItem value="builtin">Built-in Tool</SelectItem>
                           <SelectItem value="skill">Skill</SelectItem>
                           <SelectItem value="cli">CLI Utility</SelectItem>
-                          <SelectItem value="subpolar">subpolar-cli Tool</SelectItem>
+                          <SelectItem value="subpolar">Subpolar Tool</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -458,7 +456,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                           </SelectContent>
                         </Select>
                       ) : selectedTool.type === 'subpolar' && subpolarTools.length > 0 ? (
-                        <Select value={selectedTool.id} onValueChange={(value) => updateSelectedTool({ id: value, command: `subpolar-cli ${value}` })}>
+                        <Select value={selectedTool.id} onValueChange={(value) => updateSelectedTool({ id: value })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {subpolarTools.map((tool: SubpolarTool) => <SelectItem key={tool.tool_id} value={tool.tool_id}>{tool.tool_id}</SelectItem>)}
@@ -484,8 +482,8 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                     </div>
                     <div className="space-y-2 sm:col-span-2">
                       <label className="text-sm font-medium">CLI Pattern</label>
-                      <Input value={selectedTool.command || ''} placeholder={selectedTool.type === 'subpolar' ? 'subpolar-cli calendar.get' : 'rg *'} onChange={(event) => updateSelectedTool({ command: event.target.value })} />
-                      <p className="text-xs text-muted-foreground">For skills this can document required CLI utility permissions. For Subpolar tools, use the dot-based tool ID above.</p>
+                      <Input value={selectedTool.command || ''} placeholder="rg *" disabled={selectedTool.type === 'subpolar'} onChange={(event) => updateSelectedTool({ command: event.target.value })} />
+                      <p className="text-xs text-muted-foreground">For CLI utilities this documents required bash permissions. Subpolar tools use the dot-based tool ID above.</p>
                     </div>
                   </div>
                 ) : (
@@ -523,7 +521,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
           </Button>
           <Button
             onClick={() => form.handleSubmit(handleSubmit)()}
-            disabled={!form.formState.isValid}
+            disabled={form.formState.isSubmitting}
             className="flex-1 sm:flex-none"
           >
             {editingAgent ? 'Update' : 'Create'}

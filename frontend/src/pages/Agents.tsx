@@ -44,6 +44,8 @@ function subpolarPolicies(agent: Agent) {
   const policies = (agent.toolAccess ?? [])
     .filter(tool => tool.type === 'subpolar')
     .map(tool => ({ toolId: tool.id, effect: policyEffect(tool.permission) }))
+  const bashTool = (agent.toolAccess ?? []).find(tool => tool.type === 'builtin' && tool.id === 'other-bash')
+  if (bashTool) policies.push({ toolId: 'pi.bash', effect: policyEffect(bashTool.permission) })
   if (policies.some(policy => policy.effect !== 'deny') && !policies.some(policy => policy.toolId === 'tools.list')) {
     return [{ toolId: 'tools.list', effect: 'allow' as const }, ...policies]
   }

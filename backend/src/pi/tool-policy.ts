@@ -2,6 +2,8 @@ import { callTool } from '../services/subpolar-tool-router'
 import type { Database } from '../db/schema'
 import { getRun } from '../db/runs'
 import type { ToolPermissionOverride } from '../services/subpolar-tool-router'
+import { getApproval } from '../db/subpolar-tools'
+import { sseAggregator } from '../services/sse-aggregator'
 
 const PI_TOOL_IDS = {
   read: 'pi.read',
@@ -38,6 +40,17 @@ function parsePermissionOverride(value: unknown): ToolPermissionOverride | undef
   return value === 'ask' || value === 'none' || value === 'allow_all' ? value : undefined
 }
 
+async function waitForApproval(db: Database, approvalId: string): Promise<boolean> {
+  const started = Date.now()
+  while (Date.now() - started < 5 * 60 * 1000) {
+    const approval = await getApproval(db, approvalId)
+    if (approval?.status === 'approved') return true
+    if (approval?.status === 'rejected') return false
+    await new Promise(resolve => setTimeout(resolve, 1000))
+  }
+  return false
+}
+
 export async function authorizePiToolCall(db: Database, input: PiToolAuthorizationInput): Promise<PiToolAuthorizationResult> {
   const toolId = mapPiToolName(input.toolName)
   if (!toolId) return { ok: false, decision: 'deny', message: `Unknown Pi tool: ${input.toolName}` }
@@ -54,6 +67,21 @@ export async function authorizePiToolCall(db: Database, input: PiToolAuthorizati
 
   if (result.ok) return { ok: true, decision: 'allow' }
   if ('approvalRequired' in result && result.approvalRequired) {
+    const directory = typeof run?.metadata.directory === 'string' ? run.metadata.directory : undefined
+    if (directory) {
+      sseAggregator.publish(directory, {
+        type: 'permission.asked',
+        properties: {
+          id: result.approvalId,
+          sessionID: input.sessionId,
+          permission: toolId === 'pi.bash' ? 'bash' : toolId,
+          patterns: [toolId],
+          metadata: { agentId: input.agentId, input: input.input, reason: result.message },
+          always: [],
+        },
+      })
+    }
+    if (await waitForApproval(db, result.approvalId)) return { ok: true, decision: 'allow' }
     return {
       ok: false,
       decision: 'approval',

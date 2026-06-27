@@ -41,6 +41,10 @@ export async function getAgentById(db: PocketBase, id: string): Promise<AgentDef
   return record ? toAgent(record as unknown as Record<string, unknown>) : null
 }
 
+export async function getAgentByIdOrSlug(db: PocketBase, identifier: string): Promise<AgentDefinition | null> {
+  return await getAgentById(db, identifier) ?? await getAgentBySlug(db, identifier)
+}
+
 export async function upsertSystemAgent(db: PocketBase, definition: SystemAgentSeed): Promise<AgentDefinition> {
   const now = Date.now()
   const escaped = definition.name.replaceAll('"', '\\"')
