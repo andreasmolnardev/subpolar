@@ -11,12 +11,12 @@ const { createSessionMock, deleteSessionMock, sessionsData, createSessionState, 
   fetchNextPageMock: vi.fn(),
   hasNextPageRef: { current: false },
   isFetchingNextPageRef: { current: false },
-  lastSessionsHookArgs: { current: undefined as { opcodeUrl: string; directories: string[]; options?: { search?: string; limit?: number } } | undefined },
+  lastSessionsHookArgs: { current: undefined as { apiUrl: string; directories: string[]; options?: { search?: string; limit?: number } } | undefined },
 }))
 
 vi.mock('@/hooks/useOpenCode', () => ({
-  useSessionsAcrossDirectories: (opcodeUrl: string, directories: string[], options?: { search?: string; limit?: number }) => {
-    lastSessionsHookArgs.current = { opcodeUrl, directories, options }
+  useSessionsAcrossDirectories: (apiUrl: string, directories: string[], options?: { search?: string; limit?: number }) => {
+    lastSessionsHookArgs.current = { apiUrl, directories, options }
     // Simulate server-side search: return empty data when a search query is active
     const data = options?.search ? [] : sessionsData
     return {
@@ -27,7 +27,7 @@ vi.mock('@/hooks/useOpenCode', () => ({
       isFetchingNextPage: isFetchingNextPageRef.current,
     }
   },
-  useCreateSession: (_opcodeUrl: string, directory?: string) => {
+  useCreateSession: (_apiUrl: string, directory?: string) => {
     createSessionState.directory = directory
     return { mutate: createSessionMock }
   },
@@ -56,7 +56,7 @@ describe('SessionList', () => {
 
     render(
       <SessionList
-        opcodeUrl="/api/opencode"
+        apiUrl="/api/opencode"
         directories={['/w/a', '/w/b', '/w/c']}
         onSelectSession={vi.fn()}
       />,
@@ -94,7 +94,7 @@ describe('SessionList', () => {
 
     render(
       <SessionList
-        opcodeUrl="/api/opencode"
+        apiUrl="/api/opencode"
         directories={['/w/a', '/w/a', '/w/a']}
         onSelectSession={vi.fn()}
       />,
@@ -114,7 +114,7 @@ describe('SessionList', () => {
 
     render(
       <SessionList
-        opcodeUrl="/api/opencode"
+        apiUrl="/api/opencode"
         directories={['/w/a', '/w/b']}
         createDirectory="/w/b"
         onSelectSession={vi.fn()}
@@ -132,7 +132,7 @@ describe('SessionList', () => {
 
     render(
       <SessionList
-        opcodeUrl="/api/opencode"
+        apiUrl="/api/opencode"
         directories={['/w/a']}
         onSelectSession={vi.fn()}
       />,
@@ -152,7 +152,7 @@ describe('SessionList', () => {
 
     render(
       <SessionList
-        opcodeUrl="/api/opencode"
+        apiUrl="/api/opencode"
         directories={['/w/a']}
         onSelectSession={vi.fn()}
       />,
@@ -176,7 +176,7 @@ describe('SessionList', () => {
 
     render(
       <SessionList
-        opcodeUrl="/api/opencode"
+        apiUrl="/api/opencode"
         directories={['/w/a']}
         onSelectSession={vi.fn()}
       />,
@@ -200,7 +200,7 @@ describe('SessionList', () => {
 
     render(
       <SessionList
-        opcodeUrl="/api/opencode"
+        apiUrl="/api/opencode"
         directories={['/w/a']}
         onSelectSession={vi.fn()}
       />,
@@ -220,7 +220,7 @@ describe('SessionList', () => {
 
     render(
       <SessionList
-        opcodeUrl="/api/opencode"
+        apiUrl="/api/opencode"
         directories={['/w/a']}
         onSelectSession={vi.fn()}
       />,
@@ -236,7 +236,7 @@ describe('SessionList', () => {
 
     render(
       <SessionList
-        opcodeUrl="/api/opencode"
+        apiUrl="/api/opencode"
         directories={['/w/a']}
         onSelectSession={vi.fn()}
       />,
@@ -257,7 +257,7 @@ describe('SessionList', () => {
 
     render(
       <SessionList
-        opcodeUrl="/api/opencode"
+        apiUrl="/api/opencode"
         directories={['/w/a']}
         onSelectSession={vi.fn()}
       />,

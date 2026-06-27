@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OpenCodeClient } from '../../src/services/opencode/client'
-import { resolveOpenCodeModel } from '../../src/services/opencode-models'
+import { resolvePiInternalModel } from '../../src/services/pi-internal-models'
 
-describe('resolveOpenCodeModel', () => {
+describe('resolvePiInternalModel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -25,7 +25,7 @@ describe('resolveOpenCodeModel', () => {
       }),
     } as unknown as OpenCodeClient
 
-    const result = await resolveOpenCodeModel(mockClient, '/workspace/repos/sample-project', {
+    const result = await resolvePiInternalModel(mockClient, '/workspace/repos/sample-project', {
       preferredModel: 'openai/gpt-5',
     })
 
@@ -54,7 +54,7 @@ describe('resolveOpenCodeModel', () => {
       }),
     } as unknown as OpenCodeClient
 
-    const result = await resolveOpenCodeModel(mockClient, '/workspace/repos/sample-project', {
+    const result = await resolvePiInternalModel(mockClient, '/workspace/repos/sample-project', {
       preferredModel: 'openai/gpt-5.4',
     })
 
@@ -86,7 +86,7 @@ describe('resolveOpenCodeModel', () => {
       }),
     } as unknown as OpenCodeClient
 
-    const result = await resolveOpenCodeModel(mockClient, '/workspace/repos/sample-project', {
+    const result = await resolvePiInternalModel(mockClient, '/workspace/repos/sample-project', {
       preferSmallModel: true,
     })
 
@@ -118,7 +118,7 @@ describe('resolveOpenCodeModel', () => {
       }),
     } as unknown as OpenCodeClient
 
-    const result = await resolveOpenCodeModel(mockClient, '/workspace/repos/sample-project', {
+    const result = await resolvePiInternalModel(mockClient, '/workspace/repos/sample-project', {
       preferSmallModel: true,
     })
 
@@ -150,7 +150,7 @@ describe('resolveOpenCodeModel', () => {
       }),
     } as unknown as OpenCodeClient
 
-    const result = await resolveOpenCodeModel(mockClient, '/workspace/repos/sample-project', {
+    const result = await resolvePiInternalModel(mockClient, '/workspace/repos/sample-project', {
       preferSmallModel: true,
     })
 
@@ -182,7 +182,7 @@ describe('resolveOpenCodeModel', () => {
       }),
     } as unknown as OpenCodeClient
 
-    const result = await resolveOpenCodeModel(mockClient, '/workspace/repos/sample-project', {
+    const result = await resolvePiInternalModel(mockClient, '/workspace/repos/sample-project', {
       preferSmallModel: true,
     })
 
@@ -210,7 +210,7 @@ describe('resolveOpenCodeModel', () => {
       }),
     } as unknown as OpenCodeClient
 
-    const result = await resolveOpenCodeModel(mockClient, '/workspace/repos/sample-project')
+    const result = await resolvePiInternalModel(mockClient, '/workspace/repos/sample-project')
 
     expect(result).toEqual({
       providerID: 'anthropic',
@@ -232,7 +232,7 @@ describe('resolveOpenCodeModel', () => {
       }),
     } as unknown as OpenCodeClient
 
-    await expect(resolveOpenCodeModel(mockClient, '/workspace/repos/sample-project')).rejects.toThrow(
+    await expect(resolvePiInternalModel(mockClient, '/workspace/repos/sample-project')).rejects.toThrow(
       'No configured OpenCode models are available',
     )
   })

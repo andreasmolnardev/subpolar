@@ -15,15 +15,15 @@ export interface UseVariantsResult {
 }
 
 export function useVariants(
-  opcodeUrl: string | null | undefined,
+  apiUrl: string | null | undefined,
   directory?: string
 ): UseVariantsResult {
-  const { model } = useModelSelection(opcodeUrl, directory)
+  const { model } = useModelSelection(apiUrl, directory)
   const { setVariant: setStoreVariant, clearVariant: clearStoreVariant } = useModelStore()
-  const client = useSubpolarClient(opcodeUrl, directory)
+  const client = useSubpolarClient(apiUrl, directory)
 
    const { data: providersData, isLoading } = useQuery({
-     queryKey: ['opencode', 'providers', opcodeUrl, directory],
+     queryKey: ['subpolar', 'providers', apiUrl, directory],
      queryFn: () => getProviders(directory),
      enabled: !!client && !!model,
      staleTime: 30000,

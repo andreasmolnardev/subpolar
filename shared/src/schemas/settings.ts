@@ -361,13 +361,13 @@ export const ProviderConfigSchema = z.object({
 export type ProviderSource = z.infer<typeof ProviderSourceSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 
-export const OpenCodePluginOptionsSchema = z.record(z.string(), z.unknown());
-export const OpenCodePluginSpecSchema = z.union([
+export const PiPluginOptionsSchema = z.record(z.string(), z.unknown());
+export const PiPluginSpecSchema = z.union([
   z.string(),
-  z.tuple([z.string(), OpenCodePluginOptionsSchema]),
+  z.tuple([z.string(), PiPluginOptionsSchema]),
 ]);
 
-export const OpenCodeConfigSchema = z.object({
+export const PiConfigSchema = z.object({
   $schema: z.string().optional(),
   theme: z.string().optional(),
   model: z.string().optional(),
@@ -384,36 +384,45 @@ export const OpenCodeConfigSchema = z.object({
   instructions: z.array(z.string()).optional(),
   disabled_providers: z.array(z.string()).optional(),
   share: z.enum(["manual", "auto", "disabled"]).optional(),
-  plugin: z.array(OpenCodePluginSpecSchema).optional(),
+  plugin: z.array(PiPluginSpecSchema).optional(),
   skills: z.object({
     paths: z.array(z.string()).optional(),
     urls: z.array(z.string()).optional(),
   }).optional(),
 }).strip();
 
-export type OpenCodeConfigContent = z.infer<typeof OpenCodeConfigSchema>;
+export type PiConfigContent = z.infer<typeof PiConfigSchema>;
 
-export const OpenCodeConfigMetadataSchema = z.object({
+export const PiConfigMetadataSchema = z.object({
   id: z.number(),
   name: z.string().min(1).max(255),
-  content: OpenCodeConfigSchema,
+  content: PiConfigSchema,
   isDefault: z.boolean(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
 
-export const CreateOpenCodeConfigRequestSchema = z.object({
+export const CreatePiConfigRequestSchema = z.object({
   name: z.string().min(1).max(255),
-  content: z.union([OpenCodeConfigSchema, z.string()]),
+  content: z.union([PiConfigSchema, z.string()]),
   isDefault: z.boolean().optional(),
 });
 
-export const UpdateOpenCodeConfigRequestSchema = z.object({
-  content: z.union([OpenCodeConfigSchema, z.string()]),
+export const UpdatePiConfigRequestSchema = z.object({
+  content: z.union([PiConfigSchema, z.string()]),
   isDefault: z.boolean().optional(),
 });
 
-export const OpenCodeConfigResponseSchema = z.object({
-  configs: z.array(OpenCodeConfigMetadataSchema),
-  defaultConfig: OpenCodeConfigMetadataSchema.nullable(),
+export const PiConfigResponseSchema = z.object({
+  configs: z.array(PiConfigMetadataSchema),
+  defaultConfig: PiConfigMetadataSchema.nullable(),
 });
+
+export const OpenCodePluginOptionsSchema = PiPluginOptionsSchema;
+export const OpenCodePluginSpecSchema = PiPluginSpecSchema;
+export const OpenCodeConfigSchema = PiConfigSchema;
+export type OpenCodeConfigContent = PiConfigContent;
+export const OpenCodeConfigMetadataSchema = PiConfigMetadataSchema;
+export const CreateOpenCodeConfigRequestSchema = CreatePiConfigRequestSchema;
+export const UpdateOpenCodeConfigRequestSchema = UpdatePiConfigRequestSchema;
+export const OpenCodeConfigResponseSchema = PiConfigResponseSchema;

@@ -27,7 +27,7 @@ export function AgentsMdEditor() {
     mutationFn: (newContent: string) => settingsApi.updateAgentsMd(newContent),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents-md'] })
-      queryClient.invalidateQueries({ queryKey: ['opencode', 'agents'] })
+      queryClient.invalidateQueries({ queryKey: ['subpolar', 'agents'] })
       setHasChanges(false)
       showToast.success('AGENTS.md saved and server restarted')
     },

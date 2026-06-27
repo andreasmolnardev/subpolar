@@ -4,13 +4,13 @@ import { Hono } from 'hono'
 import { createSettingsRoutes } from '../../src/routes/settings'
 import { encryptSecret } from '../../src/utils/crypto'
 import { ENV } from '@subpolar/shared/config/env'
-import { opencodeServerManager } from '../../src/services/opencode-single-server'
-import type { OpenCodeClient } from '../../src/services/opencode/client'
 import type { GitAuthService } from '../../src/services/git-auth'
+
+const mockRestart = vi.fn()
 
 vi.mock('../../src/services/opencode-single-server', () => ({
   opencodeServerManager: {
-    restart: vi.fn(),
+    restart: mockRestart,
     reloadConfig: vi.fn(),
     getVersion: vi.fn(),
     fetchVersion: vi.fn(),
@@ -23,11 +23,10 @@ vi.mock('../../src/services/opencode-single-server', () => ({
   },
 }))
 
-describe('OpenCode Server Auth Routes', () => {
+describe('Pi Server Auth Routes', () => {
   let pb: PocketBase
   let app: Hono
   let originalPassword: string
-  const mockRestart = opencodeServerManager.restart as ReturnType<typeof vi.fn>
   const appSecrets = new Map<string, { value: string; created_at: number; updated_at: number }>()
   let idCounter = 0
 
@@ -87,7 +86,7 @@ describe('OpenCode Server Auth Routes', () => {
     } as unknown as PocketBase
 
     const mockGitAuthService = {} as GitAuthService
-    const mockOpenCodeClient = {} as OpenCodeClient
+    const mockOpenCodeClient = {} as never
     const routes = createSettingsRoutes(pb, mockGitAuthService, mockOpenCodeClient)
     app = new Hono().route('/api/settings', routes)
   })

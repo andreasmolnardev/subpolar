@@ -9,7 +9,7 @@ export interface FileSearchResult {
 }
 
 export function useFileSearch(
-  opcodeUrl: string | null,
+  apiUrl: string | null,
   query: string,
   enabled: boolean = true,
   directory?: string
@@ -22,9 +22,9 @@ export function useFileSearch(
   }, [query])
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['file-search', opcodeUrl, debouncedQuery, directory],
+    queryKey: ['file-search', apiUrl, debouncedQuery, directory],
     queryFn: async () => {
-      if (!opcodeUrl || !debouncedQuery) return []
+      if (!apiUrl || !debouncedQuery) return []
       
       const params = new URLSearchParams({ query: debouncedQuery })
       if (directory) {
@@ -32,12 +32,12 @@ export function useFileSearch(
       }
       
       const data = await fetchWrapper<string[]>(
-        `${opcodeUrl}/find/file?${params.toString()}`
+        `${apiUrl}/find/file?${params.toString()}`
       )
       
       return data
     },
-    enabled: enabled && !!opcodeUrl && !!debouncedQuery,
+    enabled: enabled && !!apiUrl && !!debouncedQuery,
     staleTime: 60000,
   })
 

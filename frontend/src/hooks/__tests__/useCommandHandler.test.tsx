@@ -47,7 +47,7 @@ vi.mock('@/stores/sessionStatusStore', () => ({
 
 describe('useCommandHandler', () => {
   const baseProps = {
-    opcodeUrl: 'http://localhost:5551',
+    apiUrl: 'http://localhost:5551',
     sessionID: 'test-session-id',
     directory: '/test/dir',
     currentAgent: 'test-agent',

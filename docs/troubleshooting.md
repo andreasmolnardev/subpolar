@@ -137,9 +137,9 @@ ADMIN_PASSWORD_RESET=true
 
 **Solutions:**
 
-1. Check OpenCode server is running:
+1. Check the backend is running:
 ```bash
-docker exec opencode-manager ps aux | grep opencode
+docker exec subpolar ps aux | grep bun
 ```
 
 2. Verify model is configured
@@ -211,7 +211,7 @@ docker-compose restart
 1. Stop container
 2. Backup database:
 ```bash
-cp ./data/opencode.db ./data/opencode.db.bak
+cp ./data/subpolar.db ./data/subpolar.db.bak
 ```
 3. Restart container
 

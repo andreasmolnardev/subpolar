@@ -141,7 +141,7 @@ describe('useLoadSkill', () => {
         mutations: { retry: false },
       },
     })
-    const messagesKey = ['opencode', 'messages', 'http://localhost:5551', 'test-session-id', '/test/dir']
+    const messagesKey = ['subpolar', 'messages', 'http://localhost:5551', 'test-session-id', '/test/dir']
     queryClient.setQueryData(messagesKey, [])
 
     mocks.sendCommand.mockReturnValue(new Promise(() => {}))
@@ -191,7 +191,7 @@ describe('useLoadSkill', () => {
         mutations: { retry: false },
       },
     })
-    const messagesKey = ['opencode', 'messages', 'http://localhost:5551', 'test-session-id', '/test/dir']
+    const messagesKey = ['subpolar', 'messages', 'http://localhost:5551', 'test-session-id', '/test/dir']
     queryClient.setQueryData(messagesKey, [])
 
     const testError = new Error('Command failed')
@@ -237,7 +237,7 @@ describe('useLoadSkill', () => {
       expect(result.current.isSuccess).toBe(true)
     })
 
-    const messages = queryClient.getQueryData<MessageWithParts[]>(['opencode', 'messages', 'http://localhost:5551', 'test-session-id', '/test/dir'])
+    const messages = queryClient.getQueryData<MessageWithParts[]>(['subpolar', 'messages', 'http://localhost:5551', 'test-session-id', '/test/dir'])
     expect(messages?.some(m => m.info.id === 'asm_skill_1')).toBe(true)
   })
 })

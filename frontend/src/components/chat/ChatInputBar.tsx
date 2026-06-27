@@ -93,7 +93,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [hasPromptContent, setHasPromptContent] = useState(false);
 
-  const opcodeUrl = OPENCODE_API_ENDPOINT;
+  const apiUrl = OPENCODE_API_ENDPOINT;
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
@@ -112,7 +112,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const isGeneralChatProject = targetProjectId === GENERAL_CHAT_PROJECT_ID.toString();
   const selectedDirectory = sessionID ? directory : selectedProject?.fullPath;
 
-  const { data: agents = [] } = useAgents(opcodeUrl, selectedDirectory);
+  const { data: agents = [] } = useAgents(apiUrl, selectedDirectory);
   const hiddenChatInputAgents = useMemo(
     () => new Set((preferences?.hiddenChatInputAgents ?? DEFAULT_USER_PREFERENCES.hiddenChatInputAgents).map((name) => name.toLowerCase())),
     [preferences?.hiddenChatInputAgents],
@@ -121,10 +121,10 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     () => agents.filter((agent) => !hiddenChatInputAgents.has(agent.name.toLowerCase())),
     [agents, hiddenChatInputAgents],
   );
-  const { data: config } = useConfig(opcodeUrl, selectedDirectory);
+  const { data: config } = useConfig(apiUrl, selectedDirectory);
 
   const { data: providersData } = useQuery({
-    queryKey: ["opencode", "providers", opcodeUrl],
+    queryKey: ["subpolar", "providers", apiUrl],
     queryFn: () => getProviders(),
     staleTime: 30000,
   });
@@ -187,9 +187,9 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     ? undefined
     : selectedAgent;
 
-  const createSession = useCreateSession(opcodeUrl, selectedDirectory);
-  const sendPrompt = useSendPrompt(opcodeUrl, selectedDirectory);
-  const abortSession = useAbortSession(opcodeUrl, selectedDirectory, sessionID ?? activeSessionId);
+  const createSession = useCreateSession(apiUrl, selectedDirectory);
+  const sendPrompt = useSendPrompt(apiUrl, selectedDirectory);
+  const abortSession = useAbortSession(apiUrl, selectedDirectory, sessionID ?? activeSessionId);
   const isGeneratingMessage = isSessionActive;
   const isWaitingForAnswer = isGeneratingMessage || sendPrompt.isPending;
 

@@ -58,13 +58,13 @@ interface SessionAgentResult {
 }
 
 export function useSessionAgent(
-  opcodeUrl: string | null | undefined,
+  apiUrl: string | null | undefined,
   sessionID: string | undefined,
   directory?: string
 ) {
-  const { data: messages, isLoading: messagesLoading, isFetching: messagesFetching } = useMessages(opcodeUrl, sessionID, directory)
-  const { data: config } = useConfig(opcodeUrl, directory)
-  const { data: agents, isSuccess: agentsLoaded } = useAgents(opcodeUrl, directory)
+  const { data: messages, isLoading: messagesLoading, isFetching: messagesFetching } = useMessages(apiUrl, sessionID, directory)
+  const { data: config } = useConfig(apiUrl, directory)
+  const { data: agents, isSuccess: agentsLoaded } = useAgents(apiUrl, directory)
   const storedAgent = useSessionAgentStore((s) => s.agents[sessionID ?? ''] ?? null)
   const setAgent = useSessionAgentStore((s) => s.setAgent)
   const prevRef = useRef<SessionAgentResult>({ agent: 'build', model: undefined, variant: undefined, fromMessage: false })

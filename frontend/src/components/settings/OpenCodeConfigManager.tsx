@@ -8,13 +8,13 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DeleteDialog } from '@/components/ui/delete-dialog'
 import { CreateConfigDialog } from './CreateConfigDialog'
-import { OpenCodeConfigEditor } from './OpenCodeConfigEditor'
+import { ConfigEditor } from './OpenCodeConfigEditor'
 import { CommandsEditor } from './CommandsEditor'
 import { AgentsEditor } from './AgentsEditor'
 import { AgentsMdEditor } from './AgentsMdEditor'
 import { McpManager } from './McpManager'
 import { SkillsEditor } from './SkillsEditor'
-import { OpenCodeModelsEditor, type ConfigProvider } from './OpenCodeModelsEditor'
+import { ModelsEditor, type ConfigProvider } from './OpenCodeModelsEditor'
 import { VersionSelectDialog } from './VersionSelectDialog'
 import { settingsApi } from '@/api/settings'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -23,7 +23,7 @@ import { parseJsonc, hasJsoncComments } from '@/lib/jsonc'
 import { showToast } from '@/lib/toast'
 import { invalidateConfigCaches } from '@/lib/queryInvalidation'
 import { FetchError } from '@/api/fetchWrapper'
-import type { OpenCodeConfig, OpenCodeImportStatus } from '@/api/types/settings'
+import type { PiConfig, PiImportStatus } from '@/api/types/settings'
 
 interface Command {
   template: string
@@ -52,18 +52,18 @@ interface Agent {
   [key: string]: unknown
 }
 
-interface OpenCodeConfigManagerProps {
+interface ConfigManagerProps {
   hideHealthStatus?: boolean
 }
 
-export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConfigManagerProps) {
+export function ConfigManager({ hideHealthStatus = false }: ConfigManagerProps) {
   const queryClient = useQueryClient()
   const { data: health } = useServerHealth()
-  const [configs, setConfigs] = useState<OpenCodeConfig[]>([])
+  const [configs, setConfigs] = useState<PiConfig[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isUpdating, setIsUpdating] = useState(false)
-  const [editingConfig, setEditingConfig] = useState<OpenCodeConfig | null>(null)
-  const [selectedConfig, setSelectedConfig] = useState<OpenCodeConfig | null>(null)
+  const [editingConfig, setEditingConfig] = useState<PiConfig | null>(null)
+  const [selectedConfig, setSelectedConfig] = useState<PiConfig | null>(null)
   const [activeConfigName, setActiveConfigName] = useState<string>('')
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     agentsMd: false,
@@ -76,7 +76,7 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false)
-  const [deleteConfirmConfig, setDeleteConfirmConfig] = useState<OpenCodeConfig | null>(null)
+  const [deleteConfirmConfig, setDeleteConfirmConfig] = useState<PiConfig | null>(null)
   
   const agentsMdRef = useRef<HTMLButtonElement>(null)
   const commandsRef = useRef<HTMLButtonElement>(null)
@@ -91,9 +91,9 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data: importStatus, isLoading: isImportStatusLoading } = useQuery<OpenCodeImportStatus>({
+  const { data: importStatus, isLoading: isImportStatusLoading } = useQuery<PiImportStatus>({
     queryKey: ['opencode-import-status'],
-    queryFn: () => settingsApi.getOpenCodeImportStatus(),
+    queryFn: () => settingsApi.getPiImportStatus(),
     staleTime: 30 * 1000,
   })
 
@@ -109,16 +109,16 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
 
   const restartServerMutation = useMutation({
     mutationFn: async () => {
-      return await settingsApi.restartOpenCodeServer()
+      return await settingsApi.restartServer()
     },
     onSuccess: () => {
       invalidateConfigCaches(queryClient)
     },
   })
 
-  const upgradeOpenCodeMutation = useMutation({
+  const upgradePiMutation = useMutation({
     mutationFn: async () => {
-      return await settingsApi.upgradeOpenCode()
+      return await settingsApi.upgradePi()
     },
     onSuccess: (data) => {
       if (data.upgraded && data.newVersion) {
@@ -157,8 +157,8 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
     },
   })
 
-  const syncOpenCodeImportMutation = useMutation({
-    mutationFn: async () => settingsApi.syncOpenCodeImport(),
+  const syncPiImportMutation = useMutation({
+    mutationFn: async () => settingsApi.syncPiImport(),
     onSuccess: async () => {
       await fetchConfigs()
       invalidateConfigCaches(queryClient)
@@ -211,7 +211,7 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
     return getApiErrorMessage(error, 'Failed to restart OpenCode server')
   }
 
-  const getOpenCodeImportErrorMessage = (error: unknown): string => {
+  const getPiImportErrorMessage = (error: unknown): string => {
     if (error instanceof FetchError && error.code === 'OPENCODE_IMPORT_PROTECTED') {
       return error.detail || error.message
     }
@@ -222,7 +222,7 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
   const fetchConfigs = async () => {
     try {
       setIsLoading(true)
-      const data = await settingsApi.getOpenCodeConfigs()
+      const data = await settingsApi.getPiConfigs()
       setConfigs(data.configs)
     } catch (error) {
       console.error('Failed to fetch configs:', error)
@@ -237,7 +237,7 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
       const previousConfig = configs.find(c => c.name === configName)
       const previousContent = previousConfig?.content
 
-      const result = await settingsApi.updateOpenCodeConfig(configName, { content: newContent })
+      const result = await settingsApi.updatePiConfig(configName, { content: newContent })
 
       setConfigs(prev => prev.map(config =>
         config.name === configName
@@ -323,7 +323,7 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
         throw new Error(`Invalid fields found: ${foundForbidden.join(', ')}. These fields are managed automatically.`)
       }
 
-      const result = await settingsApi.createOpenCodeConfig({
+      const result = await settingsApi.createPiConfig({
         name: name.trim(),
         content: rawContent,
         isDefault,
@@ -354,10 +354,10 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
 
   
 
-  const deleteConfig = async (config: OpenCodeConfig) => {
+  const deleteConfig = async (config: PiConfig) => {
     try {
       setIsUpdating(true)
-      await settingsApi.deleteOpenCodeConfig(config.name)
+      await settingsApi.deletePiConfig(config.name)
       setDeleteConfirmConfig(null)
       if (selectedConfig?.id === config.id) {
         setSelectedConfig(null)
@@ -371,11 +371,11 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
     }
   }
 
-  const setDefaultConfig = async (config: OpenCodeConfig) => {
+  const setDefaultConfig = async (config: PiConfig) => {
     showToast.loading('Setting default config...', { id: 'set-default' })
     try {
       setIsUpdating(true)
-      const result = await settingsApi.setDefaultOpenCodeConfig(config.name)
+      const result = await settingsApi.setDefaultPiConfig(config.name)
       await fetchConfigs()
       if (result.removedFields && result.removedFields.length > 0) {
         showToast.info(`Default config updated after removing invalid fields: ${result.removedFields.join(', ')}`, { id: 'set-default' })
@@ -392,7 +392,7 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
 
   
 
-  const downloadConfig = (config: OpenCodeConfig) => {
+  const downloadConfig = (config: PiConfig) => {
     const content = config.rawContent || JSON.stringify(config.content, null, 2)
     const extension = config.rawContent && hasJsoncComments(config.rawContent) ? 'jsonc' : 'json'
     const blob = new Blob([content], { type: 'application/json' })
@@ -406,7 +406,7 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
 
   
 
-  const startEdit = (config: OpenCodeConfig) => {
+  const startEdit = (config: PiConfig) => {
     setEditingConfig(config)
     setIsEditDialogOpen(true)
   }
@@ -457,7 +457,7 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
                   onClick={async () => {
                     showToast.loading('Upgrading OpenCode...', { id: 'upgrade-opencode' })
                     try {
-                      await upgradeOpenCodeMutation.mutateAsync()
+                      await upgradePiMutation.mutateAsync()
                     } catch (error) {
                       const errorMessage = error && typeof error === 'object' && 'response' in error
                         ? ((error as { response?: { data?: { details?: string; error?: string } } }).response?.data?.details
@@ -467,9 +467,9 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
                       showToast.error(errorMessage, { id: 'upgrade-opencode' })
                     }
                   }}
-                  disabled={upgradeOpenCodeMutation.isPending}
+                  disabled={upgradePiMutation.isPending}
                 >
-                  {upgradeOpenCodeMutation.isPending ? (
+                  {upgradePiMutation.isPending ? (
                     <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 animate-spin" />
                   ) : (
                     <ArrowUpCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
@@ -523,11 +523,11 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
              <Button
                variant="outline"
                size="sm"
-               disabled={!canImportFromHost || syncOpenCodeImportMutation.isPending || isImportStatusLoading}
+               disabled={!canImportFromHost || syncPiImportMutation.isPending || isImportStatusLoading}
                 onClick={async () => {
                   showToast.loading('Importing existing OpenCode host data...', { id: 'opencode-import' })
                   try {
-                    const result = await syncOpenCodeImportMutation.mutateAsync()
+                    const result = await syncPiImportMutation.mutateAsync()
                     const importedParts = [result.configImported && 'config', result.stateImported && 'state']
                       .filter(Boolean)
                       .join(' and ')
@@ -536,11 +536,11 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
                       : ''
                     showToast.success(`Imported existing OpenCode ${importedParts || 'data'} and restarted the server.${relinkSummary}`, { id: 'opencode-import' })
                   } catch (error) {
-                    showToast.error(getOpenCodeImportErrorMessage(error), { id: 'opencode-import' })
+                    showToast.error(getPiImportErrorMessage(error), { id: 'opencode-import' })
                   }
                 }}
               >
-                {syncOpenCodeImportMutation.isPending ? (
+                {syncPiImportMutation.isPending ? (
                   <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 animate-spin" />
                 ) : (
                   <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
@@ -575,26 +575,26 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
                   : 'No workspace session database exists yet. Import will seed it from the detected host state.'}
               </p>
             </div>
-            {syncOpenCodeImportMutation.error && (
+            {syncPiImportMutation.error && (
               <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
                 <p className="font-medium text-destructive">Import blocked</p>
                 <p className="mt-1 text-sm text-destructive/90">
-                  {getOpenCodeImportErrorMessage(syncOpenCodeImportMutation.error)}
+                  {getPiImportErrorMessage(syncPiImportMutation.error)}
                 </p>
                 <p className="mt-2 text-xs text-destructive/80">
                   This workspace already has OpenCode session state, so host state import was stopped to prevent accidental replacement of existing chats and history. If you want to use host state instead, clear the workspace state first and then run the import again.
                 </p>
               </div>
             )}
-            {syncOpenCodeImportMutation.data?.relinkedRepos && (
+            {syncPiImportMutation.data?.relinkedRepos && (
               <div className="rounded-lg border border-border p-3">
                 <p className="font-medium">Last Relink Result</p>
                 <p className="mt-1 text-muted-foreground">
-                  Linked {syncOpenCodeImportMutation.data.relinkedRepos.relinkedCount} repos, matched {syncOpenCodeImportMutation.data.relinkedRepos.existingCount} existing repos, skipped {syncOpenCodeImportMutation.data.relinkedRepos.nonRepoPathCount} non-repo session paths, and ignored {syncOpenCodeImportMutation.data.relinkedRepos.duplicatePathCount} duplicate session paths.
+                  Linked {syncPiImportMutation.data.relinkedRepos.relinkedCount} repos, matched {syncPiImportMutation.data.relinkedRepos.existingCount} existing repos, skipped {syncPiImportMutation.data.relinkedRepos.nonRepoPathCount} non-repo session paths, and ignored {syncPiImportMutation.data.relinkedRepos.duplicatePathCount} duplicate session paths.
                 </p>
-                {syncOpenCodeImportMutation.data.relinkedRepos.errors.length > 0 && (
+                {syncPiImportMutation.data.relinkedRepos.errors.length > 0 && (
                   <p className="mt-2 text-xs text-destructive">
-                    {syncOpenCodeImportMutation.data.relinkedRepos.errors.length} repo paths could not be linked.
+                    {syncPiImportMutation.data.relinkedRepos.errors.length} repo paths could not be linked.
                   </p>
                 )}
               </div>
@@ -721,7 +721,7 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
       )}
 
       {/* Edit Dialog */}
-      <OpenCodeConfigEditor
+      <ConfigEditor
         config={editingConfig}
         isOpen={isEditDialogOpen}
         onClose={() => setIsEditDialogOpen(false)}
@@ -729,7 +729,7 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
           if (!editingConfig) return
           showToast.loading('Saving configuration...', { id: 'edit-config' })
           try {
-            await settingsApi.updateOpenCodeConfig(editingConfig.name, { content: rawContent })
+            await settingsApi.updatePiConfig(editingConfig.name, { content: rawContent })
             await fetchConfigs()
             const successMsg = editingConfig.isDefault
               ? 'Configuration saved and server reloaded'
@@ -999,7 +999,7 @@ export function OpenCodeConfigManager({ hideHealthStatus = false }: OpenCodeConf
                       </button>
                       <div className={`${expandedSections.models ? 'block' : 'hidden'} border-t border-border`}>
                         <div className="p-4 max-h-[50vh] overflow-y-auto">
-                          <OpenCodeModelsEditor
+                          <ModelsEditor
                             providers={(selectedConfig.content?.provider as Record<string, ConfigProvider> | undefined) ?? {}}
                             onChange={(providers) => {
                               const updatedContent = {

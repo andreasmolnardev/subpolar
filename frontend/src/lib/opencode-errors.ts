@@ -1,6 +1,6 @@
 import type { components } from '@/api/opencode-types'
 
-export type OpenCodeError =
+export type RuntimeError =
   | components['schemas']['ProviderAuthError']
   | components['schemas']['UnknownError']
   | components['schemas']['MessageOutputLengthError']
@@ -15,7 +15,7 @@ export interface ParsedError {
   providerID?: string
 }
 
-export function parseOpenCodeError(error: OpenCodeError | undefined | null): ParsedError | null {
+export function parseRuntimeError(error: RuntimeError | undefined | null): ParsedError | null {
   if (!error) return null
 
   switch (error.name) {
@@ -82,7 +82,7 @@ export function parseNetworkError(error: unknown): ParsedError {
     if (error.message.includes('502') || error.message.includes('Bad Gateway')) {
       return {
         title: 'Server Unavailable',
-        message: 'The OpenCode server is not responding. It may need to be restarted.',
+        message: 'The runtime server is not responding. It may need to be restarted.',
         isRetryable: true,
       }
     }
@@ -101,7 +101,7 @@ export function parseNetworkError(error: unknown): ParsedError {
   }
 }
 
-export function getErrorMessage(error: OpenCodeError | undefined | null): string {
-  const parsed = parseOpenCodeError(error)
+export function getErrorMessage(error: RuntimeError | undefined | null): string {
+  const parsed = parseRuntimeError(error)
   return parsed ? `${parsed.title}: ${parsed.message}` : ''
 }

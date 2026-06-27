@@ -256,11 +256,11 @@ export function DesktopSidebar() {
   const visibleGeneralChatAgents = generalChatAgents.filter((agent) => !hiddenSidebarAgents.has(agent.name.toLowerCase()));
 
   const { data: configs } = useQuery({
-    queryKey: ["opencode-configs"],
-    queryFn: () => settingsApi.getOpenCodeConfigs(),
+    queryKey: ["subpolar-configs"],
+    queryFn: () => settingsApi.getPiConfigs(),
   });
 
-  const { data: opencodeSkills } = useQuery({
+  const { data: subpolarSkills } = useQuery({
     queryKey: ["managed-skills"],
     queryFn: () => settingsApi.listManagedSkills(),
     staleTime: 5 * 60 * 1000,
@@ -276,7 +276,7 @@ export function DesktopSidebar() {
     mutationFn: async ({ agents, changedAgent }: { agents: Record<string, Agent>; changedAgent?: { name: string; agent: Agent } }) => {
       if (!defaultConfig) throw new Error("No default config found");
       const updatedContent = { ...parsedConfig, agent: agents };
-      await settingsApi.updateOpenCodeConfig("default", {
+      await settingsApi.updatePiConfig("default", {
         content: JSON.stringify(updatedContent, null, 2),
       });
       if (changedAgent) {
@@ -285,9 +285,9 @@ export function DesktopSidebar() {
       return { success: true };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["opencode-configs"] });
+      queryClient.invalidateQueries({ queryKey: ["subpolar-configs"] });
       queryClient.invalidateQueries({
-        queryKey: ["opencode", "agents", OPENCODE_API_ENDPOINT, generalChatDirectory],
+        queryKey: ["subpolar", "agents", OPENCODE_API_ENDPOINT, generalChatDirectory],
       });
       queryClient.invalidateQueries({ queryKey: ["agent-tool-policies"] });
     },
@@ -564,7 +564,7 @@ export function DesktopSidebar() {
         onOpenChange={setIsCreateAgentDialogOpen}
         onSubmit={handleCreateAgent}
         editingAgent={null}
-        availableSkills={opencodeSkills?.map((s) => s.name) || []}
+        availableSkills={subpolarSkills?.map((s) => s.name) || []}
       />
       <AgentDialog
         open={editingAgent !== null}
@@ -573,7 +573,7 @@ export function DesktopSidebar() {
         }}
         onSubmit={handleSaveAgent}
         editingAgent={editingAgent}
-        availableSkills={opencodeSkills?.map((s) => s.name) || []}
+        availableSkills={subpolarSkills?.map((s) => s.name) || []}
       />
       <ProjectDialog
         open={isCreateProjectDialogOpen}

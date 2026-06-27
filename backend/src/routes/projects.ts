@@ -5,7 +5,7 @@ import { listProjects, getProjectById, createProject, updateProject, deleteProje
 import { handleServiceError } from '../utils/route-helpers'
 import { SettingsService } from '../services/settings'
 import { writeFileContent } from '../services/file-operations'
-import { getOpenCodeConfigFilePath } from '@subpolar/shared/config/env'
+import { getPiConfigFilePath } from '@subpolar/shared/config/env'
 import { logger } from '../utils/logger'
 
 export class ProjectServiceError extends Error {
@@ -127,7 +127,7 @@ export function createProjectRoutes(database: PocketBase) {
       const configContent = await settingsService.getOpenCodeConfigContent(configName)
       if (!configContent) throw new ProjectServiceError(`Config '${configName}' not found`, 404)
 
-      const openCodeConfigPath = getOpenCodeConfigFilePath()
+      const openCodeConfigPath = getPiConfigFilePath()
       await writeFileContent(openCodeConfigPath, configContent)
       await updateProjectConfigName(database, id, configName)
 

@@ -8,7 +8,7 @@ import {
   fileExists,
   ensureDirectoryExists,
 } from './file-operations'
-import { OpenCodeConfigSchema } from '@subpolar/shared/schemas'
+import { PiConfigSchema } from '@subpolar/shared/schemas'
 import { GENERAL_CHAT_PROJECT_ID, GENERAL_CHAT_PROJECT_PATH } from '@subpolar/shared/utils'
 import { getWorkspacePath, ENV } from '@subpolar/shared/config/env'
 import type { Database } from '../db/schema'
@@ -1481,7 +1481,7 @@ export function buildAssistantOpenCodeConfig(agentDefinitions = buildSystemAgent
     },
   }
 
-  const result = OpenCodeConfigSchema.safeParse(config)
+  const result = PiConfigSchema.safeParse(config)
   if (!result.success) {
     throw new Error(`Generated OpenCode config is invalid: ${result.error.message}`)
   }

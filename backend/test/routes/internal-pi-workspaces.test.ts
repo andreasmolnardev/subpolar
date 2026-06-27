@@ -5,7 +5,6 @@ import { createInternalRoutes } from '../../src/routes/internal'
 import type { AutomationService } from '../../src/services/automations'
 import type { NotificationService } from '../../src/services/notification'
 import type { SettingsService } from '../../src/services/settings'
-import type { OpenCodeClient } from '../../src/services/opencode/client'
 import type { Repo } from '../../src/types/repo'
 
 const mockDb = {
@@ -64,7 +63,7 @@ function makeRepo(overrides: Partial<Repo>): Repo {
   }
 }
 
-describe('internal-opencode-workspaces routes', () => {
+describe('internal-pi-workspaces routes', () => {
   let app: Hono
   let token: string
 
@@ -83,7 +82,7 @@ describe('internal-opencode-workspaces routes', () => {
       deleteProviderAuth: vi.fn(),
       startMcpAuth: vi.fn(),
       authenticateMcp: vi.fn(),
-    } as unknown as OpenCodeClient
+    } as never
     app = new Hono()
     app.route('/api/internal', createInternalRoutes(mockDb, automationservice, notificationService, settingsService, openCodeClient))
     token = 'test-internal-token'

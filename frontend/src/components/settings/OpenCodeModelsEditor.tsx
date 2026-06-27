@@ -3,7 +3,7 @@ import { Plus, Trash2, Edit, Box } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogTrigger } from '@/components/ui/dialog'
-import { OpenCodeModelDialog, type NewProviderConfig } from './OpenCodeModelDialog'
+import { ModelDialog, type NewProviderConfig } from './OpenCodeModelDialog'
 import type { ModelConfig, ProviderConfig } from '@/api/types/settings'
 
 export type ConfigModel = Partial<ModelConfig> & Record<string, unknown>
@@ -20,7 +20,7 @@ interface ProviderModels {
   models: Record<string, ConfigModel>
 }
 
-interface OpenCodeModelsEditorProps {
+interface ModelsEditorProps {
   providers: Record<string, ConfigProvider>
   onChange: (providers: Record<string, ConfigProvider>) => void
 }
@@ -31,7 +31,7 @@ interface EditingModel {
   model: ConfigModel
 }
 
-export function OpenCodeModelsEditor({ providers, onChange }: OpenCodeModelsEditorProps) {
+export function ModelsEditor({ providers, onChange }: ModelsEditorProps) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingModel, setEditingModel] = useState<EditingModel | null>(null)
   const [selectedProviderId, setSelectedProviderId] = useState<string>('')
@@ -150,7 +150,7 @@ export function OpenCodeModelsEditor({ providers, onChange }: OpenCodeModelsEdit
               <Plus className="h-4 w-4" />
             </Button>
           </DialogTrigger>
-          <OpenCodeModelDialog
+          <ModelDialog
             open={isCreateDialogOpen}
             onOpenChange={setIsCreateDialogOpen}
             onSubmit={handleModelSubmit}
@@ -234,7 +234,7 @@ export function OpenCodeModelsEditor({ providers, onChange }: OpenCodeModelsEdit
         </div>
       )}
 
-      <OpenCodeModelDialog
+      <ModelDialog
         open={!!editingModel}
         onOpenChange={() => setEditingModel(null)}
         onSubmit={(providerId: string, modelId: string, model: ConfigModel, newProvider?: NewProviderConfig) => {

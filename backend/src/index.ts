@@ -39,14 +39,11 @@ import { createSubpolarCliRoutes } from './routes/subpolar-cli'
 import { sseAggregator } from './services/sse-aggregator'
 import { ensureDirectoryExists, writeFileContent, fileExists } from './services/file-operations'
 import { SettingsService } from './services/settings'
-import type { PiInternalClient as OpenCodeClient } from './runtime/pi/internal-client-types'
 import { NotificationService } from './services/notification'
 import { AutomationRunner, AutomationService } from './services/automations'
 import { migrateGlobalSkills } from './services/skills'
 import { ensureGeneralChatProject } from './db/projects'
 import { installAssistantWorkspace } from './services/general-chat'
-import { OpenCodeSupervisor } from './services/opencode-supervisor'
-import { opencodeServerManager } from './services/opencode-single-server'
 
 import { logger } from './utils/logger'
 import { seedTools } from './db/subpolar-tools'
@@ -103,13 +100,12 @@ app.use('/*', cors({
 // Initialize database (now async to support PocketBase)
 let db: Database | undefined
 let requireAuth: ReturnType<typeof createAuthMiddleware> | undefined
-let openCodeClient: OpenCodeClient | undefined
+let piInternalClient: PiNativeClient | undefined
 let automationService: AutomationService | undefined
 let automationRunnerInstance: AutomationRunner | undefined
 let notificationService: NotificationService | undefined
 let settingsService: SettingsService | undefined
 let runtimeRegistry: RuntimeRegistry | undefined
-let openCodeSupervisor: OpenCodeSupervisor | undefined
 
 async function initializeApp() {
   db = await initializeDatabase()
@@ -144,11 +140,7 @@ try {
 
   settingsService = new SettingsService(db!)
   runtimeRegistry = await createRuntimeRegistry({ db: db!, settingsService })
-  openCodeClient = new PiNativeClient()
-  opencodeServerManager.setDatabase(db!)
-  opencodeServerManager.setOpenCodeClient(openCodeClient!)
-  openCodeSupervisor = new OpenCodeSupervisor(opencodeServerManager, settingsService)
-  await settingsService.initializeLastKnownGoodConfig()
+  piInternalClient = new PiNativeClient()
 
   await migrateGlobalSkills()
 
@@ -158,7 +150,7 @@ try {
   })
   logger.info('General Chat workspace installed')
 
-  automationService = new AutomationService(db!, openCodeClient!)
+  automationService = new AutomationService(db!, piInternalClient!)
   automationRunnerInstance = new AutomationRunner(automationService)
 
   notificationService = new NotificationService(db!)
@@ -194,7 +186,7 @@ app.route('/api/auth', createAuthRoutes(db!))
 app.route('/api/auth-info', createAuthInfoRoutes(db!))
 app.route('/api/health', createHealthRoutes())
 
-app.route('/api/internal', createInternalRoutes(db!, automationService!, notificationService!, settingsService!, openCodeClient!))
+app.route('/api/internal', createInternalRoutes(db!, automationService!, notificationService!, settingsService!, piInternalClient!))
 app.route('/api/pi', createPiRoutes(db!))
 app.route('/api/projects', createProjectRoutes(db!))
 app.route('/api/subpolar-cli', createSubpolarCliRoutes(db!))
@@ -202,7 +194,7 @@ app.route('/api/subpolar-cli', createSubpolarCliRoutes(db!))
 const protectedApi = new Hono()
 protectedApi.use('/*', requireAuth!)
 
-protectedApi.route('/settings', createSettingsRoutes(db!, openCodeClient!, openCodeSupervisor))
+protectedApi.route('/settings', createSettingsRoutes(db!))
 protectedApi.route('/files', createFileRoutes())
 protectedApi.route('/providers', createProvidersRoutes(db!))
 protectedApi.route('/oauth', createOAuthRoutes())

@@ -7,7 +7,7 @@ export interface Project {
   name: string
   directory: string
   fullPath: string
-  openCodeConfigName?: string
+  piConfigName?: string
   status: 'ready' | 'error'
   createdAt: number
   updatedAt: number
@@ -28,7 +28,7 @@ export async function getProject(id: number): Promise<Project> {
 export async function createProject(data: {
   name: string
   directory?: string
-  openCodeConfigName?: string
+  piConfigName?: string
 }): Promise<Project> {
   return fetchWrapper(`${API_BASE_URL}/api/projects`, {
     method: 'POST',
@@ -39,7 +39,7 @@ export async function createProject(data: {
 
 export async function updateProject(
   id: number,
-  data: { name?: string; directory?: string; openCodeConfigName?: string },
+  data: { name?: string; directory?: string; piConfigName?: string },
 ): Promise<Project> {
   return fetchWrapper(`${API_BASE_URL}/api/projects/${id}`, {
     method: 'PATCH',

@@ -56,13 +56,13 @@ Subpolar uses the `pi-coding-agent` package as its agent harness and extends it 
 
 Subpolar is a pnpm workspace with three TypeScript packages:
 
-- `backend/` — Bun + Hono API server with Better Auth, SQLite migrations, OpenCode process management, SSE, automations, and push notifications.
+- `backend/` — Bun + Hono API server with Better Auth, SQLite migrations, Pi runtime integration, SSE, automations, and push notifications.
 - `frontend/` — React + Vite SPA using React Router, TanStack Query, Radix UI/Tailwind, service worker support, and mobile-first navigation.
 - `shared/` — shared Zod schemas, config helpers, types, and utilities consumed by both backend and frontend.
 
 ### Pi Runtime
 
-Subpolar uses Pi as the native coding-agent runtime through the `@earendil-works/pi-coding-agent` SDK. The frontend still talks to OpenCode-shaped compatibility APIs in a few places, but session execution is handled by the backend's native session and run APIs.
+Subpolar uses Pi as the native coding-agent runtime through the `@earendil-works/pi-coding-agent` SDK. Session execution is handled by the backend's native session and run APIs.
 
 - Model discovery uses the Pi SDK `ModelRegistry`, then maps available Pi models into `/api/provider` for the existing model selector.
 - Prompt execution creates an SDK `AgentSession` with Subpolar's Pi extension loaded, sends the prompt through `session.prompt()`, and maps SDK events into Subpolar runtime events for messages, tool calls, completion, and failures.

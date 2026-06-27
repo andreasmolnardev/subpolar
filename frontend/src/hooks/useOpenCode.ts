@@ -33,10 +33,10 @@ const parseModelString = (model: string) => {
   return { providerID, modelID, thinkingLevel };
 };
 
-export const useSubpolarClient = (opcodeUrl: string | null | undefined, directory?: string) => {
+export const useSubpolarClient = (apiUrl: string | null | undefined, directory?: string) => {
   return useMemo(
-    () => (opcodeUrl ? new SubpolarClient(opcodeUrl, directory) : null),
-    [opcodeUrl, directory],
+    () => (apiUrl ? new SubpolarClient(apiUrl, directory) : null),
+    [apiUrl, directory],
   );
 };
 
@@ -50,7 +50,7 @@ interface UseSessionsAcrossDirectoriesOptions {
 type SessionPageParam = Record<string, string>
 
 export const useSessionsAcrossDirectories = (
-  opcodeUrl: string | null | undefined,
+  apiUrl: string | null | undefined,
   directories: string[],
   options?: UseSessionsAcrossDirectoriesOptions,
 ) => {
@@ -63,12 +63,12 @@ export const useSessionsAcrossDirectories = (
   const directoryKey = uniqueDirectories.join('|');
 
   const query = useInfiniteQuery({
-    queryKey: ['opencode', 'sessions', opcodeUrl, directoryKey, { search: normalizedSearch, limit }],
+    queryKey: ['subpolar', 'sessions', apiUrl, directoryKey, { search: normalizedSearch, limit }],
     queryFn: async ({ pageParam }) => {
       if (!pageParam) {
         const pages = await Promise.all(
           uniqueDirectories.map((directory) =>
-            new SubpolarClient(opcodeUrl!, directory).listSessionsPage({
+            new SubpolarClient(apiUrl!, directory).listSessionsPage({
               limit,
               order: 'desc',
               search: normalizedSearch,
@@ -89,7 +89,7 @@ export const useSessionsAcrossDirectories = (
       const entries = Object.entries(pageParam);
       const pages = await Promise.all(
         entries.map(([directory, cursor]) =>
-          new SubpolarClient(opcodeUrl!, directory).listSessionsPage({ cursor }),
+            new SubpolarClient(apiUrl!, directory).listSessionsPage({ cursor }),
         ),
       );
       const cursors: SessionPageParam = {};
@@ -109,7 +109,7 @@ export const useSessionsAcrossDirectories = (
       }
       return undefined;
     },
-    enabled: !!opcodeUrl && uniqueDirectories.length > 0,
+    enabled: !!apiUrl && uniqueDirectories.length > 0,
     staleTime: 10000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
@@ -126,11 +126,11 @@ export const useSessionsAcrossDirectories = (
   };
 };
 
-export const useSession = (opcodeUrl: string | null | undefined, sessionID: string | undefined, directory?: string) => {
-  const client = useSubpolarClient(opcodeUrl, directory);
+export const useSession = (apiUrl: string | null | undefined, sessionID: string | undefined, directory?: string) => {
+  const client = useSubpolarClient(apiUrl, directory);
 
   return useQuery({
-    queryKey: ["opencode", "session", opcodeUrl, sessionID, directory],
+    queryKey: ["subpolar", "session", apiUrl, sessionID, directory],
     queryFn: () => client!.getSession(sessionID!),
     enabled: !!client && !!sessionID,
     refetchOnWindowFocus: true,
@@ -139,11 +139,11 @@ export const useSession = (opcodeUrl: string | null | undefined, sessionID: stri
   });
 };
 
-export const useMessages = (opcodeUrl: string | null | undefined, sessionID: string | undefined, directory?: string, opts?: { fallbackPoll?: boolean }) => {
-  const client = useSubpolarClient(opcodeUrl, directory);
+export const useMessages = (apiUrl: string | null | undefined, sessionID: string | undefined, directory?: string, opts?: { fallbackPoll?: boolean }) => {
+  const client = useSubpolarClient(apiUrl, directory);
 
   return useQuery({
-    queryKey: messagesQueryKey(opcodeUrl, sessionID, directory),
+    queryKey: messagesQueryKey(apiUrl, sessionID, directory),
     queryFn: async () => {
       const response = await client!.listMessages(sessionID!)
       return response as MessageWithParts[]
@@ -159,11 +159,11 @@ export const useMessages = (opcodeUrl: string | null | undefined, sessionID: str
 };
 
 export const useCreateSession = (
-  opcodeUrl: string | null | undefined,
+  apiUrl: string | null | undefined,
   directory?: string,
   onSuccess?: (session: { id: string }) => void,
 ) => {
-  const client = useSubpolarClient(opcodeUrl, directory);
+  const client = useSubpolarClient(apiUrl, directory);
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -176,7 +176,7 @@ export const useCreateSession = (
       return client.createSession(data);
     },
     onSuccess: (session) => {
-      invalidateSessionListCaches(queryClient, opcodeUrl);
+      invalidateSessionListCaches(queryClient, apiUrl);
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
       onSuccess?.(session);
     },
@@ -213,7 +213,7 @@ const shouldDeleteWorkspaceForSessionDeleteError = (error: unknown) =>
     error.statusCode === 500 &&
     (error.message.includes('Unexpected server error') || error.message === 'Request failed'));
 
-export const useDeleteSession = (opcodeUrl: string | null | undefined, directory?: string | string[]) => {
+export const useDeleteSession = (apiUrl: string | null | undefined, directory?: string | string[]) => {
   const queryClient = useQueryClient();
   const directories = useMemo(
     () => (Array.isArray(directory) ? directory : directory ? [directory] : []),
@@ -223,8 +223,8 @@ export const useDeleteSession = (opcodeUrl: string | null | undefined, directory
 
   return useMutation({
     mutationFn: async (sessionIDs: DeleteSessionTarget | DeleteSessionTarget[]) => {
-      if (!opcodeUrl) {
-        throw new Error('OpenCode client not available');
+      if (!apiUrl) {
+        throw new Error('Subpolar client not available');
       }
       
       const targets = Array.from(
@@ -246,7 +246,7 @@ export const useDeleteSession = (opcodeUrl: string | null | undefined, directory
         }
 
         const client = new SubpolarClient(
-          opcodeUrl,
+          apiUrl,
           getDeleteSessionTargetDirectory(target, primaryDirectory),
         )
         try {
@@ -282,15 +282,15 @@ export const useDeleteSession = (opcodeUrl: string | null | undefined, directory
       showToast.error('Failed to delete sessions');
     },
     onSettled: () => {
-      invalidateSessionListCaches(queryClient, opcodeUrl);
+      invalidateSessionListCaches(queryClient, apiUrl);
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
   });
 };
 
-export const useUpdateSession = (opcodeUrl: string | null | undefined, directory?: string) => {
+export const useUpdateSession = (apiUrl: string | null | undefined, directory?: string) => {
   const queryClient = useQueryClient();
-  const client = useSubpolarClient(opcodeUrl, directory);
+  const client = useSubpolarClient(apiUrl, directory);
 
   return useMutation({
     mutationFn: async ({ sessionID, title }: { sessionID: string; title: string }) => {
@@ -299,8 +299,8 @@ export const useUpdateSession = (opcodeUrl: string | null | undefined, directory
     },
     onSuccess: (_, variables) => {
       const { sessionID } = variables;
-      queryClient.invalidateQueries({ queryKey: ["opencode", "session", opcodeUrl, sessionID, directory] });
-      invalidateSessionListCaches(queryClient, opcodeUrl);
+      queryClient.invalidateQueries({ queryKey: ["subpolar", "session", apiUrl, sessionID, directory] });
+      invalidateSessionListCaches(queryClient, apiUrl);
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
   });
@@ -383,8 +383,8 @@ const getPromptText = (prompt: string | undefined, parts: ContentPart[] | undefi
     .trim();
 };
 
-export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: string) => {
-  const client = useSubpolarClient(opcodeUrl, directory);
+export const useSendPrompt = (apiUrl: string | null | undefined, directory?: string) => {
+  const client = useSubpolarClient(apiUrl, directory);
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -419,7 +419,7 @@ export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: 
       );
       const userMessageInfo = createOptimisticUserMessageInfo(sessionID, optimisticUserID, model, agent, variant);
 
-      const queryKey = messagesQueryKey(opcodeUrl, sessionID, directory);
+      const queryKey = messagesQueryKey(apiUrl, sessionID, directory);
       await queryClient.cancelQueries({ queryKey });
 
       const optimisticMessageWithParts: MessageWithParts = {
@@ -459,7 +459,7 @@ export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: 
         if (parsedModel) {
           const cachedProviders = queryClient.getQueryData<{
             providers: Array<{ id: string; models: Record<string, unknown> }>;
-          }>(['opencode', 'providers', opcodeUrl, directory]);
+          }>(['subpolar', 'providers', apiUrl, directory]);
           if (cachedProviders?.providers) {
             const provider = cachedProviders.providers.find(
               (p) => p.id === parsedModel.providerID,
@@ -511,7 +511,7 @@ export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: 
     },
     onError: (error, variables) => {
       const { sessionID, queued } = variables;
-      const queryKey = messagesQueryKey(opcodeUrl, sessionID, directory);
+      const queryKey = messagesQueryKey(apiUrl, sessionID, directory);
 
       if (queued) {
         useSendErrorStore.getState().clearQueuedPrompt(sessionID);
@@ -542,7 +542,7 @@ export const useSendPrompt = (opcodeUrl: string | null | undefined, directory?: 
     onSuccess: async (data, variables) => {
       const { sessionID } = variables;
       const { response } = data;
-      const queryKey = messagesQueryKey(opcodeUrl, sessionID, directory);
+      const queryKey = messagesQueryKey(apiUrl, sessionID, directory);
 
       useSendErrorStore.getState().clearError(sessionID);
 
@@ -575,17 +575,17 @@ const ABORT_RETRY_INTERVAL_MS = 3000;
 const MAX_ABORT_RETRIES = 10;
 
 export const useAbortSession = (
-  opcodeUrl: string | null | undefined,
+  apiUrl: string | null | undefined,
   directory?: string,
   sessionID?: string,
 ) => {
-  const client = useSubpolarClient(opcodeUrl, directory);
+  const client = useSubpolarClient(apiUrl, directory);
   const queryClient = useQueryClient();
   const retryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const retryCountRef = useRef(0);
 
   const forceCompleteMessages = useCallback((targetSessionID: string) => {
-    const queryKey = messagesQueryKey(opcodeUrl, targetSessionID, directory);
+    const queryKey = messagesQueryKey(apiUrl, targetSessionID, directory);
     const now = Date.now();
     
     queryClient.setQueryData<MessageWithParts[]>(queryKey, (old) => {
@@ -637,7 +637,7 @@ export const useAbortSession = (
         return msgWithParts;
       });
     });
-  }, [queryClient, opcodeUrl, directory]);
+  }, [queryClient, apiUrl, directory]);
 
   const stopRetrying = useCallback(() => {
     if (retryIntervalRef.current) {
@@ -648,7 +648,7 @@ export const useAbortSession = (
   }, []);
 
   const isSessionComplete = useCallback((targetSessionID: string) => {
-    const queryKey = messagesQueryKey(opcodeUrl, targetSessionID, directory);
+    const queryKey = messagesQueryKey(apiUrl, targetSessionID, directory);
     const messages = queryClient.getQueryData<MessageWithParts[]>(queryKey);
     
     const hasIncompleteMessages = messages?.some(msgWithParts => {
@@ -658,13 +658,13 @@ export const useAbortSession = (
     });
 
     return !hasIncompleteMessages;
-  }, [queryClient, opcodeUrl, directory]);
+  }, [queryClient, apiUrl, directory]);
 
   useEffect(() => {
     if (!sessionID) return;
 
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-      const queryKey = messagesQueryKey(opcodeUrl, sessionID, directory);
+      const queryKey = messagesQueryKey(apiUrl, sessionID, directory);
       if (event.query.queryKey.join(",") === queryKey.join(",")) {
         if (isSessionComplete(sessionID) && retryIntervalRef.current) {
           stopRetrying();
@@ -673,7 +673,7 @@ export const useAbortSession = (
     });
 
     return () => unsubscribe();
-  }, [sessionID, queryClient, opcodeUrl, directory, isSessionComplete, stopRetrying]);
+  }, [sessionID, queryClient, apiUrl, directory, isSessionComplete, stopRetrying]);
 
   useEffect(() => {
     return () => stopRetrying();
@@ -720,8 +720,8 @@ export const useAbortSession = (
   return mutation;
 };
 
-export const useSendShell = (opcodeUrl: string | null | undefined, directory?: string) => {
-  const client = useSubpolarClient(opcodeUrl, directory);
+export const useSendShell = (apiUrl: string | null | undefined, directory?: string) => {
+  const client = useSubpolarClient(apiUrl, directory);
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -745,7 +745,7 @@ export const useSendShell = (opcodeUrl: string | null | undefined, directory?: s
       );
       const userMessageInfo = createOptimisticUserMessageInfo(sessionID, optimisticUserID);
 
-      const queryKey = messagesQueryKey(opcodeUrl, sessionID, directory);
+      const queryKey = messagesQueryKey(apiUrl, sessionID, directory);
       await queryClient.cancelQueries({ queryKey });
 
       const optimisticMessageWithParts: MessageWithParts = {
@@ -767,7 +767,7 @@ export const useSendShell = (opcodeUrl: string | null | undefined, directory?: s
     onError: (_, variables) => {
       const { sessionID } = variables;
       queryClient.setQueryData<MessageWithParts[]>(
-        messagesQueryKey(opcodeUrl, sessionID, directory),
+        messagesQueryKey(apiUrl, sessionID, directory),
         (old) => {
           if (!old) return old;
           return old.filter((msgWithParts) => !msgWithParts.info.id.startsWith("optimistic_"));
@@ -779,7 +779,7 @@ export const useSendShell = (opcodeUrl: string | null | undefined, directory?: s
       const { optimisticUserID } = data;
 
       queryClient.setQueryData<MessageWithParts[]>(
-        messagesQueryKey(opcodeUrl, sessionID, directory),
+        messagesQueryKey(apiUrl, sessionID, directory),
         (old) => {
           if (!old) return old;
           return old.filter((msgWithParts) => msgWithParts.info.id !== optimisticUserID);
@@ -787,17 +787,17 @@ export const useSendShell = (opcodeUrl: string | null | undefined, directory?: s
       );
 
       queryClient.invalidateQueries({
-        queryKey: ["opencode", "session", opcodeUrl, sessionID, directory],
+        queryKey: ["subpolar", "session", apiUrl, sessionID, directory],
       });
     },
   });
 };
 
-export const useConfig = (opcodeUrl: string | null | undefined, directory?: string) => {
-  const client = useSubpolarClient(opcodeUrl, directory);
+export const useConfig = (apiUrl: string | null | undefined, directory?: string) => {
+  const client = useSubpolarClient(apiUrl, directory);
 
   return useQuery({
-    queryKey: ["opencode", "config", opcodeUrl, directory],
+    queryKey: ["subpolar", "config", apiUrl, directory],
     queryFn: () => client!.getConfig(),
     enabled: !!client,
     staleTime: 0,
@@ -805,22 +805,22 @@ export const useConfig = (opcodeUrl: string | null | undefined, directory?: stri
   });
 };
 
-export const useAgents = (opcodeUrl: string | null | undefined, directory?: string) => {
-  const client = useSubpolarClient(opcodeUrl, directory);
+export const useAgents = (apiUrl: string | null | undefined, directory?: string) => {
+  const client = useSubpolarClient(apiUrl, directory);
 
   return useQuery({
-    queryKey: ["opencode", "agents", opcodeUrl, directory],
+    queryKey: ["subpolar", "agents", apiUrl, directory],
     queryFn: () => client!.listAgents(),
     enabled: !!client,
   });
 };
 
 export const useLoadSkill = (
-  opcodeUrl: string | null | undefined,
+  apiUrl: string | null | undefined,
   sessionID: string | undefined,
   directory?: string,
 ) => {
-  const client = useSubpolarClient(opcodeUrl, directory);
+  const client = useSubpolarClient(apiUrl, directory);
   const queryClient = useQueryClient();
 
   return useMutation<
@@ -829,11 +829,11 @@ export const useLoadSkill = (
     { skillName: string }
   >({
     mutationFn: async ({ skillName }: { skillName: string }) => {
-      if (!client) throw new Error("No OpenCode client available");
+      if (!client) throw new Error("No client available");
       if (!sessionID) throw new Error("No active session");
 
       const optimisticUserID = `optimistic_user_${Date.now()}_${Math.random()}`;
-      const queryKey = messagesQueryKey(opcodeUrl, sessionID, directory);
+      const queryKey = messagesQueryKey(apiUrl, sessionID, directory);
 
       const userMessageParts = createOptimisticUserMessageParts(
         sessionID,
@@ -857,7 +857,7 @@ export const useLoadSkill = (
     },
     onError: (error) => {
       if (sessionID) {
-        const queryKey = messagesQueryKey(opcodeUrl, sessionID, directory);
+        const queryKey = messagesQueryKey(apiUrl, sessionID, directory);
         queryClient.setQueryData<MessageWithParts[]>(
           queryKey,
           (old) => old?.filter((m) => !m.info.id.startsWith("optimistic_")),
@@ -867,7 +867,7 @@ export const useLoadSkill = (
     },
     onSuccess: (data) => {
       const { response } = data;
-      const queryKey = messagesQueryKey(opcodeUrl, sessionID, directory);
+      const queryKey = messagesQueryKey(apiUrl, sessionID, directory);
 
       queryClient.setQueryData<MessageWithParts[]>(
         queryKey,

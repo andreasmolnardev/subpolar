@@ -88,7 +88,7 @@ export interface UpdateSettingsRequest {
   preferences: Partial<UserPreferences>
 }
 
-export interface OpenCodeConfig {
+export interface PiConfig {
   id: number
   name: string
   content: Record<string, unknown>
@@ -104,23 +104,23 @@ export interface OpenCodeConfig {
   updatedAt: number
 }
 
-export interface CreateOpenCodeConfigRequest {
+export interface CreatePiConfigRequest {
   name: string
   content: OpenCodeConfigContent | string
   isDefault?: boolean
 }
 
-export interface UpdateOpenCodeConfigRequest {
+export interface UpdatePiConfigRequest {
   content: OpenCodeConfigContent | string
   isDefault?: boolean
 }
 
-export interface OpenCodeConfigResponse {
-  configs: OpenCodeConfig[]
-  defaultConfig: OpenCodeConfig | null
+export interface PiConfigResponse {
+  configs: PiConfig[]
+  defaultConfig: PiConfig | null
 }
 
-export interface OpenCodeImportStatus {
+export interface PiImportStatus {
   configSourcePath: string | null
   stateSourcePath: string | null
   workspaceConfigPath: string
@@ -128,7 +128,7 @@ export interface OpenCodeImportStatus {
   workspaceStateExists: boolean
 }
 
-export interface SyncOpenCodeImportResponse extends OpenCodeImportStatus {
+export interface SyncPiImportResponse extends PiImportStatus {
   success: boolean
   message: string
   serverRestarted: boolean

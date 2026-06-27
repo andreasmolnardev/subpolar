@@ -6,7 +6,7 @@ import { useMobile } from '@/hooks/useMobile'
 import { useSessionAgent } from '@/hooks/useSessionAgent'
 
 interface EditableUserMessageProps {
-  opcodeUrl: string
+  apiUrl: string
   sessionId: string
   directory?: string
   content: string
@@ -16,7 +16,7 @@ interface EditableUserMessageProps {
 }
 
 export const EditableUserMessage = memo(function EditableUserMessage({
-  opcodeUrl,
+  apiUrl,
   sessionId,
   directory,
   content,
@@ -27,9 +27,9 @@ export const EditableUserMessage = memo(function EditableUserMessage({
   const [editedContent, setEditedContent] = useState(content)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isMobile = useMobile()
-  const refreshMessage = useRefreshMessage({ opcodeUrl, sessionId, directory })
+  const refreshMessage = useRefreshMessage({ apiUrl, sessionId, directory })
   const setIsEditingMessage = useUIState((state) => state.setIsEditingMessage)
-  const sessionAgent = useSessionAgent(opcodeUrl, sessionId, directory)
+  const sessionAgent = useSessionAgent(apiUrl, sessionId, directory)
   const currentMode = sessionAgent.agent
 
   useEffect(() => {

@@ -7,13 +7,13 @@ import { fileURLToPath } from 'url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const API_URL = process.env.VITE_API_URL || 'http://localhost:8001'
-const OPENCODE_URL = API_URL + '/api/opencode'
+const PI_URL = API_URL + '/api/pi'
 
 async function generateOpenAPISpec() {
-  console.log(`📥 Fetching OpenAPI spec from ${OPENCODE_URL}/doc`)
+  console.log(`📥 Fetching OpenAPI spec from ${PI_URL}/doc`)
   
   try {
-    const response = await fetch(`${OPENCODE_URL }/doc`, {
+    const response = await fetch(`${PI_URL}/doc`, {
       headers: {
         'Accept': 'application/json'
       }
@@ -32,8 +32,8 @@ async function generateOpenAPISpec() {
     return outputPath
   } catch (error) {
     console.error('❌ Failed to fetch OpenAPI spec:', error)
-    console.error('\n💡 Make sure an OpenCode server is running.')
-    console.error('   You can start one by opening a repo in the WebUI.')
+    console.error('\n💡 Make sure the backend is running.')
+    console.error('   You can start one with: pnpm dev')
     process.exit(1)
   }
 }
@@ -62,7 +62,7 @@ async function generateTypeScript(specPath: string) {
 }
 
 async function main() {
-  console.log('🚀 Generating OpenCode API types...\n')
+  console.log('🚀 Generating Pi API types...\n')
   
   const specPath = await generateOpenAPISpec()
   await generateTypeScript(specPath)

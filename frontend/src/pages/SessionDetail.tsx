@@ -119,16 +119,16 @@ export function SessionDetail() {
 
   useProjectActivity(repoId, Boolean(repo));
 
-  const opcodeUrl = OPENCODE_API_ENDPOINT;
+  const apiUrl = OPENCODE_API_ENDPOINT;
   
   const repoDirectory = repo?.fullPath;
   const sessionRouteSuffix = '';
 
-  const { isConnected, isReconnecting } = useSSE(opcodeUrl, repoDirectory, sessionId);
+  const { isConnected, isReconnecting } = useSSE(apiUrl, repoDirectory, sessionId);
 
-  const { data: rawMessages, isLoading: messagesLoading } = useMessages(opcodeUrl, sessionId, repoDirectory);
+  const { data: rawMessages, isLoading: messagesLoading } = useMessages(apiUrl, sessionId, repoDirectory);
   const { data: session, isLoading: sessionLoading } = useSession(
-    opcodeUrl,
+    apiUrl,
     sessionId,
     repoDirectory,
   );
@@ -149,11 +149,11 @@ export function SessionDetail() {
     contentVersion: messagesContentVersion,
     onScrollStateChange: () => {}
   });
-  const abortSession = useAbortSession(opcodeUrl, repoDirectory, sessionId);
-  const createSession = useCreateSession(opcodeUrl, repoDirectory);
-  const sendPendingPrompt = useSendPrompt(opcodeUrl, repoDirectory);
-  const { model, modelString } = useModelSelection(opcodeUrl, repoDirectory);
-  const sessionAgent = useSessionAgent(opcodeUrl, sessionId, repoDirectory);
+  const abortSession = useAbortSession(apiUrl, repoDirectory, sessionId);
+  const createSession = useCreateSession(apiUrl, repoDirectory);
+  const sendPendingPrompt = useSendPrompt(apiUrl, repoDirectory);
+  const { model, modelString } = useModelSelection(apiUrl, repoDirectory);
+  const sessionAgent = useSessionAgent(apiUrl, sessionId, repoDirectory);
   const isEditingMessage = useUIState((state) => state.isEditingMessage);
   const setActivePromptFileBasePath = useUIState((state) => state.setActivePromptFileBasePath);
   const { isEnabled: ttsEnabled } = useTTS();
@@ -242,7 +242,7 @@ export function SessionDetail() {
   }, [repoDirectory, sessionId, syncPermissionsForSession, syncQuestionsForSession])
 
   useQuery({
-    queryKey: ['opencode', 'pending-actions', opcodeUrl, sessionId, repoDirectory],
+    queryKey: ['subpolar', 'pending-actions', apiUrl, sessionId, repoDirectory],
     queryFn: async () => {
       await syncPendingActionsForSession()
       return null
@@ -271,7 +271,7 @@ export function SessionDetail() {
   });
 
   const handleCompact = useCallback(async () => {
-    if (!opcodeUrl || !sessionId) return;
+    if (!apiUrl || !sessionId) return;
     if (!model?.providerID || !model?.modelID) {
       showToast.error('No model selected. Please select a provider and model first.');
       return;
@@ -280,37 +280,37 @@ export function SessionDetail() {
     showToast.loading('Compacting session...', { id: `compact-${sessionId}` });
 
     try {
-      const client = createSubpolarClient(opcodeUrl, repoDirectory);
+      const client = createSubpolarClient(apiUrl, repoDirectory);
       await client.summarizeSession(sessionId, model.providerID, model.modelID);
     } catch (error) {
       showToast.error(`Compact failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [opcodeUrl, sessionId, model, repoDirectory]);
+  }, [apiUrl, sessionId, model, repoDirectory]);
 
   const handleUndo = useCallback(async () => {
-    if (!opcodeUrl || !sessionId) return;
+    if (!apiUrl || !sessionId) return;
     try {
-      const client = createSubpolarClient(opcodeUrl, repoDirectory);
+      const client = createSubpolarClient(apiUrl, repoDirectory);
       await client.sendCommand(sessionId, { command: 'undo', arguments: '' });
     } catch (error) {
       showToast.error(`Undo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [opcodeUrl, sessionId, repoDirectory]);
+  }, [apiUrl, sessionId, repoDirectory]);
 
   const handleRedo = useCallback(async () => {
-    if (!opcodeUrl || !sessionId) return;
+    if (!apiUrl || !sessionId) return;
     try {
-      const client = createSubpolarClient(opcodeUrl, repoDirectory);
+      const client = createSubpolarClient(apiUrl, repoDirectory);
       await client.sendCommand(sessionId, { command: 'redo', arguments: '' });
     } catch (error) {
       showToast.error(`Redo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [opcodeUrl, sessionId, repoDirectory]);
+  }, [apiUrl, sessionId, repoDirectory]);
 
   const handleFork = useCallback(async () => {
-    if (!opcodeUrl || !sessionId) return;
+    if (!apiUrl || !sessionId) return;
     try {
-      const client = createSubpolarClient(opcodeUrl, repoDirectory);
+      const client = createSubpolarClient(apiUrl, repoDirectory);
       const forkedSession = await client.forkSession(sessionId);
       if (forkedSession?.id) {
         navigate(`/repos/${repoId}/sessions/${forkedSession.id}${sessionRouteSuffix}`);
@@ -319,7 +319,7 @@ export function SessionDetail() {
     } catch (error) {
       showToast.error(`Fork failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [opcodeUrl, sessionId, repoDirectory, navigate, repoId, sessionRouteSuffix]);
+  }, [apiUrl, sessionId, repoDirectory, navigate, repoId, sessionRouteSuffix]);
 
   const handleCloseSession = useCallback(() => {
     const tab = new URLSearchParams(location.search).get('repoTab') ?? undefined;
@@ -483,9 +483,9 @@ export function SessionDetail() {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start" className="h-[min(70vh,34rem)] w-[min(92vw,34rem)] p-0">
-                    {opcodeUrl && (
+                    {apiUrl && (
                       <SessionList
-                        opcodeUrl={opcodeUrl}
+                        apiUrl={apiUrl}
                         directory={repoDirectory}
                         activeSessionID={sessionId || undefined}
                         onSelectSession={(selectedSessionID) => {
@@ -504,7 +504,7 @@ export function SessionDetail() {
               <PendingActionsGroup />
             </div>
             <ContextUsageIndicator
-              opcodeUrl={opcodeUrl}
+              apiUrl={apiUrl}
               sessionID={sessionId}
               directory={repoDirectory}
               isConnected={isConnected}
@@ -524,9 +524,9 @@ export function SessionDetail() {
         <div key={sessionId} ref={messageContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [mask-image:linear-gradient(to_bottom,transparent,black_16px,black)]" style={{ paddingBottom: promptOverlayHeight + inputBottomOffset + PROMPT_OVERLAY_CLEARANCE_PX }}>
           {repoLoading || sessionLoading || messagesLoading ? (
             <MessageSkeleton />
-          ) : opcodeUrl && repoDirectory ? (
+          ) : apiUrl && repoDirectory ? (
             <MessageThread 
-              opcodeUrl={opcodeUrl} 
+              apiUrl={apiUrl} 
               sessionID={sessionId} 
               directory={repoDirectory}
               messages={messages}
@@ -537,7 +537,7 @@ export function SessionDetail() {
             />
           ) : null}
         </div>
-        {opcodeUrl && repoDirectory && !isEditingMessage && (
+        {apiUrl && repoDirectory && !isEditingMessage && (
           <div
             ref={promptOverlayRef}
             className="absolute left-0 right-0 flex justify-center"

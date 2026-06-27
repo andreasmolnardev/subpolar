@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { PiInternalClient as OpenCodeClient } from '../runtime/pi/internal-client-types'
+import type { PiInternalClient } from '../runtime/pi/internal-client-types'
 import { z } from 'zod'
 import crypto from 'crypto'
 import path from 'path'
@@ -135,7 +135,7 @@ async function registerClient(
  
 import type { MiddlewareHandler } from 'hono'
 
-export function createMcpOauthProxyRoutes(openCodeClient: OpenCodeClient, requireAuth?: MiddlewareHandler) {
+export function createMcpOauthProxyRoutes(openCodeClient: PiInternalClient, requireAuth?: MiddlewareHandler) {
   const app = new Hono()
 
   if (requireAuth) {

@@ -1,6 +1,6 @@
-import type { ForwardRequest, JsonRequestOptions, PiInternalClient as OpenCodeClient } from './internal-client-types'
+import type { ForwardRequest, JsonRequestOptions, PiInternalClient } from './internal-client-types'
 
-export class PiNativeClient implements OpenCodeClient {
+export class PiNativeClient implements PiInternalClient {
   async forward(req: ForwardRequest): Promise<Response> {
     void req
     return new Response(JSON.stringify({ error: 'OpenCode runtime has been replaced by Pi' }), {

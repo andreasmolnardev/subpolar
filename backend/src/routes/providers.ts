@@ -8,11 +8,11 @@ import { logger } from '../utils/logger'
 import type { Database } from '../db/schema'
 import { getWorkspacePath } from '@subpolar/shared/config/env'
 import {
-  addRecentOpenCodeModel,
-  getOpenCodeModelState as readModelStateFromDb,
-  removeRecentOpenCodeModel,
-  toggleFavoriteOpenCodeModel,
-  type OpenCodeModelStateRecord,
+  addRecentPiInternalModel,
+  getPiInternalModelState as readModelStateFromDb,
+  removeRecentPiInternalModel,
+  toggleFavoritePiInternalModel,
+  type PiInternalModelStateRecord,
 } from '../db/model-state'
 import { writeJsonAtomic, withFileLock } from '../utils/atomic-json'
 
@@ -57,7 +57,7 @@ function getLmStudioModelsUrl(baseUrl: string): string {
   return new URL('v1/models', root).toString()
 }
 
-async function mirrorModelStateToFile(state: OpenCodeModelStateRecord): Promise<void> {
+async function mirrorModelStateToFile(state: PiInternalModelStateRecord): Promise<void> {
   const modelStatePath = getModelStatePath()
   try {
     await withFileLock(modelStatePath, async () => {
@@ -92,14 +92,14 @@ export function createProvidersRoutes(db: Database) {
       const body = await c.req.json()
       const validated = UpdateModelStateSchema.parse(body)
       
-      let nextState: OpenCodeModelStateRecord
+      let nextState: PiInternalModelStateRecord
       
       if (validated.favorite) {
-        nextState = await toggleFavoriteOpenCodeModel(db, validated.favorite)
+        nextState = await toggleFavoritePiInternalModel(db, validated.favorite)
       } else if (validated.recent) {
-        nextState = await addRecentOpenCodeModel(db, validated.recent)
+        nextState = await addRecentPiInternalModel(db, validated.recent)
       } else if (validated.removeRecent) {
-        nextState = await removeRecentOpenCodeModel(db, validated.removeRecent)
+        nextState = await removeRecentPiInternalModel(db, validated.removeRecent)
       } else {
         nextState = await readModelStateFromDb(db)
       }

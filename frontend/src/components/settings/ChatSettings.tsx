@@ -97,7 +97,7 @@ export function ChatSettings() {
   const hiddenChatInputAgents = preferences?.hiddenChatInputAgents ?? DEFAULT_USER_PREFERENCES.hiddenChatInputAgents
 
   const { data: providersData } = useQuery({
-    queryKey: ['opencode', 'providers', OPENCODE_API_ENDPOINT],
+    queryKey: ['subpolar', 'providers', OPENCODE_API_ENDPOINT],
     queryFn: () => getProviders(),
     staleTime: 30000,
   })

@@ -5,7 +5,7 @@ export interface ModelSelectionRecord {
   modelID: string
 }
 
-export interface OpenCodeModelStateRecord {
+export interface PiInternalModelStateRecord {
   recent: ModelSelectionRecord[]
   favorite: ModelSelectionRecord[]
   variant: Record<string, string | undefined>
@@ -13,7 +13,7 @@ export interface OpenCodeModelStateRecord {
 
 export const MAX_RECENT_MODELS = 10
 
-const EMPTY_STATE: OpenCodeModelStateRecord = { recent: [], favorite: [], variant: {} }
+const EMPTY_STATE: PiInternalModelStateRecord = { recent: [], favorite: [], variant: {} }
 
 interface ModelStateRecord {
   id: string
@@ -46,7 +46,7 @@ function jsonField<T>(value: unknown, fallback: T): T {
   return value as T
 }
 
-export async function getOpenCodeModelState(pb: PocketBase, userId = 'default'): Promise<OpenCodeModelStateRecord> {
+export async function getPiInternalModelState(pb: PocketBase, userId = 'default'): Promise<PiInternalModelStateRecord> {
   try {
     const record = await pb.collection('opencode_model_state').getFirstListItem(`user_id = "${userId}"`)
     const row = record as unknown as ModelStateRecord
@@ -59,13 +59,13 @@ export async function getOpenCodeModelState(pb: PocketBase, userId = 'default'):
   }
 }
 
-export async function addRecentOpenCodeModel(
+export async function addRecentPiInternalModel(
   pb: PocketBase,
   model: ModelSelectionRecord,
   userId = 'default',
-): Promise<OpenCodeModelStateRecord> {
+): Promise<PiInternalModelStateRecord> {
   await ensureRecordExists(pb, userId)
-  const current = await getOpenCodeModelState(pb, userId)
+  const current = await getPiInternalModelState(pb, userId)
   const deduped = [model, ...current.recent.filter(m => m.providerID !== model.providerID || m.modelID !== model.modelID)]
   const sliced = deduped.slice(0, MAX_RECENT_MODELS)
   const now = Date.now()
@@ -79,12 +79,12 @@ export async function addRecentOpenCodeModel(
   return { recent: sliced, favorite: current.favorite, variant: current.variant }
 }
 
-export async function removeRecentOpenCodeModel(
+export async function removeRecentPiInternalModel(
   pb: PocketBase,
   model: ModelSelectionRecord,
   userId = 'default',
-): Promise<OpenCodeModelStateRecord> {
-  const current = await getOpenCodeModelState(pb, userId)
+): Promise<PiInternalModelStateRecord> {
+  const current = await getPiInternalModelState(pb, userId)
   const updated = current.recent.filter(
     m => m.providerID !== model.providerID || m.modelID !== model.modelID,
   )
@@ -103,13 +103,13 @@ export async function removeRecentOpenCodeModel(
   return { recent: updated, favorite: current.favorite, variant: current.variant }
 }
 
-export async function toggleFavoriteOpenCodeModel(
+export async function toggleFavoritePiInternalModel(
   pb: PocketBase,
   model: ModelSelectionRecord,
   userId = 'default',
-): Promise<OpenCodeModelStateRecord> {
+): Promise<PiInternalModelStateRecord> {
   await ensureRecordExists(pb, userId)
-  const current = await getOpenCodeModelState(pb, userId)
+  const current = await getPiInternalModelState(pb, userId)
   const exists = current.favorite.some(
     m => m.providerID === model.providerID && m.modelID === model.modelID,
   )
@@ -127,14 +127,14 @@ export async function toggleFavoriteOpenCodeModel(
   return { recent: current.recent, favorite: updated, variant: current.variant }
 }
 
-export async function setOpenCodeVariant(
+export async function setPiInternalVariant(
   pb: PocketBase,
   key: string,
   variant: string | undefined,
   userId = 'default',
-): Promise<OpenCodeModelStateRecord> {
+): Promise<PiInternalModelStateRecord> {
   await ensureRecordExists(pb, userId)
-  const current = await getOpenCodeModelState(pb, userId)
+  const current = await getPiInternalModelState(pb, userId)
   const updatedVariants = { ...current.variant }
   if (variant === undefined) {
     delete updatedVariants[key]

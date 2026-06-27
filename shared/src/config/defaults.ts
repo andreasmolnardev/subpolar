@@ -10,10 +10,10 @@ export const DEFAULTS = {
     HOST: '0.0.0.0',
   },
 
-  OPENCODE: {
+  PI_INTERNAL: {
     PORT: 5551,
     HOST: '127.0.0.1',
-    PUBLIC_URL: '', // Optional: public URL for OAuth callbacks (e.g., https://mydomain.com)
+    PUBLIC_URL: '',
     HEALTH_WATCH_ENABLED: true,
     HEALTH_POLL_MS: 30000,
     HEALTH_FAILURE_THRESHOLD: 2,

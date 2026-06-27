@@ -108,7 +108,7 @@ describe('useSendPrompt', () => {
 
   it('throws FetchError with MODEL_UNAVAILABLE when model not in providers', async () => {
     queryClient.setQueryData(
-      ['opencode', 'providers', 'http://localhost:5551', '/test'],
+      ['subpolar', 'providers', 'http://localhost:5551', '/test'],
       {
         providers: [
           {
@@ -147,7 +147,7 @@ describe('useSendPrompt', () => {
 
   it('proceeds when model exists in providers', async () => {
     queryClient.setQueryData(
-      ['opencode', 'providers', 'http://localhost:5551', '/test'],
+      ['subpolar', 'providers', 'http://localhost:5551', '/test'],
       {
         providers: [
           {

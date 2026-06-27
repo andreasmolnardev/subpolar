@@ -47,15 +47,15 @@ describe('createPartsBatcher', () => {
     batcher.flush()
 
     expect(
-      queryClient.getQueryData(['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo']),
+      queryClient.getQueryData(['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo']),
     ).toBeUndefined()
 
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      queryKey: ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
     })
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       [assistantMessage('session-1', 'message-1')],
     )
 
@@ -63,7 +63,7 @@ describe('createPartsBatcher', () => {
     batcher.flush()
 
     const data = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo',
     ])
     expect(data).toHaveLength(1)
     expect(data![0].parts).toHaveLength(1)
@@ -78,7 +78,7 @@ describe('createPartsBatcher', () => {
     batcher.flush()
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       [assistantMessage('session-1', 'message-1')],
     )
 
@@ -86,14 +86,14 @@ describe('createPartsBatcher', () => {
     batcher.flush()
 
     const data = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo',
     ])
     expect(data![0].parts).toHaveLength(1)
     expect(data![0].parts[0]).toHaveProperty('text', 'authoritative text')
 
     batcher.flush()
     const data2 = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo',
     ])
     expect(data2![0].parts[0]).toHaveProperty('text', 'authoritative text')
   })
@@ -103,7 +103,7 @@ describe('createPartsBatcher', () => {
     const batcher = createPartsBatcher(queryClient, 'http://localhost:5551')
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       [assistantMessage('session-1', 'message-1')],
     )
 
@@ -111,19 +111,19 @@ describe('createPartsBatcher', () => {
     batcher.flush()
 
     let data = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo',
     ])
     expect(data![0].parts[0]).toHaveProperty('text', ' stale')
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       [{ ...assistantMessage('session-1', 'message-1'), parts: [createTextPart('session-1', 'message-1', 'part-1', 'fresh')] }],
     )
 
     batcher.flush()
 
     data = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo',
     ])
     expect(data![0].parts[0]).toHaveProperty('text', 'fresh')
   })
@@ -134,7 +134,7 @@ describe('createPartsBatcher', () => {
     const batcher = createPartsBatcher(queryClient, 'http://localhost:5551')
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       [assistantMessage('session-1', 'message-old')],
     )
 
@@ -142,18 +142,18 @@ describe('createPartsBatcher', () => {
     batcher.flush()
 
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      queryKey: ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
     })
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       [assistantMessage('session-1', 'message-old'), assistantMessage('session-1', 'message-new')],
     )
 
     batcher.flush({ sessionID: 'session-1', directory: '/repo' })
 
     const data = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo',
     ])
     expect(data![1].parts).toHaveLength(1)
     expect(data![1].parts[0]).toMatchObject({
@@ -172,7 +172,7 @@ describe('createPartsBatcher', () => {
     const batcher = createPartsBatcher(queryClient, 'http://localhost:5551')
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       [assistantMessage('session-1', 'message-old')],
     )
 
@@ -190,7 +190,7 @@ describe('createPartsBatcher', () => {
     expect(invalidateSpy).toHaveBeenCalledTimes(1)
 
     const data = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo',
     ])
     expect(data).toHaveLength(1)
     expect(data![0].info.id).toBe('message-old')
@@ -202,7 +202,7 @@ describe('createPartsBatcher', () => {
     const batcher = createPartsBatcher(queryClient, 'http://localhost:5551')
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       [assistantMessage('session-1', 'message-1')],
     )
 
@@ -211,7 +211,7 @@ describe('createPartsBatcher', () => {
     batcher.flush()
 
     const data = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo',
     ])
     expect(data![0].parts).toHaveLength(1)
     expect(data![0].parts[0]).toHaveProperty('text', 'snapshot later')
@@ -222,7 +222,7 @@ describe('createPartsBatcher', () => {
     const batcher = createPartsBatcher(queryClient, 'http://localhost:5551')
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       [assistantMessage('session-1', 'message-1')],
     )
 
@@ -230,7 +230,7 @@ describe('createPartsBatcher', () => {
     batcher.flush()
 
     const data = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo',
     ])
     expect(data![0].parts).toHaveLength(1)
     expect(data![0].parts[0]).toMatchObject({
@@ -253,7 +253,7 @@ describe('createPartsBatcher', () => {
 
     const messages = createManyCachedMessages(messageCount, sessionID)
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', sessionID, directory],
+      ['subpolar', 'messages', 'http://localhost:5551', sessionID, directory],
       messages,
     )
 
@@ -269,7 +269,7 @@ describe('createPartsBatcher', () => {
     expect(invalidateSpy).not.toHaveBeenCalled()
 
     const data = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', sessionID, directory,
+      'subpolar', 'messages', 'http://localhost:5551', sessionID, directory,
     ])
     expect(data).toHaveLength(messageCount)
 
@@ -282,7 +282,7 @@ describe('createPartsBatcher', () => {
     }
 
     const setQueryDataCalls = setQueryDataSpy.mock.calls.filter(
-      ([key]) => JSON.stringify(key).includes('opencode'),
+      ([key]) => JSON.stringify(key).includes('subpolar'),
     )
     expect(setQueryDataCalls.length).toBe(1)
   })
@@ -292,7 +292,7 @@ describe('createPartsBatcher', () => {
     const batcher = createPartsBatcher(queryClient, 'http://localhost:5551')
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       [{
         ...assistantMessage('session-1', 'message-1'),
         parts: [
@@ -307,7 +307,7 @@ describe('createPartsBatcher', () => {
     batcher.flush()
 
     const data = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo',
     ])
 
     expect(data![0].parts).toHaveLength(1)
@@ -320,11 +320,11 @@ describe('createPartsBatcher', () => {
     const batcher = createPartsBatcher(queryClient, 'http://localhost:5551')
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-a', '/repo-a'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-a', '/repo-a'],
       [{ ...assistantMessage('session-a', 'msg-1'), parts: [createTextPart('session-a', 'msg-1', 'part-1', 'A1')] }],
     )
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-b', '/repo-b'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-b', '/repo-b'],
       [{ ...assistantMessage('session-b', 'msg-2'), parts: [createTextPart('session-b', 'msg-2', 'part-2', 'B1')] }],
     )
 
@@ -334,19 +334,19 @@ describe('createPartsBatcher', () => {
     batcher.flush({ sessionID: 'session-a', directory: '/repo-a' })
 
     const dataA = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-a', '/repo-a',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-a', '/repo-a',
     ])
     expect(dataA![0].parts[0]).toHaveProperty('text', 'A1 delta A')
 
     const dataB = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-b', '/repo-b',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-b', '/repo-b',
     ])
     expect(dataB![0].parts[0]).toHaveProperty('text', 'B1')
 
     batcher.flush()
 
     const dataB2 = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-b', '/repo-b',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-b', '/repo-b',
     ])
     expect(dataB2![0].parts[0]).toHaveProperty('text', 'B1 delta B')
   })
@@ -357,7 +357,7 @@ describe('createPartsBatcher', () => {
     const batcher = createPartsBatcher(queryClient, 'http://localhost:5551')
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       [{ ...assistantMessage('session-1', 'msg-1'), parts: [createTextPart('session-1', 'msg-1', 'part-1', 'text')] }],
     )
 
@@ -375,11 +375,11 @@ describe('createPartsBatcher', () => {
     const batcher = createPartsBatcher(queryClient, 'http://localhost:5551')
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo-a'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo-a'],
       [assistantMessage('session-1', 'message-1')],
     )
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo-b'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo-b'],
       [{ ...assistantMessage('session-1', 'message-1'), parts: [createTextPart('session-1', 'message-1', 'part-1', 'B')] }],
     )
 
@@ -387,12 +387,12 @@ describe('createPartsBatcher', () => {
     batcher.flush()
 
     const repoBData = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo-b',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo-b',
     ])
     expect(repoBData![0].parts[0]).toHaveProperty('text', 'B + chunk')
 
     const repoAData = queryClient.getQueryData<MessageWithParts[]>([
-      'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo-a',
+      'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo-a',
     ])
     expect(repoAData![0].parts).toHaveLength(0)
   })

@@ -3,15 +3,15 @@ import path from 'path'
 import { cp, mkdtemp, readdir, rename, rm } from 'fs/promises'
 import { Database as SQLiteDatabase } from 'bun:sqlite'
 import type { Database } from '../db/schema'
-import { OpenCodeConfigSchema } from '@subpolar/shared/schemas'
-import { getOpenCodeConfigFilePath, getWorkspacePath } from '@subpolar/shared/config/env'
+import { PiConfigSchema } from '@subpolar/shared/schemas'
+import { getPiConfigFilePath, getWorkspacePath } from '@subpolar/shared/config/env'
 import { parse as parseJsonc } from 'jsonc-parser'
 import { SettingsService } from './settings'
 import { ensureDirectoryExists, fileExists, readFileContent, writeFileContent } from './file-operations'
 
 const OPENCODE_STATE_DB_FILENAMES = new Set(['opencode.db', 'opencode.db-shm', 'opencode.db-wal'])
 
-export interface OpenCodeImportStatus {
+export interface PiInternalImportStatus {
   configSourcePath: string | null
   stateSourcePath: string | null
   workspaceConfigPath: string
@@ -19,25 +19,25 @@ export interface OpenCodeImportStatus {
   workspaceStateExists: boolean
 }
 
-export interface SyncOpenCodeImportOptions {
+export interface SyncPiInternalImportOptions {
   db: Database
   userId?: string
   overwriteState?: boolean
   protectExistingState?: boolean
 }
 
-export interface SyncOpenCodeImportResult extends OpenCodeImportStatus {
+export interface SyncPiInternalImportResult extends PiInternalImportStatus {
   configImported: boolean
   stateImported: boolean
 }
 
-export class OpenCodeImportProtectionError extends Error {
+export class PiInternalImportProtectionError extends Error {
   code = 'OPENCODE_IMPORT_PROTECTED'
   detail: string
 
   constructor(detail: string) {
     super('OpenCode host import was blocked to protect existing workspace state')
-    this.name = 'OpenCodeImportProtectionError'
+    this.name = 'PiInternalImportProtectionError'
     this.detail = detail
   }
 }
@@ -136,8 +136,8 @@ export async function importOpenCodeStateDirectory(sourcePath: string, targetPat
   }
 }
 
-export async function getOpenCodeImportStatus(): Promise<OpenCodeImportStatus> {
-  const workspaceConfigPath = getOpenCodeConfigFilePath()
+export async function getPiInternalImportStatus(): Promise<PiInternalImportStatus> {
+  const workspaceConfigPath = getPiConfigFilePath()
   const workspaceStatePath = path.join(getWorkspacePath(), '.opencode', 'state', 'opencode')
   const workspaceStateExists = await fileExists(path.join(workspaceStatePath, 'opencode.db'))
 
@@ -160,7 +160,7 @@ export async function getOpenCodeImportStatus(): Promise<OpenCodeImportStatus> {
 async function importOpenCodeConfigFromSource(db: Database, userId: string, sourcePath: string, workspaceConfigPath: string): Promise<boolean> {
   const rawContent = await readFileContent(sourcePath)
   const parsed = parseJsonc(rawContent)
-  const validation = OpenCodeConfigSchema.safeParse(parsed)
+  const validation = PiConfigSchema.safeParse(parsed)
 
   if (!validation.success) {
     throw new Error('Importable OpenCode config is invalid')
@@ -186,15 +186,15 @@ async function importOpenCodeConfigFromSource(db: Database, userId: string, sour
   return true
 }
 
-export async function syncOpenCodeImport(options: SyncOpenCodeImportOptions): Promise<SyncOpenCodeImportResult> {
-  const initialStatus = await getOpenCodeImportStatus()
+export async function syncPiInternalImport(options: SyncPiInternalImportOptions): Promise<SyncPiInternalImportResult> {
+  const initialStatus = await getPiInternalImportStatus()
   const userId = options.userId || 'default'
   const overwriteState = options.overwriteState === true
   let configImported = false
   let stateImported = false
 
   if (options.protectExistingState && initialStatus.stateSourcePath && initialStatus.workspaceStateExists && !overwriteState) {
-    throw new OpenCodeImportProtectionError(
+    throw new PiInternalImportProtectionError(
       `Import was blocked because workspace state already exists at ${initialStatus.workspaceStatePath}. Clear the workspace state first if you want to replace it with host state.`
     )
   }
@@ -207,7 +207,7 @@ export async function syncOpenCodeImport(options: SyncOpenCodeImportOptions): Pr
     stateImported = await importOpenCodeStateDirectory(initialStatus.stateSourcePath, initialStatus.workspaceStatePath)
   }
 
-  const finalStatus = await getOpenCodeImportStatus()
+  const finalStatus = await getPiInternalImportStatus()
 
   return {
     ...finalStatus,

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 
-export function createInternalOpenCodeWorkspacesRoutes() {
+export function createInternalPiWorkspacesRoutes() {
   const app = new Hono()
 
   app.get('/', async (c) => {

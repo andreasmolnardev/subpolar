@@ -1,11 +1,11 @@
-import type { PiInternalClient as OpenCodeClient } from '../runtime/pi/internal-client-types'
+import type { PiInternalClient } from '../runtime/pi/internal-client-types'
 
-interface OpenCodeConfigResponse {
+interface PiInternalConfigResponse {
   model?: string
   small_model?: string
 }
 
-interface OpenCodeProviderResponse {
+interface PiInternalProviderResponse {
   providers?: Array<{
     id: string
     models?: Record<string, unknown>
@@ -13,7 +13,7 @@ interface OpenCodeProviderResponse {
   default?: Record<string, string>
 }
 
-export interface ResolvedOpenCodeModel {
+export interface ResolvedPiInternalModel {
   providerID: string
   modelID: string
   model: string
@@ -28,7 +28,7 @@ function normalizeModelCandidate(model: string | null | undefined): string | nul
   return normalized ? normalized : null
 }
 
-function parseModel(model: string): ResolvedOpenCodeModel | null {
+function parseModel(model: string): ResolvedPiInternalModel | null {
   const [providerID, ...modelParts] = model.split('/')
   const modelID = modelParts.join('/')
 
@@ -43,7 +43,7 @@ function parseModel(model: string): ResolvedOpenCodeModel | null {
   }
 }
 
-function buildAvailableModels(response: OpenCodeProviderResponse): Set<string> {
+function buildAvailableModels(response: PiInternalProviderResponse): Set<string> {
   const availableModels = new Set<string>()
 
   for (const provider of response.providers ?? []) {
@@ -63,25 +63,25 @@ function uniqueCandidates(candidates: Array<string | null | undefined>): string[
   return [...new Set(normalizedCandidates)]
 }
 
-async function fetchOpenCodeConfig(client: OpenCodeClient, directory?: string): Promise<OpenCodeConfigResponse> {
-  return client.getJson<OpenCodeConfigResponse>('/config', { directory })
+async function fetchPiInternalConfig(client: PiInternalClient, directory?: string): Promise<PiInternalConfigResponse> {
+  return client.getJson<PiInternalConfigResponse>('/config', { directory })
 }
 
-async function fetchOpenCodeProviders(client: OpenCodeClient, directory?: string): Promise<OpenCodeProviderResponse> {
-  return client.getJson<OpenCodeProviderResponse>('/config/providers', { directory })
+async function fetchPiInternalProviders(client: PiInternalClient, directory?: string): Promise<PiInternalProviderResponse> {
+  return client.getJson<PiInternalProviderResponse>('/config/providers', { directory })
 }
 
-export async function resolveOpenCodeModel(
-  client: OpenCodeClient,
+export async function resolvePiInternalModel(
+  client: PiInternalClient,
   directory: string | undefined,
   options?: {
     preferredModel?: string | null
     preferSmallModel?: boolean
   },
-): Promise<ResolvedOpenCodeModel> {
+): Promise<ResolvedPiInternalModel> {
   const [config, providersResponse] = await Promise.all([
-    fetchOpenCodeConfig(client, directory),
-    fetchOpenCodeProviders(client, directory),
+    fetchPiInternalConfig(client, directory),
+    fetchPiInternalProviders(client, directory),
   ])
 
   const availableModels = buildAvailableModels(providersResponse)

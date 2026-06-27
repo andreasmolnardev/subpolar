@@ -20,7 +20,7 @@ vi.mock('@/api/subpolar', () => ({
 
 vi.mock('@/api/settings', () => ({
   settingsApi: {
-    reloadOpenCodeConfig: vi.fn(),
+    reloadConfig: vi.fn(),
   },
 }))
 
@@ -127,10 +127,10 @@ describe('useSSE', () => {
 
     await waitFor(() => {
       expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ['opencode', 'session', 'http://localhost:5551', 'session-1', '/repo'],
+        queryKey: ['subpolar', 'session', 'http://localhost:5551', 'session-1', '/repo'],
       })
       expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+        queryKey: ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       })
     })
 
@@ -280,7 +280,7 @@ describe('useSSE', () => {
 
     await waitFor(() => {
       expect(setQueryDataSpy).toHaveBeenCalledWith(
-        ['opencode', 'session', 'http://localhost:5551', 'session-2', '/repo'],
+        ['subpolar', 'session', 'http://localhost:5551', 'session-2', '/repo'],
         sessionData,
       )
     })
@@ -305,7 +305,7 @@ describe('useSSE', () => {
     )
 
     queryClient.setQueryData(
-      ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+      ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
       [],
     )
     useSessionStatus.getState().setOptimisticActive('session-1')
@@ -472,14 +472,14 @@ describe('useSSE', () => {
 
       // Seed both directory caches before rendering the hook
       queryClient.setQueryData(
-        ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo-a'],
+        ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo-a'],
         [{
           ...assistantMessage('session-1', 'message-1'),
           parts: [createTextPart('session-1', 'message-1', 'part-1', 'A')],
         }],
       )
       queryClient.setQueryData(
-        ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo-b'],
+        ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo-b'],
         [{
           ...assistantMessage('session-1', 'message-1'),
           parts: [createTextPart('session-1', 'message-1', 'part-1', 'B')],
@@ -524,12 +524,12 @@ describe('useSSE', () => {
       })
 
       const repoBData = queryClient.getQueryData<MessageWithParts[]>([
-        'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo-b',
+        'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo-b',
       ])
       expect(repoBData![0].parts[0]).toHaveProperty('text', 'B + streamed')
 
       const repoAData = queryClient.getQueryData<MessageWithParts[]>([
-        'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo-a',
+        'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo-a',
       ])
       expect(repoAData![0].parts[0]).toHaveProperty('text', 'A')
 
@@ -556,7 +556,7 @@ describe('useSSE', () => {
 
       // Seed cache with an empty part
       queryClient.setQueryData(
-        ['opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
+        ['subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo'],
         [{
           ...assistantMessage('session-1', 'message-1'),
           parts: [createTextPart('session-1', 'message-1', 'part-1', '')],
@@ -600,7 +600,7 @@ describe('useSSE', () => {
 
       await waitFor(() => {
         const data = queryClient.getQueryData<MessageWithParts[]>([
-          'opencode', 'messages', 'http://localhost:5551', 'session-1', '/repo',
+          'subpolar', 'messages', 'http://localhost:5551', 'session-1', '/repo',
         ])
         expect(data![0].parts[0]).toHaveProperty('text', 'streamed content')
       })

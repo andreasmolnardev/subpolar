@@ -192,7 +192,7 @@ export const useModelStore = create<ModelStore>()(
     },
     }),
     {
-      name: 'opencode-model-selection',
+      name: 'subpolar-model-selection',
       version: 2,
       migrate: modelStoreMigrate,
       partialize: modelStorePartialize,

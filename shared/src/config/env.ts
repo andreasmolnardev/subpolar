@@ -58,7 +58,7 @@ const generateDefaultSecret = (): string => {
 
 const defaultHealthWatchEnabled = getEnvString('NODE_ENV', 'development') === 'test'
   ? false
-  : DEFAULTS.OPENCODE.HEALTH_WATCH_ENABLED
+  : DEFAULTS.PI_INTERNAL.HEALTH_WATCH_ENABLED
 
 export const ENV = {
   SERVER: {
@@ -68,13 +68,13 @@ export const ENV = {
     NODE_ENV: getEnvString('NODE_ENV', 'development'),
   },
 
-  OPENCODE: {
-    PORT: getEnvNumber('OPENCODE_SERVER_PORT', DEFAULTS.OPENCODE.PORT),
-    HOST: getEnvString('OPENCODE_HOST', DEFAULTS.OPENCODE.HOST),
-    PUBLIC_URL: getEnvString('OPENCODE_PUBLIC_URL', ''), // Public URL for OAuth callbacks
+  PI_INTERNAL: {
+    PORT: getEnvNumber('OPENCODE_SERVER_PORT', DEFAULTS.PI_INTERNAL.PORT),
+    HOST: getEnvString('OPENCODE_HOST', DEFAULTS.PI_INTERNAL.HOST),
+    PUBLIC_URL: getEnvString('OPENCODE_PUBLIC_URL', ''),
     HEALTH_WATCH_ENABLED: getEnvBoolean('OPENCODE_HEALTH_WATCH_ENABLED', defaultHealthWatchEnabled),
-    HEALTH_POLL_MS: getEnvNumber('OPENCODE_HEALTH_POLL_MS', DEFAULTS.OPENCODE.HEALTH_POLL_MS),
-    HEALTH_FAILURE_THRESHOLD: getEnvNumber('OPENCODE_HEALTH_FAILURE_THRESHOLD', DEFAULTS.OPENCODE.HEALTH_FAILURE_THRESHOLD),
+    HEALTH_POLL_MS: getEnvNumber('OPENCODE_HEALTH_POLL_MS', DEFAULTS.PI_INTERNAL.HEALTH_POLL_MS),
+    HEALTH_FAILURE_THRESHOLD: getEnvNumber('OPENCODE_HEALTH_FAILURE_THRESHOLD', DEFAULTS.PI_INTERNAL.HEALTH_FAILURE_THRESHOLD),
     SERVER_PASSWORD: getEnvString('OPENCODE_SERVER_PASSWORD', ''),
     SERVER_USERNAME: getEnvString('OPENCODE_SERVER_USERNAME', 'opencode'),
   },
@@ -139,7 +139,7 @@ export const ENV = {
 export const getWorkspacePath = () => ENV.WORKSPACE.BASE_PATH
 export const getReposPath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSPACE.REPOS_DIR)
 export const getConfigPath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSPACE.CONFIG_DIR)
-export const getOpenCodeConfigFilePath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSPACE.CONFIG_DIR, 'opencode.json')
+export const getPiConfigFilePath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSPACE.CONFIG_DIR, 'opencode.json')
 export const getAgentsMdPath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSPACE.CONFIG_DIR, 'AGENTS.md')
 export const getAuthPath = () => path.join(ENV.WORKSPACE.BASE_PATH, ENV.WORKSPACE.AUTH_FILE)
 export const getPiModelsPath = () => path.join(ENV.WORKSPACE.BASE_PATH, '.subpolar', 'pi', 'models.json')
@@ -164,7 +164,7 @@ export const getApiUrl = (port: number = ENV.SERVER.PORT): string => {
 }
 
 export const SERVER_CONFIG = ENV.SERVER
-export const OPENCODE_CONFIG = ENV.OPENCODE
+export const PI_CONFIG = ENV.PI_INTERNAL
 export const FILE_LIMITS = ENV.FILE_LIMITS
 export const TIMEOUTS = ENV.TIMEOUTS
 export const WORKSPACE = ENV.WORKSPACE

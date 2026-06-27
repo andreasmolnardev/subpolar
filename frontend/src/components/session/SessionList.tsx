@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Trash2, Pencil, X } from "lucide-react";
 
 interface SessionListProps {
-  opcodeUrl: string;
+  apiUrl: string;
   directory?: string;
   directories?: string[];
   createDirectory?: string;
@@ -19,7 +19,7 @@ interface SessionListProps {
 }
 
 export const SessionList = ({
-  opcodeUrl,
+  apiUrl,
   directory,
   directories,
   createDirectory,
@@ -38,9 +38,9 @@ export const SessionList = ({
     `${session.directory ?? primaryDirectory ?? ''}:${session.id}`,
   [primaryDirectory]);
   const [searchQuery, setSearchQuery] = useState("");
-  const { data: sessions, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useSessionsAcrossDirectories(opcodeUrl, directoriesList, { search: searchQuery, limit: 25 });
-  const deleteSession = useDeleteSession(opcodeUrl, directoriesList);
-  const createSession = useCreateSession(opcodeUrl, sessionCreateDirectory, (newSession) => {
+  const { data: sessions, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useSessionsAcrossDirectories(apiUrl, directoriesList, { search: searchQuery, limit: 25 });
+  const deleteSession = useDeleteSession(apiUrl, directoriesList);
+  const createSession = useCreateSession(apiUrl, sessionCreateDirectory, (newSession) => {
     onSelectSession(newSession.id);
   });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);

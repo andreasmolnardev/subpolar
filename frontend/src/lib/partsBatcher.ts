@@ -69,7 +69,7 @@ function appendPart(
 
 export function createPartsBatcher(
   queryClient: QueryClient,
-  opcodeUrl: string,
+  apiUrl: string,
 ): PartsBatcher {
   const pendingOperations = new Map<string, OperationGroup>()
   let pendingFrameId: number | null = null
@@ -109,7 +109,7 @@ export function createPartsBatcher(
       }
 
       const { sessionID, directory } = group
-      const queryKey = messagesQueryKey(opcodeUrl, sessionID, directory)
+      const queryKey = messagesQueryKey(apiUrl, sessionID, directory)
       const currentData = queryClient.getQueryData<MessageWithParts[]>(queryKey)
 
       if (!currentData) {

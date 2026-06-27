@@ -40,7 +40,7 @@ export function AddMcpServerDialog({ open, onOpenChange, onUpdate }: AddMcpServe
 
   const addMcpServerMutation = useMutation({
     mutationFn: async () => {
-      const config = await settingsApi.getDefaultOpenCodeConfig()
+      const config = await settingsApi.getDefaultPiConfig()
       if (!config) throw new Error('No default config found')
       
       const currentMcp = (config.content?.mcp as Record<string, unknown>) || {}
@@ -93,7 +93,7 @@ export function AddMcpServerDialog({ open, onOpenChange, onUpdate }: AddMcpServe
         },
       }
 
-      await settingsApi.updateOpenCodeConfig(config.name, { content: updatedConfig })
+      await settingsApi.updatePiConfig(config.name, { content: updatedConfig })
       
       if (enabled) {
         const buildOauthField = () => {
@@ -128,7 +128,7 @@ export function AddMcpServerDialog({ open, onOpenChange, onUpdate }: AddMcpServe
     },
     onSuccess: async () => {
       if (onUpdate) {
-        const config = await settingsApi.getDefaultOpenCodeConfig()
+        const config = await settingsApi.getDefaultPiConfig()
         if (config) {
           await onUpdate(config.name, config.content)
         }

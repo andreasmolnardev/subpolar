@@ -18,7 +18,7 @@ vi.mock('@/api/projects', () => ({
 
 vi.mock('@/api/settings', () => ({
   settingsApi: {
-    getOpenCodeConfigs: vi.fn().mockResolvedValue({ configs: [], defaultConfig: null }),
+    getPiConfigs: vi.fn().mockResolvedValue({ configs: [], defaultConfig: null }),
   },
 }))
 

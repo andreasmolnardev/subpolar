@@ -37,8 +37,8 @@ function parseArgs(args: string[]): { agentId: string; command: string[] } {
 async function readToken(): Promise<string> {
   if (process.env.SUBPOLAR_INTERNAL_TOKEN) return process.env.SUBPOLAR_INTERNAL_TOKEN
   const paths = [
-    `${process.cwd()}/.opencode/internal-token`,
-    `${process.cwd()}/general-chat/.opencode/internal-token`,
+    `${process.cwd()}/.subpolar/internal-token`,
+    `${process.cwd()}/general-chat/.subpolar/internal-token`,
   ]
   for (const path of paths) {
     const file = Bun.file(path)

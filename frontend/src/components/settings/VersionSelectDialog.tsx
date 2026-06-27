@@ -17,14 +17,14 @@ export function VersionSelectDialog({ open, onOpenChange }: VersionSelectDialogP
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null)
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['opencode-versions'],
-    queryFn: () => settingsApi.getOpenCodeVersions(),
+    queryKey: ['subpolar-versions'],
+    queryFn: () => settingsApi.getPiVersions(),
     enabled: open,
     staleTime: 60000,
   })
 
   const installMutation = useMutation({
-    mutationFn: (version: string) => settingsApi.installOpenCodeVersion(version),
+    mutationFn: (version: string) => settingsApi.installPiVersion(version),
     onSuccess: (result) => {
       if (result.newVersion) {
         queryClient.setQueryData(['health'], (old: Record<string, unknown> | undefined) => {
@@ -32,13 +32,13 @@ export function VersionSelectDialog({ open, onOpenChange }: VersionSelectDialogP
           return { ...old, opencodeVersion: result.newVersion }
         })
       }
-      queryClient.invalidateQueries({ queryKey: ['opencode-versions'] })
+      queryClient.invalidateQueries({ queryKey: ['subpolar-versions'] })
       invalidateConfigCaches(queryClient)
       showToast.success(result.message)
       onOpenChange(false)
     },
     onError: (error) => {
-      queryClient.invalidateQueries({ queryKey: ['opencode-versions'] })
+      queryClient.invalidateQueries({ queryKey: ['subpolar-versions'] })
       invalidateConfigCaches(queryClient)
       
       if (error && typeof error === 'object' && 'response' in error) {

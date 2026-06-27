@@ -6,24 +6,24 @@ import type {
   EventStreamStatusHandler,
   EventStreamTransport,
   GlobalMonitorSubscription,
-  OpenCodeEventHandler,
+  EventHandler,
 } from './types'
 
 interface Subscriber {
   id: string
-  onEvent: OpenCodeEventHandler
+  onEvent: EventHandler
   onStatusChange?: EventStreamStatusHandler
   onHealthChange?: (state: EventStreamHealthState) => void
   directories: Set<string>
 }
 
-interface OpenCodeEventStreamOptions {
+interface EventStreamOptions {
   transport?: EventStreamTransport
 }
 
 const { RECONNECT_DELAY_MS, MAX_RECONNECT_DELAY_MS, STALL_THRESHOLD_MS, WATCHDOG_TICK_MS } = DEFAULTS.SSE
 
-export class OpenCodeEventStream {
+export class EventStream {
   private connection: { close(): void } | null = null
   private readonly transport: EventStreamTransport
   private subscribers = new Map<string, Subscriber>()
@@ -39,13 +39,13 @@ export class OpenCodeEventStream {
   private upstreamConnectedCount: number | null = null
   private upstreamTotalCount: number | null = null
 
-  constructor(options: OpenCodeEventStreamOptions = {}) {
+  constructor(options: EventStreamOptions = {}) {
     this.transport = options.transport ?? createBrowserEventStreamTransport()
   }
 
   subscribeGlobalMonitor(input: {
     directories: string[]
-    onEvent: OpenCodeEventHandler
+    onEvent: EventHandler
     onStatusChange?: EventStreamStatusHandler
     onHealthChange?: (state: EventStreamHealthState) => void
   }): GlobalMonitorSubscription {
@@ -64,7 +64,7 @@ export class OpenCodeEventStream {
   }
 
   private addSubscriber(
-    onEvent: OpenCodeEventHandler,
+    onEvent: EventHandler,
     onStatusChange?: EventStreamStatusHandler,
     onHealthChange?: (state: EventStreamHealthState) => void,
     directories: string[] = [],
@@ -429,4 +429,4 @@ function flattenEventEnvelope(parsed: unknown): unknown {
   return parsed
 }
 
-export const openCodeEventStream = new OpenCodeEventStream()
+export const eventStream = new EventStream()

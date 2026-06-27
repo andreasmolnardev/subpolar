@@ -152,7 +152,7 @@ export interface NewProviderConfig {
   npm?: string
 }
 
-interface OpenCodeModelDialogProps {
+interface ModelDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (providerId: string, modelId: string, model: ConfigModel, newProvider?: NewProviderConfig) => void
@@ -166,7 +166,7 @@ interface OpenCodeModelDialogProps {
   }
 }
 
-export function OpenCodeModelDialog({
+export function ModelDialog({
   open,
   onOpenChange,
   onSubmit,
@@ -174,7 +174,7 @@ export function OpenCodeModelDialog({
   existingProviders,
   selectedProviderId,
   editingModel,
-}: OpenCodeModelDialogProps) {
+}: ModelDialogProps) {
   const getDefaultValues = useCallback((): ModelFormValues => {
     if (editingModel) {
       const extraEntries = Object.fromEntries(

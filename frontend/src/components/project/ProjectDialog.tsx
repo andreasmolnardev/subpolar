@@ -14,7 +14,7 @@ import { showToast } from '@/lib/toast'
 const projectFormSchema = z.object({
   name: z.string().min(1, 'Project name is required'),
   directory: z.string().optional(),
-  openCodeConfigName: z.string().optional(),
+  piConfigName: z.string().optional(),
 })
 
 type ProjectFormValues = z.infer<typeof projectFormSchema>
@@ -34,7 +34,7 @@ export function ProjectDialog({ open, onOpenChange }: ProjectDialogProps) {
     defaultValues: {
       name: '',
       directory: '',
-      openCodeConfigName: '',
+      piConfigName: '',
     },
   })
 
@@ -43,7 +43,7 @@ export function ProjectDialog({ open, onOpenChange }: ProjectDialogProps) {
       createProject({
         name: values.name,
         directory: values.directory || undefined,
-        openCodeConfigName: values.openCodeConfigName || undefined,
+        piConfigName: values.piConfigName || undefined,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] })
@@ -110,7 +110,7 @@ export function ProjectDialog({ open, onOpenChange }: ProjectDialogProps) {
 
             <FormField
               control={form.control}
-              name="openCodeConfigName"
+              name="piConfigName"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>OpenCode Config (optional)</FormLabel>

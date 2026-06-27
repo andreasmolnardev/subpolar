@@ -5,7 +5,7 @@ import { messagesQueryKey } from '@/lib/queryInvalidation'
 import type { MessageWithParts } from '@/api/types'
 
 interface UseUndoMessageOptions {
-  opcodeUrl: string | null
+  apiUrl: string | null
   sessionId: string
   directory?: string
   onSuccess?: (restoredPrompt: string) => void
@@ -16,7 +16,7 @@ interface UndoMessageContext {
 }
 
 export function useUndoMessage({ 
-  opcodeUrl, 
+  apiUrl, 
   sessionId, 
   directory,
   onSuccess 
@@ -25,14 +25,14 @@ export function useUndoMessage({
 
   return useMutation<string, Error, { messageID: string; messageContent: string }, UndoMessageContext>({
     mutationFn: async ({ messageID, messageContent }: { messageID: string, messageContent: string }) => {
-      if (!opcodeUrl) throw new Error('Subpolar URL not available')
+      if (!apiUrl) throw new Error('Subpolar URL not available')
       
-      const client = createSubpolarClient(opcodeUrl, directory)
+      const client = createSubpolarClient(apiUrl, directory)
       await client.revertMessage(sessionId, { messageID })
       return messageContent
     },
     onMutate: async ({ messageID }) => {
-      const queryKey = messagesQueryKey(opcodeUrl, sessionId, directory)
+      const queryKey = messagesQueryKey(apiUrl, sessionId, directory)
       
       await queryClient.cancelQueries({ queryKey })
       
@@ -51,7 +51,7 @@ export function useUndoMessage({
     onError: (_error, _variables, _context: UndoMessageContext | undefined) => {
       if (_context?.previousMessages) {
         queryClient.setQueryData(
-          messagesQueryKey(opcodeUrl, sessionId, directory),
+          messagesQueryKey(apiUrl, sessionId, directory),
           _context.previousMessages
         )
       }
@@ -60,10 +60,10 @@ export function useUndoMessage({
     },
     onSuccess: (restoredPrompt) => {
       queryClient.invalidateQueries({
-        queryKey: messagesQueryKey(opcodeUrl, sessionId, directory)
+        queryKey: messagesQueryKey(apiUrl, sessionId, directory)
       })
       queryClient.invalidateQueries({
-        queryKey: ['opencode', 'session', opcodeUrl, sessionId, directory]
+        queryKey: ['subpolar', 'session', apiUrl, sessionId, directory]
       })
       onSuccess?.(restoredPrompt)
     }

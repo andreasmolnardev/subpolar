@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { useSubpolarClient } from './useOpenCode'
 
-export function useLSPStatus(opcodeUrl: string | null | undefined, directory?: string) {
-  const client = useSubpolarClient(opcodeUrl, directory)
+export function useLSPStatus(apiUrl: string | null | undefined, directory?: string) {
+  const client = useSubpolarClient(apiUrl, directory)
 
   return useQuery({
-    queryKey: ['opencode', 'lsp', opcodeUrl, directory],
+    queryKey: ['subpolar', 'lsp', apiUrl, directory],
     queryFn: () => client!.getLSPStatus(),
     enabled: !!client,
     refetchInterval: 30000,

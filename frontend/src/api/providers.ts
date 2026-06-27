@@ -4,7 +4,7 @@ import { fetchWrapper } from "./fetchWrapper";
 
 export type ProviderSource = "configured" | "local" | "builtin";
 
-export interface OpenCodeModel {
+export interface PiModel {
   id: string;
   providerID: string;
   name: string;
@@ -51,13 +51,13 @@ export interface OpenCodeModel {
   variants?: Record<string, Record<string, unknown>>;
 }
 
-export interface OpenCodeProvider {
+export interface PiProvider {
   id: string;
   source: "custom" | "builtin";
   name: string;
   env: string[];
   options: Record<string, unknown>;
-  models: Record<string, OpenCodeModel>;
+  models: Record<string, PiModel>;
 }
 
 export interface Model {
@@ -156,7 +156,7 @@ export interface ModelSelection {
   modelID: string;
 }
 
-export interface OpenCodeModelState {
+export interface PiModelState {
   recent: ModelSelection[];
   favorite: ModelSelection[];
   variant: Record<string, string | undefined>;
@@ -199,8 +199,8 @@ function enabledModalities(capabilities: Record<string, boolean> | undefined): (
 }
 
 
-interface OpenCodeProviderResponse {
-  all: OpenCodeProvider[];
+interface PiProviderResponse {
+  all: PiProvider[];
   connected: string[];
   default: Record<string, string>;
 }
@@ -211,57 +211,57 @@ export interface ProvidersResult {
   default: Record<string, string>;
 }
 
-async function getProvidersFromOpenCodeServer(directory?: string): Promise<ProvidersResult> {
+export async function getProviders(directory?: string): Promise<ProvidersResult> {
   try {
-    const response = await fetchWrapper<OpenCodeProviderResponse>(`${API_BASE_URL}/api/provider`, {
+    const response = await fetchWrapper<PiProviderResponse>(`${API_BASE_URL}/api/provider`, {
       params: { directory },
     });
 
     if (response?.all && Array.isArray(response.all)) {
       const connectedSet = new Set(response.connected || []);
 
-      const providers = response.all.map((openCodeProvider: OpenCodeProvider) => {
+      const providers: Provider[] = response.all.map((piProvider: PiProvider) => {
         const models: Record<string, Model> = {};
 
-        Object.entries(openCodeProvider.models).forEach(([modelId, openCodeModel]) => {
-          const capabilities = openCodeModel.capabilities;
+        Object.entries(piProvider.models).forEach(([modelId, piModel]) => {
+          const capabilities = piModel.capabilities;
           models[modelId] = {
-            id: openCodeModel.api?.id || openCodeModel.id || modelId,
+            id: piModel.api?.id || piModel.id || modelId,
             key: modelId,
-            name: openCodeModel.name || openCodeModel.id || modelId,
+            name: piModel.name || piModel.id || modelId,
             attachment: capabilities?.attachment ?? capabilities?.input?.image ?? false,
             reasoning: capabilities?.reasoning ?? false,
             temperature: capabilities?.temperature ?? false,
             tool_call: capabilities?.toolcall ?? true,
             cost: {
-              input: openCodeModel.cost?.input ?? 0,
-              output: openCodeModel.cost?.output ?? 0,
-              cache_read: openCodeModel.cost?.cache?.read ?? 0,
-              cache_write: openCodeModel.cost?.cache?.write ?? 0,
+              input: piModel.cost?.input ?? 0,
+              output: piModel.cost?.output ?? 0,
+              cache_read: piModel.cost?.cache?.read ?? 0,
+              cache_write: piModel.cost?.cache?.write ?? 0,
             },
             limit: {
-              context: openCodeModel.limit?.context ?? 0,
-              output: openCodeModel.limit?.output ?? 0,
+              context: piModel.limit?.context ?? 0,
+              output: piModel.limit?.output ?? 0,
             },
             modalities: {
               input: enabledModalities(capabilities?.input),
               output: enabledModalities(capabilities?.output),
             },
             provider: {
-              npm: openCodeModel.api?.npm ?? "pi",
+              npm: piModel.api?.npm ?? "pi",
             },
-            variants: openCodeModel.variants,
+            variants: piModel.variants,
           };
         });
 
         return {
-          id: openCodeProvider.id,
-          name: openCodeProvider.name,
-          env: openCodeProvider.env,
-          source: openCodeProvider.source === "custom" ? "configured" : "builtin",
+          id: piProvider.id,
+          name: piProvider.name,
+          env: piProvider.env,
+          source: piProvider.source === "custom" ? "configured" : "builtin",
           models,
-          options: openCodeProvider.options,
-          isConnected: connectedSet.has(openCodeProvider.id),
+          options: piProvider.options,
+          isConnected: connectedSet.has(piProvider.id),
         };
       });
 
@@ -274,32 +274,28 @@ async function getProvidersFromOpenCodeServer(directory?: string): Promise<Provi
   return { providers: [], connected: [], default: {} };
 }
 
-export async function getProviders(directory?: string): Promise<ProvidersResult> {
-  return await getProvidersFromOpenCodeServer(directory);
+export async function getPiModelState(): Promise<PiModelState> {
+  return await fetchWrapper<PiModelState>(`${API_BASE_URL}/api/providers/model-state`);
 }
 
-export async function getOpenCodeModelState(): Promise<OpenCodeModelState> {
-  return await fetchWrapper<OpenCodeModelState>(`${API_BASE_URL}/api/providers/model-state`);
-}
-
-export async function addOpenCodeRecentModel(model: ModelSelection): Promise<OpenCodeModelState> {
-  return await fetchWrapper<OpenCodeModelState>(`${API_BASE_URL}/api/providers/model-state`, {
+export async function addPiRecentModel(model: ModelSelection): Promise<PiModelState> {
+  return await fetchWrapper<PiModelState>(`${API_BASE_URL}/api/providers/model-state`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ recent: model }),
   });
 }
 
-export async function removeOpenCodeRecentModel(model: ModelSelection): Promise<OpenCodeModelState> {
-  return await fetchWrapper<OpenCodeModelState>(`${API_BASE_URL}/api/providers/model-state`, {
+export async function removePiRecentModel(model: ModelSelection): Promise<PiModelState> {
+  return await fetchWrapper<PiModelState>(`${API_BASE_URL}/api/providers/model-state`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ removeRecent: model }),
   });
 }
 
-export async function toggleOpenCodeFavoriteModel(model: ModelSelection): Promise<OpenCodeModelState> {
-  return await fetchWrapper<OpenCodeModelState>(`${API_BASE_URL}/api/providers/model-state`, {
+export async function togglePiFavoriteModel(model: ModelSelection): Promise<PiModelState> {
+  return await fetchWrapper<PiModelState>(`${API_BASE_URL}/api/providers/model-state`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ favorite: model }),
@@ -308,7 +304,7 @@ export async function toggleOpenCodeFavoriteModel(model: ModelSelection): Promis
 
 async function getConfiguredProviders(connectedIds: Set<string>): Promise<ProviderWithModels[]> {
   try {
-    const config = await settingsApi.getDefaultOpenCodeConfig();
+    const config = await settingsApi.getDefaultPiConfig();
     if (!config?.content?.provider) return [];
 
     const configProviders = config.content.provider as Record<string, ConfigProvider>;

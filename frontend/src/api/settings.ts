@@ -1,12 +1,12 @@
 import type { 
   SettingsResponse, 
   UpdateSettingsRequest, 
-  OpenCodeConfig,
-  OpenCodeConfigResponse,
-  CreateOpenCodeConfigRequest,
-  UpdateOpenCodeConfigRequest,
-  OpenCodeImportStatus,
-  SyncOpenCodeImportResponse,
+  PiConfig,
+  PiConfigResponse,
+  CreatePiConfigRequest,
+  UpdatePiConfigRequest,
+  PiImportStatus,
+  SyncPiImportResponse,
   SkillFileInfo,
   CreateSkillRequest,
   UpdateSkillRequest,
@@ -78,17 +78,17 @@ export const settingsApi = {
     return fetchWrapper(`${API_BASE_URL}/api/settings/calendar/upcoming`)
   },
 
-  getOpenCodeConfigs: async (userId = DEFAULT_USER_ID): Promise<OpenCodeConfigResponse> => {
-    return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-configs`, {
+  getPiConfigs: async (userId = DEFAULT_USER_ID): Promise<PiConfigResponse> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/pi-settings`, {
       params: { userId },
     })
   },
 
-  createOpenCodeConfig: async (
-    request: CreateOpenCodeConfigRequest,
+  createPiConfig: async (
+    request: CreatePiConfigRequest,
     userId = DEFAULT_USER_ID
-  ): Promise<OpenCodeConfig> => {
-    return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-configs`, {
+  ): Promise<PiConfig> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/pi-settings`, {
       method: 'POST',
       params: { userId },
       headers: { 'Content-Type': 'application/json' },
@@ -96,13 +96,13 @@ export const settingsApi = {
     })
   },
 
-  updateOpenCodeConfig: async (
+  updatePiConfig: async (
     configName: string,
-    request: UpdateOpenCodeConfigRequest,
+    request: UpdatePiConfigRequest,
     userId = DEFAULT_USER_ID
-  ): Promise<OpenCodeConfig> => {
+  ): Promise<PiConfig> => {
     return fetchWrapper(
-      `${API_BASE_URL}/api/settings/opencode-configs/${encodeURIComponent(configName)}`,
+      `${API_BASE_URL}/api/settings/pi-settings/${encodeURIComponent(configName)}`,
       {
         method: 'PUT',
         params: { userId },
@@ -112,12 +112,12 @@ export const settingsApi = {
     )
   },
 
-  deleteOpenCodeConfig: async (
+  deletePiConfig: async (
     configName: string,
     userId = DEFAULT_USER_ID
   ): Promise<boolean> => {
     await fetchWrapper(
-      `${API_BASE_URL}/api/settings/opencode-configs/${encodeURIComponent(configName)}`,
+      `${API_BASE_URL}/api/settings/pi-settings/${encodeURIComponent(configName)}`,
       {
         method: 'DELETE',
         params: { userId },
@@ -126,12 +126,12 @@ export const settingsApi = {
     return true
   },
 
-  setDefaultOpenCodeConfig: async (
+  setDefaultPiConfig: async (
     configName: string,
     userId = DEFAULT_USER_ID
-  ): Promise<OpenCodeConfig> => {
+  ): Promise<PiConfig> => {
     return fetchWrapper(
-      `${API_BASE_URL}/api/settings/opencode-configs/${encodeURIComponent(configName)}/set-default`,
+      `${API_BASE_URL}/api/settings/pi-settings/${encodeURIComponent(configName)}/set-default`,
       {
         method: 'POST',
         params: { userId },
@@ -141,9 +141,9 @@ export const settingsApi = {
     )
   },
 
-  getDefaultOpenCodeConfig: async (userId = DEFAULT_USER_ID): Promise<OpenCodeConfig | null> => {
+  getDefaultPiConfig: async (userId = DEFAULT_USER_ID): Promise<PiConfig | null> => {
     try {
-      return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-configs/default`, {
+      return fetchWrapper(`${API_BASE_URL}/api/settings/pi-settings/default`, {
         params: { userId },
       })
     } catch {
@@ -151,22 +151,22 @@ export const settingsApi = {
     }
   },
 
-  restartOpenCodeServer: async (): Promise<{ success: boolean; message: string; details?: string }> => {
-    return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-restart`, {
+  restartServer: async (): Promise<{ success: boolean; message: string; details?: string }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/pi-restart`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     })
   },
 
-  reloadOpenCodeConfig: async (): Promise<{ success: boolean; message: string; details?: string }> => {
+  reloadConfig: async (): Promise<{ success: boolean; message: string; details?: string }> => {
     try {
-      return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-reload`, {
+      return fetchWrapper(`${API_BASE_URL}/api/settings/pi-reload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
     } catch (error) {
       if (error instanceof FetchError && error.statusCode === 404) {
-        return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-restart`, {
+        return fetchWrapper(`${API_BASE_URL}/api/settings/pi-restart`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         })
@@ -175,26 +175,26 @@ export const settingsApi = {
     }
   },
 
-  rollbackOpenCodeConfig: async (): Promise<{ success: boolean; message: string; configName?: string }> => {
-    return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-rollback`, {
+  rollbackConfig: async (): Promise<{ success: boolean; message: string; configName?: string }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/pi-rollback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     })
   },
 
-  getOpenCodeImportStatus: async (): Promise<OpenCodeImportStatus> => {
-    return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-import/status`)
+  getPiImportStatus: async (): Promise<PiImportStatus> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/pi-import/status`)
   },
 
-  syncOpenCodeImport: async (overwriteState = false): Promise<SyncOpenCodeImportResponse> => {
-    return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-import`, {
+  syncPiImport: async (overwriteState = false): Promise<SyncPiImportResponse> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/pi-import`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ overwriteState }),
     })
   },
 
-  getOpenCodeVersions: async (): Promise<{
+  getPiVersions: async (): Promise<{
     versions: Array<{
       version: string
       tag: string
@@ -203,10 +203,10 @@ export const settingsApi = {
     }>
     currentVersion: string | null
   }> => {
-    return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-versions`)
+    return fetchWrapper(`${API_BASE_URL}/api/settings/pi-versions`)
   },
 
-  installOpenCodeVersion: async (version: string): Promise<{
+  installPiVersion: async (version: string): Promise<{
     success: boolean
     message: string
     oldVersion?: string
@@ -214,14 +214,14 @@ export const settingsApi = {
     recovered?: boolean
     recoveryMessage?: string
   }> => {
-    return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-install-version`, {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/pi-install-version`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version }),
     })
   },
 
-  upgradeOpenCode: async (): Promise<{
+  upgradePi: async (): Promise<{
     success: boolean
     message: string
     oldVersion?: string
@@ -230,7 +230,7 @@ export const settingsApi = {
     recovered?: boolean
     recoveryMessage?: string
   }> => {
-    return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-upgrade`, {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/pi-upgrade`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     })
@@ -354,17 +354,17 @@ export interface AgentToolPolicy {
   effect: AgentToolPolicyEffect
 }
 
-export interface OpenCodeServerAuthStatus {
+export interface ServerAuthStatus {
   isSet: boolean
   source: 'db' | 'env' | 'none'
 }
 
-export async function getOpenCodeServerAuth(): Promise<OpenCodeServerAuthStatus> {
-  return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-server-auth`)
+export async function getServerAuth(): Promise<ServerAuthStatus> {
+  return fetchWrapper(`${API_BASE_URL}/api/settings/pi-server-auth`)
 }
 
-export async function updateOpenCodeServerAuth(password: string | null): Promise<OpenCodeServerAuthStatus> {
-  return fetchWrapper(`${API_BASE_URL}/api/settings/opencode-server-auth`, {
+export async function updateServerAuth(password: string | null): Promise<ServerAuthStatus> {
+  return fetchWrapper(`${API_BASE_URL}/api/settings/pi-server-auth`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),

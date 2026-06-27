@@ -10,7 +10,7 @@ import { useSessionTodos } from '@/stores/sessionTodosStore'
 import { useSettings } from '@/hooks/useSettings'
 import type { components } from '@/api/opencode-types'
 import type { Todo } from '@/components/message/SessionTodoDisplay'
-import type { OpenCodeError } from '@/lib/opencode-errors'
+import type { RuntimeError } from '@/lib/opencode-errors'
 
 function getMessageTextContent(parts: Part[]): string {
   return parts
@@ -21,7 +21,7 @@ function getMessageTextContent(parts: Part[]): string {
 }
 
 interface MessageThreadProps {
-  opcodeUrl: string
+  apiUrl: string
   sessionID: string
   directory?: string
   messages?: MessageWithParts[]
@@ -173,7 +173,7 @@ interface MessageRowProps {
   onUndoMessage?: (restoredPrompt: string) => void
   editingUserMessageId: string | null
   editingForAssistantId: string | null
-  opcodeUrl: string
+  apiUrl: string
   sessionID: string
   directory?: string
   onFileClick?: (filePath: string, lineNumber?: number) => void
@@ -194,7 +194,7 @@ const MessageRow = memo(function MessageRow({
   onUndoMessage,
   editingUserMessageId,
   editingForAssistantId,
-  opcodeUrl,
+  apiUrl,
   sessionID,
   directory,
   onFileClick,
@@ -301,7 +301,7 @@ const MessageRow = memo(function MessageRow({
           
           {msg.role === 'user' && canUndoUserMessage && (
             <UserMessageActionButtons
-              opcodeUrl={opcodeUrl}
+              apiUrl={apiUrl}
               sessionId={sessionID}
               directory={directory}
               userMessageId={msg.id}
@@ -346,7 +346,7 @@ const MessageRow = memo(function MessageRow({
             <div className="space-y-2">
               {msg.role === 'user' && isEditingThisMessage && editingForAssistantId ? (
                 <EditableUserMessage
-                  opcodeUrl={opcodeUrl}
+                  apiUrl={apiUrl}
                   sessionId={sessionID}
                   directory={directory}
                   content={messageTextContent}
@@ -384,7 +384,7 @@ const MessageRow = memo(function MessageRow({
                 ))
               ) : null}
               {hasError && (
-                <MessageError error={msg.error as OpenCodeError} />
+                <MessageError error={msg.error as RuntimeError} />
               )}
             </div>
           </div>
@@ -415,7 +415,7 @@ const MessageRow = memo(function MessageRow({
 })
 
 export const MessageThread = memo(function MessageThread({ 
-  opcodeUrl, 
+  apiUrl, 
   sessionID, 
   directory, 
   messages, 
@@ -529,7 +529,7 @@ export const MessageThread = memo(function MessageThread({
           onUndoMessage={onUndoMessage}
           editingUserMessageId={editingUserMessageId}
           editingForAssistantId={editingForAssistantId}
-          opcodeUrl={opcodeUrl}
+          apiUrl={apiUrl}
           sessionID={sessionID}
           directory={directory}
           onFileClick={onFileClick}

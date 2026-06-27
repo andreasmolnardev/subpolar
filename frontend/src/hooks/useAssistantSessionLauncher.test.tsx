@@ -40,7 +40,7 @@ describe('useAssistantSessionLauncher', () => {
     })
     const onNavigate = vi.fn()
     const { result } = renderHook(() => useAssistantSessionLauncher({
-      opcodeUrl: 'http://localhost:5551',
+      apiUrl: 'http://localhost:5551',
       directory: '/assistant',
       onNavigate,
     }))
@@ -72,7 +72,7 @@ describe('useAssistantSessionLauncher', () => {
       })
     const onNavigate = vi.fn()
     const { result } = renderHook(() => useAssistantSessionLauncher({
-      opcodeUrl: 'http://localhost:5551',
+      apiUrl: 'http://localhost:5551',
       directory: '/assistant',
       onNavigate,
     }))
@@ -96,7 +96,7 @@ describe('useAssistantSessionLauncher', () => {
     mocks.createSession.mockResolvedValue({ id: 'created' })
     const onNavigate = vi.fn()
     const { result } = renderHook(() => useAssistantSessionLauncher({
-      opcodeUrl: 'http://localhost:5551',
+      apiUrl: 'http://localhost:5551',
       directory: '/assistant',
       onNavigate,
     }))
@@ -138,7 +138,7 @@ describe('useAssistantSessionLauncher', () => {
     mocks.sendPromptAsync.mockImplementation(() => promptPromise)
     const onNavigate = vi.fn()
     const { result } = renderHook(() => useAssistantSessionLauncher({
-      opcodeUrl: 'http://localhost:5551',
+      apiUrl: 'http://localhost:5551',
       directory: '/assistant',
       onNavigate,
     }))
@@ -165,7 +165,7 @@ describe('useAssistantSessionLauncher', () => {
     mocks.sendPromptAsync.mockRejectedValueOnce(new Error('provider unavailable'))
     const onNavigate = vi.fn()
     const { result } = renderHook(() => useAssistantSessionLauncher({
-      opcodeUrl: 'http://localhost:5551',
+      apiUrl: 'http://localhost:5551',
       directory: '/assistant',
       onNavigate,
     }))
@@ -181,7 +181,7 @@ describe('useAssistantSessionLauncher', () => {
   it('rejects when the assistant directory is unavailable', async () => {
     const onNavigate = vi.fn()
     const { result } = renderHook(() => useAssistantSessionLauncher({
-      opcodeUrl: 'http://localhost:5551',
+      apiUrl: 'http://localhost:5551',
       onNavigate,
     }))
 

@@ -18,7 +18,7 @@ export const useSessionAgentStore = create<SessionAgentStore>()(
       getAgent: (sessionID: string) => get().agents[sessionID] ?? null,
     }),
     {
-      name: 'opencode-session-agents',
+      name: 'subpolar-session-agents',
       partialize: (state) => ({ agents: state.agents }),
     }
   )

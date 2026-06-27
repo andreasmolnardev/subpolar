@@ -17,14 +17,14 @@ export function ServerHealthStatus({ onOpenVersionDialog }: ServerHealthStatusPr
   const { data: health } = useServerHealth()
 
   const restartServerMutation = useMutation({
-    mutationFn: async () => settingsApi.restartOpenCodeServer(),
+    mutationFn: async () => settingsApi.restartServer(),
     onSuccess: () => {
       invalidateConfigCaches(queryClient)
     },
   })
 
-  const upgradeOpenCodeMutation = useMutation({
-    mutationFn: async () => settingsApi.upgradeOpenCode(),
+  const upgradePiMutation = useMutation({
+    mutationFn: async () => settingsApi.upgradePi(),
     onSuccess: (data) => {
       if (data.upgraded && data.newVersion) {
         queryClient.setQueryData(['health'], (old: Record<string, unknown> | undefined) => {
@@ -109,7 +109,7 @@ export function ServerHealthStatus({ onOpenVersionDialog }: ServerHealthStatusPr
               onClick={async () => {
                 showToast.loading('Upgrading OpenCode...', { id: 'upgrade-opencode' })
                 try {
-                  await upgradeOpenCodeMutation.mutateAsync()
+                  await upgradePiMutation.mutateAsync()
                 } catch (error) {
                   const errorMessage = error && typeof error === 'object' && 'response' in error
                     ? ((error as { response?: { data?: { details?: string; error?: string } } }).response?.data?.details
@@ -119,9 +119,9 @@ export function ServerHealthStatus({ onOpenVersionDialog }: ServerHealthStatusPr
                   showToast.error(errorMessage, { id: 'upgrade-opencode' })
                 }
               }}
-              disabled={upgradeOpenCodeMutation.isPending}
+              disabled={upgradePiMutation.isPending}
             >
-              {upgradeOpenCodeMutation.isPending ? (
+              {upgradePiMutation.isPending ? (
                 <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 animate-spin" />
               ) : (
                 <ArrowUpCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />

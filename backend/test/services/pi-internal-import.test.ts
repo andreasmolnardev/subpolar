@@ -37,7 +37,7 @@ import { readdir, rm, cp, mkdtemp, rename } from 'fs/promises'
 import { Database as SQLiteDatabase } from 'bun:sqlite'
 import { ensureDirectoryExists, fileExists, readFileContent, writeFileContent } from '../../src/services/file-operations'
 import { SettingsService } from '../../src/services/settings'
-import { getOpenCodeImportStatus, syncOpenCodeImport } from '../../src/services/opencode-import'
+import { getPiInternalImportStatus, syncPiInternalImport } from '../../src/services/pi-internal-import'
 
 const mockReaddir = readdir as unknown as ReturnType<typeof vi.fn>
 const mockFileExists = fileExists as ReturnType<typeof vi.fn>
@@ -49,7 +49,7 @@ const MockSQLiteDatabase = SQLiteDatabase as unknown as ReturnType<typeof vi.fn>
 const mockMkdtemp = mkdtemp as unknown as ReturnType<typeof vi.fn>
 const mockRename = rename as unknown as ReturnType<typeof vi.fn>
 
-describe('opencode-import service', () => {
+describe('pi-internal-import service', () => {
   const mockDb = {} as unknown as Database
   const settingsService = {
     getOpenCodeConfigByName: vi.fn(),
@@ -86,7 +86,7 @@ describe('opencode-import service', () => {
       return false
     })
 
-    const status = await getOpenCodeImportStatus()
+    const status = await getPiInternalImportStatus()
 
     expect(status).toEqual({
       configSourcePath: '/import/opencode-config/opencode.json',
@@ -110,7 +110,7 @@ describe('opencode-import service', () => {
 
     settingsService.getOpenCodeConfigByName.mockReturnValue({ name: 'default' })
 
-    const result = await syncOpenCodeImport({
+    const result = await syncPiInternalImport({
       db: mockDb,
       userId: 'default',
       overwriteState: true,
@@ -144,7 +144,7 @@ describe('opencode-import service', () => {
         || candidate === '/import/opencode-state'
     })
 
-    const result = await syncOpenCodeImport({
+    const result = await syncPiInternalImport({
       db: mockDb,
       userId: 'default',
       overwriteState: true,
@@ -170,7 +170,7 @@ describe('opencode-import service', () => {
 
     MockSQLiteDatabase.mockImplementationOnce(() => readonlyDatabase)
 
-    const { getImportedSessionDirectories } = await import('../../src/services/opencode-import')
+    const { getImportedSessionDirectories } = await import('../../src/services/pi-internal-import')
     const result = await getImportedSessionDirectories('/tmp/workspace/.opencode/state/opencode')
 
     expect(result.directories).toEqual([
@@ -200,7 +200,7 @@ describe('opencode-import service', () => {
       return false
     })
 
-    const status = await getOpenCodeImportStatus()
+    const status = await getPiInternalImportStatus()
 
     expect(status.configSourcePath).toBe('/import/opencode-config/opencode.json')
     expect(status.stateSourcePath).toBeNull()
@@ -208,7 +208,7 @@ describe('opencode-import service', () => {
   })
 
   it('prevents destructive self-import when source and target resolve to same directory', async () => {
-    const { importOpenCodeStateDirectory } = await import('../../src/services/opencode-import')
+    const { importOpenCodeStateDirectory } = await import('../../src/services/pi-internal-import')
 
     const samePath = '/shared/opencode-state'
     mockFileExists.mockResolvedValue(true)
@@ -236,7 +236,7 @@ describe('opencode-import service', () => {
         || candidate === '/tmp/workspace/.opencode/state/opencode/opencode.db'
     })
 
-    await expect(syncOpenCodeImport({
+    await expect(syncPiInternalImport({
       db: mockDb,
       userId: 'default',
       overwriteState: false,
@@ -248,7 +248,7 @@ describe('opencode-import service', () => {
   })
 
   it('stages imported state before replacing the target directory', async () => {
-    const { importOpenCodeStateDirectory } = await import('../../src/services/opencode-import')
+    const { importOpenCodeStateDirectory } = await import('../../src/services/pi-internal-import')
 
     const sourcePath = '/import/opencode-state'
     const targetPath = '/workspace/.opencode/state/opencode'
@@ -294,7 +294,7 @@ describe('opencode-import service', () => {
   })
 
   it('cleans up the staged import directory when snapshotting fails', async () => {
-    const { importOpenCodeStateDirectory } = await import('../../src/services/opencode-import')
+    const { importOpenCodeStateDirectory } = await import('../../src/services/pi-internal-import')
 
     const sourcePath = '/import/opencode-state'
     const targetPath = '/workspace/.opencode/state/opencode'

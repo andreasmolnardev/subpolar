@@ -21,7 +21,6 @@ Open [http://localhost:5003](http://localhost:5003) in your browser.
 
 The container automatically:
 
-- Installs OpenCode if not present
 - Builds and serves the frontend
 - Creates persistent volumes for workspace and database
 - Configures health checks and auto-restart
@@ -45,15 +44,15 @@ docker-compose logs -f
 docker-compose restart
 
 # Access container shell
-docker exec -it opencode-manager sh
+docker exec -it subpolar sh
 ```
 
 ### Volumes
 
 | Volume | Container Path | Purpose |
 |--------|---------------|---------|
-| `opencode-workspace` | `/workspace` | Repository storage |
-| `opencode-data` | `/app/data` | Database and config |
+| `subpolar-workspace` | `/workspace` | Repository storage |
+| `subpolar-data` | `/app/data` | Database and config |
 
 ## Local Development
 
@@ -63,7 +62,6 @@ For contributors who want to develop locally instead of using Docker.
 
 - [pnpm](https://pnpm.io/installation) - Package manager (required for workspaces)
 - [Bun](https://bun.sh) - Backend runtime
-- [OpenCode TUI](https://opencode.ai) - `curl -fsSL https://opencode.ai/install | bash`
 - [Node.js 24+](https://nodejs.org/en/about/previous-releases)
 
 ### Setup

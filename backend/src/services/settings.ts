@@ -1,6 +1,6 @@
 import type PocketBase from 'pocketbase'
 import { unlinkSync, existsSync } from 'fs'
-import { getOpenCodeConfigFilePath } from '@subpolar/shared/config/env'
+import { getPiConfigFilePath } from '@subpolar/shared/config/env'
 import { logger } from '../utils/logger'
 import { parseJsonc } from '@subpolar/shared/utils'
 import { z } from 'zod'
@@ -9,12 +9,12 @@ import { ENV } from '@subpolar/shared/config/env'
 import type { 
   UserPreferences, 
   SettingsResponse, 
-  CreateOpenCodeConfigRequest,
-  UpdateOpenCodeConfigRequest
+  CreatePiConfigRequest as CreateOpenCodeConfigRequest,
+  UpdatePiConfigRequest as UpdateOpenCodeConfigRequest
 } from '../types/settings'
 import {
   UserPreferencesSchema,
-  OpenCodeConfigSchema,
+  PiConfigSchema as OpenCodeConfigSchema,
   DEFAULT_USER_PREFERENCES,
 } from '../types/settings'
 
@@ -554,7 +554,7 @@ export class SettingsService {
   }
 
   deleteFilesystemConfig(): boolean {
-    const configPath = getOpenCodeConfigFilePath()
+    const configPath = getPiConfigFilePath()
 
     if (!existsSync(configPath)) {
       logger.warn('Config file does not exist:', configPath)
@@ -577,7 +577,7 @@ export class SettingsService {
       const value = (record as unknown as { value: string }).value
       return decryptSecret(value)
     } catch {
-      return ENV.OPENCODE.SERVER_PASSWORD
+      return ENV.PI_INTERNAL.SERVER_PASSWORD
     }
   }
 

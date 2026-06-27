@@ -6,7 +6,7 @@ import { invalidateConfigCaches, invalidateSettingsCaches } from '@/lib/queryInv
 import { fetchWrapper } from '@/api/fetchWrapper'
 import { useSettingsDialog } from '@/hooks/useSettingsDialog'
 
-const MISSING_PASSWORD_ERROR_PATTERN = /no password is configured|OPENCODE_SERVER_PASSWORD/i
+const MISSING_PASSWORD_ERROR_PATTERN = /no password is configured|SERVER_PASSWORD/i
 
 function isMissingPasswordError(error: string | undefined): boolean {
   return !!error && MISSING_PASSWORD_ERROR_PATTERN.test(error)
@@ -38,7 +38,7 @@ export function useServerHealth(enabled = true) {
 
   const restartMutation = useMutation({
     mutationFn: async () => {
-      return await settingsApi.reloadOpenCodeConfig()
+      return await settingsApi.reloadConfig()
     },
     onSuccess: () => {
       invalidateConfigCaches(queryClient)
@@ -56,7 +56,7 @@ export function useServerHealth(enabled = true) {
 
   const rollbackMutation = useMutation({
     mutationFn: async () => {
-      return await settingsApi.rollbackOpenCodeConfig()
+      return await settingsApi.rollbackConfig()
     },
     onSuccess: (data) => {
       invalidateSettingsCaches(queryClient)
@@ -89,15 +89,15 @@ export function useServerHealth(enabled = true) {
 
     if (isUnhealthy && missingPassword && !hasAutoOpenedSettingsRef.current && !isSettingsOpen) {
       hasAutoOpenedSettingsRef.current = true
-      setActiveTab('opencode')
-      toast.error(health.error || 'OpenCode server requires a password', {
+      setActiveTab('runtime')
+      toast.error(health.error || 'Server requires a password', {
         id: 'server-health-password',
         duration: Infinity,
-        description: 'Set a password under Settings → OpenCode to start the server.',
+        description: 'Set a password under Settings to start the server.',
       })
     } else if (prevHealth && currentStatus !== prevHealth) {
       if (isUnhealthy && previousStatus === 'healthy') {
-        toast.error(health.error || 'OpenCode server is currently unhealthy', {
+        toast.error(health.error || 'Server is currently unhealthy', {
           id: 'server-health-unhealthy',
           duration: Infinity,
           action: {

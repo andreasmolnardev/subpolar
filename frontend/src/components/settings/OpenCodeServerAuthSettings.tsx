@@ -1,17 +1,17 @@
 import { useState } from 'react'
-import { useOpenCodeServerAuth } from '@/hooks/useOpenCodeServerAuth'
+import { useServerAuth } from '@/hooks/useOpenCodeServerAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertTriangle, CheckCircle2, ChevronDown, Eye, EyeOff, XCircle } from 'lucide-react'
 
-interface OpenCodeServerAuthSettingsProps {
+interface ServerAuthSettingsProps {
   isOpen?: boolean
   onToggle?: () => void
 }
 
-export function OpenCodeServerAuthSettings({ isOpen: controlledOpen, onToggle }: OpenCodeServerAuthSettingsProps = {}) {
-  const { status, setPassword, clearPassword } = useOpenCodeServerAuth()
+export function ServerAuthSettings({ isOpen: controlledOpen, onToggle }: ServerAuthSettingsProps = {}) {
+  const { status, setPassword, clearPassword } = useServerAuth()
   const [password, setPasswordValue] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [uncontrolledOpen, setUncontrolledOpen] = useState(true)

@@ -7,7 +7,7 @@ import { listProjects } from '@/api/projects'
 import { updateStoredSession } from '@/api/sessions'
 import type { PermissionRequest, PermissionResponse, QuestionRequest, SSEEvent, SSHHostKeyRequest, MessageWithParts } from '@/api/types'
 import { showToast } from '@/lib/toast'
-import { openCodeEventStream, type EventStreamHealthState } from '@/lib/opencode-event-stream'
+import { eventStream, type EventStreamHealthState } from '@/lib/opencode-event-stream'
 import { OPENCODE_API_ENDPOINT } from '@/config'
 import { addToSessionKeyedState, removeFromSessionKeyedState } from '@/lib/sessionKeyedState'
 
@@ -65,7 +65,7 @@ function optimisticallyErrorToolPart(
   
   for (const query of queries) {
     const key = query.queryKey
-    if (key[0] === 'opencode' && key[1] === 'messages' && key.length >= 5) {
+    if (key[0] === 'subpolar' && key[1] === 'messages' && key.length >= 5) {
       const querySessionID = key[3] as string
       if (querySessionID !== sessionID) continue
       
@@ -162,7 +162,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
 
   const [sshHostKeyRequest, setSSHHostKeyRequest] = useState<SSHHostKeyRequest | null>(null)
-  const [sseHealth, setSseHealth] = useState<EventStreamHealthState>(() => openCodeEventStream.getHealth())
+  const [sseHealth, setSseHealth] = useState<EventStreamHealthState>(() => eventStream.getHealth())
 
   const respondToSSHHostKey = useCallback(async (requestId: string, approved: boolean) => {
     try {
@@ -182,7 +182,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
   const sessionDirectoriesRef = useRef<Map<string, string>>(new Map())
   const prevPermissionCountRef = useRef(0)
   const initialFetchDoneRef = useRef(false)
-  const subscriptionRef = useRef<ReturnType<typeof openCodeEventStream.subscribeGlobalMonitor> | null>(null)
+  const subscriptionRef = useRef<ReturnType<typeof eventStream.subscribeGlobalMonitor> | null>(null)
   const reposRef = useRef<typeof repos>(null)
   const MAX_CACHED_CLIENTS = 50
 
@@ -218,7 +218,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
 
     for (const query of queries) {
       const key = query.queryKey
-      if (key[0] === 'opencode' && key[1] === 'session' && key.length >= 5) {
+      if (key[0] === 'subpolar' && key[1] === 'session' && key.length >= 5) {
         const sessionData = query.state.data as { id: string } | undefined
         if (sessionData?.id === sessionID) {
           const directory = key[4] as string
@@ -229,7 +229,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
 
     for (const query of queries) {
       const key = query.queryKey
-      if (key[0] === 'opencode' && key[1] === 'sessions' && key.length >= 4) {
+      if (key[0] === 'subpolar' && key[1] === 'sessions' && key.length >= 4) {
         const sessionsData = query.state.data
         if (!sessionsData) continue
 
@@ -494,14 +494,14 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
               sessionID
             )
             queryClient.invalidateQueries({ 
-              queryKey: ['opencode', 'messages'],
+              queryKey: ['subpolar', 'messages'],
               predicate: (query) => query.queryKey.includes(sessionID)
             })
           }
           break
         case 'lsp.updated':
           queryClient.invalidateQueries({
-            queryKey: ['opencode', 'lsp']
+            queryKey: ['subpolar', 'lsp']
           })
           break
         case 'session.created':
@@ -529,7 +529,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     }
 
     const initialDirectories = [...new Set((reposRef.current ?? []).map(r => r.fullPath))]
-    const subscription = openCodeEventStream.subscribeGlobalMonitor({
+    const subscription = eventStream.subscribeGlobalMonitor({
       directories: initialDirectories,
       onEvent: handleSSEMessage,
       onStatusChange: handleStatusChange,

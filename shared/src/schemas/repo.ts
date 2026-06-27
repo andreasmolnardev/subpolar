@@ -14,7 +14,7 @@ export const RepoSchema = z.object({
   clonedAt: z.number(),
   lastPulled: z.number().optional(),
   lastAccessedAt: z.number().optional(),
-  openCodeConfigName: z.string().optional(),
+  piConfigName: z.string().optional(),
   isWorktree: z.boolean().optional(),
   isLocal: z.boolean().optional(),
 })
@@ -28,7 +28,7 @@ export const CreateRepoRequestSchema = z.object({
   localPath: z.string().optional(),
   branch: z.string().optional(),
   directoryName: z.string().optional(),
-  openCodeConfigName: z.string().optional(),
+  piConfigName: z.string().optional(),
   useWorktree: z.boolean().optional(),
   skipSSHVerification: z.boolean().optional(),
 }).refine(
@@ -82,7 +82,7 @@ export const GeneralChatStatusSchema = z.object({
   })).optional(),
   files: z.object({
     agentsMd: GeneralChatFileSchema,
-    opencodeJson: GeneralChatFileSchema,
+    piConfigJson: GeneralChatFileSchema,
   }),
   agents: z.array(AgentFileInfoSchema),
   internalToken: z.object({
@@ -121,7 +121,7 @@ export const GeneralChatStatusSchema = z.object({
     path: z.string(),
     created: z.boolean(),
   }).optional(),
-  opencodeContextSkill: z.object({
+  piContextSkill: z.object({
     path: z.string(),
     created: z.boolean(),
   }).optional(),
@@ -150,5 +150,5 @@ export const GeneralChatStatusSchema = z.object({
 
 export const GeneralChatInitRequestSchema = z.object({
   overwriteAgentsMd: z.boolean().optional(),
-  overwriteOpenCodeConfig: z.boolean().optional(),
+  overwritePiConfig: z.boolean().optional(),
 })

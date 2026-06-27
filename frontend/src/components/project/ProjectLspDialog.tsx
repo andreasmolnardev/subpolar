@@ -5,12 +5,12 @@ import { useLSPStatus } from '@/hooks/useLSPStatus'
 interface ProjectLspDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  opcodeUrl: string | null | undefined
+  apiUrl: string | null | undefined
   directory?: string
 }
 
-export function ProjectLspDialog({ open, onOpenChange, opcodeUrl, directory }: ProjectLspDialogProps) {
-  const { isLoading, data } = useLSPStatus(opcodeUrl, directory)
+export function ProjectLspDialog({ open, onOpenChange, apiUrl, directory }: ProjectLspDialogProps) {
+  const { isLoading, data } = useLSPStatus(apiUrl, directory)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -79,7 +79,7 @@ describe('useLSPStatus', () => {
       expect(result.current.isSuccess).toBe(true)
     })
 
-    const queryState = queryClient.getQueryState(['opencode', 'lsp', 'http://localhost:5551', '/test'])
+    const queryState = queryClient.getQueryState(['subpolar', 'lsp', 'http://localhost:5551', '/test'])
     expect(queryState).toBeTruthy()
     expect(queryState?.status).toBe('success')
   })
@@ -156,7 +156,7 @@ describe('useLSPStatus', () => {
       expect(result.current.isSuccess).toBe(true)
     })
 
-    const observer = queryClient.getQueryCache().find({ queryKey: ['opencode', 'lsp', 'http://localhost:5551', '/test'] })
+    const observer = queryClient.getQueryCache().find({ queryKey: ['subpolar', 'lsp', 'http://localhost:5551', '/test'] })
     expect((observer?.options as any).refetchInterval).toBe(30000)
   })
 
@@ -179,7 +179,7 @@ describe('useLSPStatus', () => {
       expect(result.current.isSuccess).toBe(true)
     })
 
-    const observer = queryClient.getQueryCache().find({ queryKey: ['opencode', 'lsp', 'http://localhost:5551', '/test'] })
+    const observer = queryClient.getQueryCache().find({ queryKey: ['subpolar', 'lsp', 'http://localhost:5551', '/test'] })
     expect((observer?.options as any).staleTime).toBe(10000)
   })
 
@@ -202,7 +202,7 @@ describe('useLSPStatus', () => {
       expect(result.current.isSuccess).toBe(true)
     })
 
-    const observer = queryClient.getQueryCache().find({ queryKey: ['opencode', 'lsp', 'http://localhost:5551', '/test'] })
+    const observer = queryClient.getQueryCache().find({ queryKey: ['subpolar', 'lsp', 'http://localhost:5551', '/test'] })
     expect((observer?.options as any).refetchOnWindowFocus).toBe(true)
   })
 })

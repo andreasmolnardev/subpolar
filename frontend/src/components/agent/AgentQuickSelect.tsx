@@ -12,7 +12,7 @@ import { useAgents } from '@/hooks/useOpenCode'
 import { getAgentStyleVars } from '@/lib/agent-colors'
 
 interface AgentQuickSelectProps {
-  opcodeUrl: string | null | undefined
+  apiUrl: string | null | undefined
   directory?: string
   currentAgent: string
   onAgentChange: (agent: string) => void
@@ -50,14 +50,14 @@ const bashStyleVars: Record<string, string> = {
 }
 
 export function AgentQuickSelect({
-  opcodeUrl,
+  apiUrl,
   directory,
   currentAgent,
   onAgentChange,
   isBashMode = false,
   disabled = false,
 }: AgentQuickSelectProps) {
-  const { data: agents = [] } = useAgents(opcodeUrl, directory)
+  const { data: agents = [] } = useAgents(apiUrl, directory)
 
   const primaryAgents = useMemo(() => {
     return agents.filter(

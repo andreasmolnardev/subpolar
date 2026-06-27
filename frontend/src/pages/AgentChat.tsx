@@ -46,8 +46,8 @@ export function AgentChat() {
   const { data: runtimeAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, generalChatDirectory)
 
   const { data: configs } = useQuery({
-    queryKey: ['opencode-configs'],
-    queryFn: () => settingsApi.getOpenCodeConfigs(),
+    queryKey: ['subpolar-configs'],
+    queryFn: () => settingsApi.getPiConfigs(),
   })
 
   const { data: managedSkills = [] } = useQuery({
