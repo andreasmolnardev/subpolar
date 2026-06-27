@@ -52,31 +52,12 @@ const resolveWorkspacePath = (): string => {
   return path.resolve(DEFAULTS.WORKSPACE.BASE_PATH)
 }
 
-const generateDefaultSecret = (): string => {
-  return randomBytes(32).toString('base64').slice(0, 32)
-}
-
-const defaultHealthWatchEnabled = getEnvString('NODE_ENV', 'development') === 'test'
-  ? false
-  : DEFAULTS.PI_INTERNAL.HEALTH_WATCH_ENABLED
-
 export const ENV = {
   SERVER: {
     PORT: getEnvNumber('PORT', DEFAULTS.SERVER.PORT),
     HOST: getEnvString('HOST', DEFAULTS.SERVER.HOST),
     CORS_ORIGIN: getEnvString('CORS_ORIGIN', DEFAULTS.SERVER.CORS_ORIGIN),
     NODE_ENV: getEnvString('NODE_ENV', 'development'),
-  },
-
-  PI_INTERNAL: {
-    PORT: getEnvNumber('OPENCODE_SERVER_PORT', DEFAULTS.PI_INTERNAL.PORT),
-    HOST: getEnvString('OPENCODE_HOST', DEFAULTS.PI_INTERNAL.HOST),
-    PUBLIC_URL: getEnvString('OPENCODE_PUBLIC_URL', ''),
-    HEALTH_WATCH_ENABLED: getEnvBoolean('OPENCODE_HEALTH_WATCH_ENABLED', defaultHealthWatchEnabled),
-    HEALTH_POLL_MS: getEnvNumber('OPENCODE_HEALTH_POLL_MS', DEFAULTS.PI_INTERNAL.HEALTH_POLL_MS),
-    HEALTH_FAILURE_THRESHOLD: getEnvNumber('OPENCODE_HEALTH_FAILURE_THRESHOLD', DEFAULTS.PI_INTERNAL.HEALTH_FAILURE_THRESHOLD),
-    SERVER_PASSWORD: getEnvString('OPENCODE_SERVER_PASSWORD', ''),
-    SERVER_USERNAME: getEnvString('OPENCODE_SERVER_USERNAME', 'opencode'),
   },
 
   POCKETBASE: {
@@ -120,7 +101,7 @@ export const ENV = {
   },
 
   AUTH: {
-    SECRET: getEnvString('AUTH_SECRET', process.env.NODE_ENV === 'production' ? '' : generateDefaultSecret()),
+    SECRET: getEnvString('AUTH_SECRET', process.env.NODE_ENV === 'production' ? '' : randomBytes(32).toString('base64').slice(0, 32)),
     TRUSTED_ORIGINS: getEnvString('AUTH_TRUSTED_ORIGINS', 'http://localhost:5173,http://localhost:5003'),
     SECURE_COOKIES: getEnvBoolean('AUTH_SECURE_COOKIES', getEnvString('NODE_ENV', 'development') === 'production'),
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,
@@ -164,7 +145,6 @@ export const getApiUrl = (port: number = ENV.SERVER.PORT): string => {
 }
 
 export const SERVER_CONFIG = ENV.SERVER
-export const PI_CONFIG = ENV.PI_INTERNAL
 export const FILE_LIMITS = ENV.FILE_LIMITS
 export const TIMEOUTS = ENV.TIMEOUTS
 export const WORKSPACE = ENV.WORKSPACE

@@ -354,23 +354,6 @@ export interface AgentToolPolicy {
   effect: AgentToolPolicyEffect
 }
 
-export interface ServerAuthStatus {
-  isSet: boolean
-  source: 'db' | 'env' | 'none'
-}
-
-export async function getServerAuth(): Promise<ServerAuthStatus> {
-  return fetchWrapper(`${API_BASE_URL}/api/settings/pi-server-auth`)
-}
-
-export async function updateServerAuth(password: string | null): Promise<ServerAuthStatus> {
-  return fetchWrapper(`${API_BASE_URL}/api/settings/pi-server-auth`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password }),
-  })
-}
-
 export interface ManagerTokenResponse {
   token: string
 }

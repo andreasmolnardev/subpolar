@@ -352,31 +352,4 @@ Global instructions merge with repository-specific `AGENTS.md` files. Repository
 
 ## Pi Runtime
 
-Subpolar uses the Pi runtime for agent sessions. The Pi server runs internally and handles agent execution.
-
-### Configuration
-
-The Pi runtime is configured through environment variables:
-
-- `PI_SERVER_PORT` — Port for the Pi server (default: 5551)
-- `PI_HOST` — Host to bind to (default: 127.0.0.1)
-
-### Accessing Pi Directly
-
-For advanced use cases, you may need direct access to the Pi server. By default, it binds to `127.0.0.1` inside the container and is **not reachable from outside the container**.
-
-To expose the Pi server on the host network:
-
-1. **Set `PI_HOST=0.0.0.0`** in your environment
-2. **Add port `5551:5551`** to the compose ports
-
-Example compose override:
-
-```yaml
-services:
-  app:
-    ports:
-      - "5551:5551"
-    environment:
-      - PI_HOST=0.0.0.0
-```
+Subpolar uses the Pi SDK for agent sessions. There is no separate Pi server port to configure or expose.

@@ -164,8 +164,6 @@ export const DEFAULT_SERVER_ENV_VARS = [
 ] as const satisfies readonly ServerEnvVar[];
 
 export const BLOCKED_SERVER_ENV_KEYS = [
-  'OPENCODE_SERVER_PASSWORD',
-  'OPENCODE_SERVER_USERNAME',
   'OPENCODE_CONFIG',
   'XDG_DATA_HOME',
   'XDG_STATE_HOME',

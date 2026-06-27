@@ -94,19 +94,6 @@ When configured, users can enable push notifications in Settings → Notificatio
 |----------|-------------|---------|
 | `WORKSPACE_PATH` | Path to workspace directory | `./workspace` (Docker: `/workspace`) |
 
-## OpenCode Server
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OPENCODE_SERVER_PORT` | Port for the OpenCode CLI server | `5551` |
-| `OPENCODE_HOST` | OpenCode server bind address | `127.0.0.1` |
-| `OPENCODE_PUBLIC_URL` | Public URL passed to OpenCode for OAuth callbacks | - |
-| `OPENCODE_HEALTH_WATCH_ENABLED` | Enable OpenCode health watcher and recovery | `true` (`false` in tests) |
-| `OPENCODE_HEALTH_POLL_MS` | OpenCode health watcher poll interval | `30000` |
-| `OPENCODE_HEALTH_FAILURE_THRESHOLD` | Failed health checks before recovery starts | `2` |
-| `OPENCODE_SERVER_PASSWORD` | Basic Auth password required when binding OpenCode to a non-loopback host. Can also be set via UI (Settings → OpenCode → Server Auth). DB-stored passwords override this env var. | - |
-| `OPENCODE_SERVER_USERNAME` | Basic Auth username | `opencode` |
-
 ## OpenCode Import
 
 | Variable | Description | Default |
@@ -136,7 +123,6 @@ When configured, users can enable push notifications in Settings → Notificatio
 |----------|-------------|---------|
 | `VITE_API_URL` | Backend API URL for frontend | `http://localhost:5003` |
 | `VITE_SERVER_PORT` | Backend port hint for frontend | `5003` |
-| `VITE_OPENCODE_PORT` | OpenCode server port hint | `5551` |
 | `VITE_MAX_FILE_SIZE_MB` | File size limit for frontend | `50` |
 | `VITE_MAX_UPLOAD_SIZE_MB` | Upload size limit for frontend | `50` |
 

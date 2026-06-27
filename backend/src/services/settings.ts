@@ -4,8 +4,6 @@ import { getPiConfigFilePath } from '@subpolar/shared/config/env'
 import { logger } from '../utils/logger'
 import { parseJsonc } from '@subpolar/shared/utils'
 import { z } from 'zod'
-import { encryptSecret, decryptSecret } from '../utils/crypto'
-import { ENV } from '@subpolar/shared/config/env'
 import type { 
   UserPreferences, 
   SettingsResponse, 
@@ -42,12 +40,6 @@ interface OpenCodeConfigResponseWithRaw {
 
 interface CreateOpenCodeConfigOptions {
   suppressAutoDefault?: boolean
-}
-
-interface OpenCodeServerPasswordState {
-  value: string
-  createdAt: number
-  updatedAt: number
 }
 
 interface PrefsRecord {
@@ -571,87 +563,4 @@ export class SettingsService {
     }
   }
 
-  async getOpenCodeServerPassword(): Promise<string> {
-    try {
-      const record = await this.pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"')
-      const value = (record as unknown as { value: string }).value
-      return decryptSecret(value)
-    } catch {
-      return ENV.PI_INTERNAL.SERVER_PASSWORD
-    }
-  }
-
-  async hasStoredOpenCodeServerPassword(): Promise<boolean> {
-    try {
-      await this.pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"')
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  async getStoredOpenCodeServerPasswordState(): Promise<OpenCodeServerPasswordState | null> {
-    try {
-      const record = await this.pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"')
-      const row = record as unknown as { value: string; created_at: number; updated_at: number }
-      return {
-        value: row.value,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }
-    } catch {
-      return null
-    }
-  }
-
-  async restoreOpenCodeServerPasswordState(state: OpenCodeServerPasswordState | null): Promise<void> {
-    if (!state) {
-      await this.clearOpenCodeServerPassword()
-      return
-    }
-
-    try {
-      const existing = await this.pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"')
-      await this.pb.collection('app_secrets').update(existing.id, {
-        value: state.value,
-        created_at: state.createdAt,
-        updated_at: state.updatedAt,
-      })
-    } catch {
-      await this.pb.collection('app_secrets').create({
-        key: 'opencode_server_password',
-        value: state.value,
-        created_at: state.createdAt,
-        updated_at: state.updatedAt,
-      })
-    }
-  }
-
-  async setOpenCodeServerPassword(password: string): Promise<void> {
-    const now = Date.now()
-    const encrypted = encryptSecret(password)
-    try {
-      const existing = await this.pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"')
-      await this.pb.collection('app_secrets').update(existing.id, {
-        value: encrypted,
-        updated_at: now,
-      })
-    } catch {
-      await this.pb.collection('app_secrets').create({
-        key: 'opencode_server_password',
-        value: encrypted,
-        created_at: now,
-        updated_at: now,
-      })
-    }
-  }
-
-  async clearOpenCodeServerPassword(): Promise<void> {
-    try {
-      const existing = await this.pb.collection('app_secrets').getFirstListItem('key = "opencode_server_password"')
-      await this.pb.collection('app_secrets').delete(existing.id)
-    } catch {
-      // ignore
-    }
-  }
 }

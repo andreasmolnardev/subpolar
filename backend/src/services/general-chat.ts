@@ -1309,7 +1309,7 @@ Use this skill before changing or analyzing subpolar application code.
 - Use TypeScript strictly and follow existing route, service, utility, React Query, and Radix/Tailwind patterns.
 - Do not leave dead code, unused imports, commented-out code, or speculative abstractions.
 - Prefer the smallest correct change and verify with targeted tests or \`pnpm lint\` when feasible.
-- OpenCode server runs on port 5551 and the backend API runs on port 5003.
+- The backend API runs on port 5003; Pi agent execution uses the SDK directly.
 `
 }
 
