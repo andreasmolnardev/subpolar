@@ -5,7 +5,7 @@ import type { SkillFileInfo, SkillScope, CreateSkillRequest, UpdateSkillRequest 
 import { SKILL_NAME_REGEX } from '@subpolar/shared'
 import { getWorkspacePath } from '@subpolar/shared/config/env'
 import { ensureDirectoryExists, fileExists, readFileContent, writeFileContent, deletePath, listDirectory } from './file-operations'
-import type { OpenCodeClient } from './opencode/client'
+import type { PiInternalClient as OpenCodeClient } from '../runtime/pi/internal-client-types'
 import { logger } from '../utils/logger'
 import type { Project } from '@subpolar/shared/types'
 import { listProjects, getProjectById } from '../db/projects'

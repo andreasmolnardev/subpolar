@@ -1,4 +1,4 @@
-import type { OpenCodeClient } from './opencode/client'
+import type { PiInternalClient as OpenCodeClient } from '../runtime/pi/internal-client-types'
 
 interface OpenCodeConfigResponse {
   model?: string

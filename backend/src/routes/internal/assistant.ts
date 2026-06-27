@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { OpenCodeClient } from '../../services/opencode/client'
+import type { PiInternalClient as OpenCodeClient } from '../../runtime/pi/internal-client-types'
 import { getGeneralChatDirectory } from '../../services/general-chat'
 import { TokenBucketRateLimiter } from '../../utils/rate-limit'
 

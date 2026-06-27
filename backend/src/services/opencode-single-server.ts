@@ -21,9 +21,6 @@ import { getWorkspacePath, getOpenCodeConfigFilePath, ENV } from '@subpolar/shar
 import { parseJsonc } from '@subpolar/shared/utils'
 import type { Database } from '../db/schema'
 import { compareVersions } from '../utils/version-utils'
-import { patchConfigWithRecovery } from './opencode/config-recovery'
-import type { OpenCodeClient } from './opencode/client'
-import { writeFileContent } from './file-operations'
 
 
 const MIN_OPENCODE_VERSION = '1.0.137'
@@ -39,6 +36,10 @@ type StartupValidationIssue = {
 
 type OpenCodePluginOptions = Record<string, unknown>
 type OpenCodePluginSpec = string | [string, OpenCodePluginOptions]
+
+type PiInternalClient = {
+  forward(req: { method: string; path: string; signal?: AbortSignal }): Promise<Response>
+}
 
 export class ConfigReloadError extends Error {
   validationIssues: StartupValidationIssue[]
@@ -107,7 +108,7 @@ class OpenCodeServerManager {
   private version: string | null = null
   private lastStartupError: string | null = null
   private opInProgress: boolean = false
-  private openCodeClient: OpenCodeClient | null = null
+  private openCodeClient: PiInternalClient | null = null
 
   private constructor() {}
 
@@ -115,14 +116,12 @@ class OpenCodeServerManager {
     this.db = db
   }
 
-  setOpenCodeClient(client: OpenCodeClient) {
+  setOpenCodeClient(client: PiInternalClient) {
     this.openCodeClient = client
   }
 
   async rebuildClient(): Promise<void> {
-    const password = await this.getResolvedPassword()
-    const { createOpenCodeClient } = await import('./opencode/client')
-    this.openCodeClient = createOpenCodeClient(password)
+    return
   }
 
   private async getResolvedPassword(): Promise<string> {
@@ -131,13 +130,6 @@ class OpenCodeServerManager {
       return await settingsService.getOpenCodeServerPassword()
     }
     return ENV.OPENCODE.SERVER_PASSWORD
-  }
-
-  private requireClient(): OpenCodeClient {
-    if (!this.openCodeClient) {
-      throw new Error('OpenCodeClient not configured on OpenCodeServerManager. Call setOpenCodeClient() during startup.')
-    }
-    return this.openCodeClient
   }
 
   static getInstance(): OpenCodeServerManager {
@@ -237,7 +229,7 @@ class OpenCodeServerManager {
     const openCodeServerPort = getOpenCodeServerPort()
     const existingProcesses = await this.findProcessesByPort(openCodeServerPort)
     if (existingProcesses.length > 0) {
-      logger.info(`PiInternal server already running on port ${PiInternalServerPort}`)
+      logger.info(`PiInternal server already running on port ${openCodeServerPort}`)
       const healthy = await this.checkHealth()
       if (healthy) {
         if (isDevelopment) {
@@ -272,8 +264,8 @@ class OpenCodeServerManager {
 
     const openCodeServerDirectory = getOpenCodeServerDirectory()
     const openCodeConfigPath = getOpenCodeConfigPath()
-    logger.info(`PiInternal server working directory: ${PiInternalServerDirectory}`)
-    logger.info(`PiInternal XDG_CONFIG_HOME: ${path.join(PiInternalServerDirectory, '.config')}`)
+    logger.info(`PiInternal server working directory: ${openCodeServerDirectory}`)
+    logger.info(`PiInternal XDG_CONFIG_HOME: ${path.join(openCodeServerDirectory, '.config')}`)
     logger.info(`PiInternal will use ?directory= parameter for session isolation`)
 
     const gitEnv = createGitEnv(gitCredentials)
@@ -411,7 +403,7 @@ class OpenCodeServerManager {
     if (this.version) {
       logger.info(`PiInternal version: ${this.version}`)
       if (!this.isVersionSupported()) {
-        logger.warn(`PiInternal version ${this.version} is below minimum required version ${MIN_PiInternal_VERSION}`)
+        logger.warn(`PiInternal version ${this.version} is below minimum required version ${MIN_OPENCODE_VERSION}`)
         logger.warn('Some features like MCP management may not work correctly')
       }
     }
@@ -631,39 +623,9 @@ class OpenCodeServerManager {
     }
 
     try {
-      logger.info('Reloading PiInternal configuration (via API)')
+      logger.info('Reloading PiInternal configuration')
       try {
-        const configPath = getOpenCodeConfigFilePath()
-        const fileContent = await fs.readFile(configPath, 'utf-8')
-        const fileConfig = parseJsonc(fileContent) as Record<string, unknown>
-        logger.info(`Read config from file for reload: ${configPath}`)
-
-        const patchResult = await patchConfigWithRecovery(this.requireClient(), fileConfig)
-        if (!patchResult.success) {
-          const errorMessage = patchResult.error || 'Failed to reload config'
-          const validationIssues = patchResult.details || []
-          const removedFields = patchResult.removedFields || []
-          if (validationIssues.length > 0) {
-            const issueSummary = validationIssues.map((d) => `${d.path}: ${d.message}`).join('; ')
-            logger.error(`Config reload validation errors: ${issueSummary}`)
-          }
-          if (removedFields.length > 0) {
-            logger.info(`Removed fields during config reload: ${removedFields.join(', ')}`)
-          }
-          throw new ConfigReloadError(errorMessage, validationIssues, removedFields)
-        }
-
-        if (patchResult.removedFields && patchResult.removedFields.length > 0 && patchResult.appliedConfig) {
-          await writeFileContent(configPath, JSON.stringify(patchResult.appliedConfig, null, 2))
-          logger.info(`Persisted cleaned config to ${configPath} after removing fields: ${patchResult.removedFields.join(', ')}`)
-        }
-
-        logger.info('PiInternal configuration reloaded successfully')
-        await new Promise(r => setTimeout(r, 500))
-        const healthy = await this.checkHealth()
-        if (!healthy) {
-          throw new Error('Server unhealthy after config reload')
-        }
+        await this.restart()
       } catch (error) {
         logger.error('Failed to reload PiInternal config:', error)
         throw error

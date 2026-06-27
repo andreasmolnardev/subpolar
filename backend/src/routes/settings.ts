@@ -7,7 +7,7 @@ import type { Database } from '../db/schema'
 import { SettingsService } from '../services/settings'
 import { writeFileContent, readFileContent, fileExists } from '../services/file-operations'
 
-import type { OpenCodeClient } from '../services/opencode/client'
+import type { PiInternalClient as OpenCodeClient } from '../runtime/pi/internal-client-types'
 import { getOpenCodeConfigFilePath, getAgentsMdPath } from '@subpolar/shared/config/env'
 import {
   UserPreferencesSchema,
@@ -462,11 +462,6 @@ export function createSettingsRoutes(db: Database, openCodeClient: OpenCodeClien
         const configPath = getOpenCodeConfigFilePath()
         await writeFileContent(configPath, contentToWrite)
         logger.info(`Wrote default config to: ${configPath}`)
-
-        if (patchResult.removedFields && patchResult.removedFields.length > 0) {
-          logger.info(`Config applied with auto-removed fields: ${patchResult.removedFields.join(', ')}`)
-          return c.json({ ...config, removedFields: patchResult.removedFields })
-        }
 
         return c.json(config)
       }

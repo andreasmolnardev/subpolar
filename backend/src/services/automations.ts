@@ -36,7 +36,7 @@ import {
   computeNextRunAtForJob,
 } from './automation-config'
 import { resolveOpenCodeModel } from './opencode-models'
-import type { OpenCodeClient } from './opencode/client'
+import type { PiInternalClient as OpenCodeClient } from '../runtime/pi/internal-client-types'
 import { sseAggregator, type SSEEvent } from './sse-aggregator'
 import { getErrorMessage } from '../utils/error-utils'
 import { logger } from '../utils/logger'

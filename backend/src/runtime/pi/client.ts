@@ -1,4 +1,4 @@
-import type { ForwardRequest, JsonRequestOptions, OpenCodeClient } from '../../services/opencode/client'
+import type { ForwardRequest, JsonRequestOptions, PiInternalClient as OpenCodeClient } from './internal-client-types'
 
 export class PiNativeClient implements OpenCodeClient {
   async forward(req: ForwardRequest): Promise<Response> {

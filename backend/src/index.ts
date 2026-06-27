@@ -39,7 +39,7 @@ import { createSubpolarCliRoutes } from './routes/subpolar-cli'
 import { sseAggregator } from './services/sse-aggregator'
 import { ensureDirectoryExists, writeFileContent, fileExists } from './services/file-operations'
 import { SettingsService } from './services/settings'
-import type { OpenCodeClient } from './services/opencode/client'
+import type { PiInternalClient as OpenCodeClient } from './runtime/pi/internal-client-types'
 import { NotificationService } from './services/notification'
 import { AutomationRunner, AutomationService } from './services/automations'
 import { migrateGlobalSkills } from './services/skills'
@@ -71,7 +71,6 @@ app.use('/*', async (c, next) => {
   const url = new URL(c.req.url)
   const target = `${url.pathname}${url.search}`
   const origin = c.req.header('origin') ?? '-'
-  const userAgent = c.req.header('user-agent') ?? '-'
 
   c.header('x-request-id', requestId)
   logger.info(`${c.req.method} ${target} origin=${origin}"`)
