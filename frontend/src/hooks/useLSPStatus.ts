@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useSubpolarClient } from './useOpenCode'
+import { useSubpolarClient } from './usePiHarness'
 
 export function useLSPStatus(apiUrl: string | null | undefined, directory?: string) {
   const client = useSubpolarClient(apiUrl, directory)

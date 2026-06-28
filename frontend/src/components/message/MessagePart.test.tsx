@@ -282,6 +282,26 @@ describe('MessagePart', () => {
     expect(screen.getByRole('button')).not.toHaveClass('bg-red-500/20')
   })
 
+  it('renders step-finish metadata without the start time arrow', () => {
+    setup()
+    const toLocaleTimeStringSpy = vi.spyOn(Date.prototype, 'toLocaleTimeString').mockReturnValue('2:37:11 PM')
+    const part = createStepFinishPart(TEST_MESSAGE_ID)
+
+    render(
+      <MessagePart
+        part={part}
+        messageTextContent={TEST_CONTENT}
+        assistantMetadata={{ modelID: 'openai/gpt-oss-20b', created: 1000, completed: 2000 }}
+      />
+    )
+
+    expect(screen.getByText(/openai\/gpt-oss-20b/)).toBeInTheDocument()
+    expect(screen.getByText(/2:37:11 PM/)).toBeInTheDocument()
+    expect(screen.queryByText(/->/)).not.toBeInTheDocument()
+
+    toLocaleTimeStringSpy.mockRestore()
+  })
+
   describe('simpleChatMode', () => {
     const createToolPart = (): MessagePartType => ({
       type: 'tool',

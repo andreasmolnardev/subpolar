@@ -7,6 +7,19 @@ import type { RuntimeRegistry } from '../runtime/registry'
 import { sseAggregator } from '../services/sse-aggregator'
 import { logger } from '../utils/logger'
 
+type StoredToolState = Record<string, unknown>
+
+type StoredToolPart = {
+  callID: string
+  tool: string
+  state: StoredToolState
+}
+
+type StoredAssistantPart =
+  | { type: 'text'; id: string; text: string }
+  | { type: 'reasoning'; id: string; text: string; time: { start: number } }
+  | { type: 'tool'; id: string; callID: string; tool: string; state: StoredToolState }
+
 export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegistry) {
   const app = new Hono()
 
@@ -65,11 +78,12 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
   })
 
   app.post('/:id/messages', async (c) => {
-    const body = await c.req.json().catch(() => ({})) as { role?: unknown; content?: unknown; metadata?: unknown }
+    const body = await c.req.json().catch(() => ({})) as { role?: unknown; content?: unknown; metadata?: unknown; createdAt?: unknown }
     const role = body.role === 'assistant' || body.role === 'system' || body.role === 'tool' ? body.role : 'user'
     const content = typeof body.content === 'string' ? body.content : ''
     const metadata = body.metadata && typeof body.metadata === 'object' ? body.metadata as Record<string, unknown> : {}
-    const message = await createMessage(db, { sessionId: c.req.param('id'), role, content, metadata })
+    const createdAt = typeof body.createdAt === 'number' && Number.isFinite(body.createdAt) ? body.createdAt : undefined
+    const message = await createMessage(db, { sessionId: c.req.param('id'), role, content, metadata, createdAt })
     const directory = c.req.query('directory')
     if (directory) {
       sseAggregator.publish(directory, {
@@ -80,6 +94,7 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
             sessionID: c.req.param('id'),
             role,
             time: { created: message.createdAt },
+            ...getUserMessageInfoMetadata(role, metadata),
           },
         },
       })
@@ -104,9 +119,10 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
   app.post('/:id/runs', async (c) => {
     if (!runtimeRegistry) return c.json({ error: 'Runtime registry is unavailable' }, 503)
 
-    const body = await c.req.json().catch(() => ({})) as { agentId?: unknown; runtime?: unknown; projectId?: unknown; model?: unknown; permissionOverride?: unknown }
+    const body = await c.req.json().catch(() => ({})) as { agentId?: unknown; runtime?: unknown; projectId?: unknown; model?: unknown; permissionOverride?: unknown; requestedAt?: unknown }
     const agentId = typeof body.agentId === 'string' ? body.agentId : 'default'
     const model = body.model && typeof body.model === 'object' ? body.model as Record<string, unknown> : undefined
+    const requestedAt = typeof body.requestedAt === 'number' && Number.isFinite(body.requestedAt) ? body.requestedAt : undefined
     const permissionOverride = body.permissionOverride === 'ask' || body.permissionOverride === 'none' || body.permissionOverride === 'allow_all'
       ? body.permissionOverride
       : undefined
@@ -120,7 +136,7 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
 
     void maybeGenerateSessionTitle(db, runtimeRegistry, c.req.param('id'), model, directory)
 
-    void executeRun(db, runtimeRegistry, run.runId, typeof body.projectId === 'string' ? body.projectId : null, model, directory)
+    void executeRun(db, runtimeRegistry, run.runId, typeof body.projectId === 'string' ? body.projectId : null, model, directory, requestedAt)
     return c.json({ run }, 201)
   })
 
@@ -162,7 +178,7 @@ async function maybeGenerateSessionTitle(db: Database, runtimeRegistry: RuntimeR
 
 async function generateSessionTitle(runtimeRegistry: RuntimeRegistry, sessionId: string, userMessage: string, model?: Record<string, unknown>, directory?: string): Promise<string | null> {
   let content = ''
-  const prompt = `for the following session log, output a brief title in 3 - 6 words\n\nUser: ${userMessage}`
+  const prompt = `for the following session log, output a brief plain-text title in 3 - 6 words. Do not use markdown formatting, code fences, bullets, headings, or quotes.\n\nUser: ${userMessage}`
 
   for await (const event of runtimeRegistry.get('pi').run({
     runId: crypto.randomUUID(),
@@ -188,6 +204,11 @@ function cleanSessionTitle(content: string): string | null {
   const title = content
     .trim()
     .replace(/^title:\s*/i, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/^>\s*/gm, '')
+    .replace(/^\s*[-*+]\s*/gm, '')
+    .replace(/[`*_~]/g, '')
     .replace(/^['"]|['"]$/g, '')
     .replace(/[\r\n]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -215,10 +236,20 @@ function getModelId(model?: Record<string, unknown>): string | undefined {
   return `${providerID}/${modelID}`
 }
 
-type StoredToolPart = {
-  callID: string
-  tool: string
-  state: Record<string, unknown>
+function getAssistantModelId(eventModel: string | undefined, currentModelId: string | undefined): string | undefined {
+  if (!eventModel) return currentModelId
+  if (eventModel.includes('/') || !currentModelId) return eventModel
+  const providerId = currentModelId.split('/')[0]
+  return providerId ? `${providerId}/${eventModel}` : eventModel
+}
+
+function getUserMessageInfoMetadata(role: string, metadata: Record<string, unknown>) {
+  if (role !== 'user') return {}
+  return {
+    ...(typeof metadata.agent === 'string' ? { agent: metadata.agent } : {}),
+    ...(metadata.model && typeof metadata.model === 'object' ? { model: metadata.model } : {}),
+    ...(typeof metadata.permission === 'string' ? { permission: metadata.permission } : {}),
+  }
 }
 
 function recordToString(value: unknown): string {
@@ -242,16 +273,14 @@ function normalizeUsage(usage: RuntimeUsage) {
   }
 }
 
-async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId: string, projectId: string | null, model?: Record<string, unknown>, directory?: string): Promise<void> {
+async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId: string, projectId: string | null, model?: Record<string, unknown>, directory?: string, requestedAt?: number): Promise<void> {
   const run = await getRun(db, runId)
   if (!run) return
 
   await updateRunStatus(db, runId, 'running')
   const messages = await listMessages(db, run.sessionId)
   const assistantMessageId = crypto.randomUUID()
-  const assistantPartId = `${assistantMessageId}-text`
-  const reasoningPartId = `${assistantMessageId}-reasoning`
-  const assistantCreatedAt = Date.now()
+  const assistantCreatedAt = requestedAt ?? Date.now()
   let assistantCompletedAt: number | null = null
   let assistantModelId = getModelId(model)
   let assistantFinishReason = 'stop'
@@ -259,8 +288,16 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
   let assistantContent = ''
   let reasoningContent = ''
   let assistantMessageStarted = false
-  let assistantTextPartStarted = false
-  let reasoningPartStarted = false
+  const assistantParts: StoredAssistantPart[] = []
+  let assistantTextPartIndex = 0
+  let reasoningPartIndex = 0
+  let currentTextPartId: string | null = null
+  let currentReasoningPartId: string | null = null
+  let currentTextSegmentContent = ''
+  let currentReasoningSegmentContent = ''
+  let currentReasoningPartStart = assistantCreatedAt
+  let assistantTextPartNeedsSplit = false
+  let reasoningPartNeedsSplit = false
   const toolParts = new Map<string, StoredToolPart>()
 
   const publish = (event: Parameters<typeof sseAggregator.publish>[1]) => {
@@ -283,6 +320,57 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
     })
   }
 
+  const upsertAssistantPart = (part: StoredAssistantPart) => {
+    const index = assistantParts.findIndex((entry) => entry.id === part.id)
+    if (index >= 0) {
+      assistantParts[index] = part
+      return
+    }
+    assistantParts.push(part)
+  }
+
+  const openTextPart = () => {
+    currentTextPartId = `${assistantMessageId}-text-${assistantTextPartIndex++}`
+    currentTextSegmentContent = ''
+    assistantTextPartNeedsSplit = false
+    const part = {
+      id: currentTextPartId,
+      sessionID: run.sessionId,
+      messageID: assistantMessageId,
+      type: 'text' as const,
+      text: '',
+    }
+    upsertAssistantPart({ type: 'text', id: part.id, text: part.text })
+    publish({
+      type: 'message.part.updated',
+      properties: {
+        part,
+      },
+    })
+  }
+
+  const openReasoningPart = () => {
+    currentReasoningPartId = `${assistantMessageId}-reasoning-${reasoningPartIndex++}`
+    currentReasoningSegmentContent = ''
+    reasoningPartNeedsSplit = false
+    currentReasoningPartStart = Date.now()
+    const part = {
+      id: currentReasoningPartId,
+      sessionID: run.sessionId,
+      messageID: assistantMessageId,
+      type: 'reasoning' as const,
+      text: '',
+      time: { start: currentReasoningPartStart },
+    }
+    upsertAssistantPart({ type: 'reasoning', id: part.id, text: part.text, time: part.time })
+    publish({
+      type: 'message.part.updated',
+      properties: {
+        part,
+      },
+    })
+  }
+
   const finishAssistantMessage = async () => {
     if (!assistantContent && !reasoningContent && toolParts.size === 0) return
     await createMessage(db, {
@@ -292,6 +380,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       metadata: {
         runId,
         reasoning: reasoningContent,
+        assistantParts,
         completedAt: assistantCompletedAt ?? Date.now(),
         modelID: assistantModelId,
         finishReason: assistantFinishReason,
@@ -333,39 +422,9 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
     })
   }
 
-  const publishReasoningPartStarted = () => {
-    if (reasoningPartStarted) return
-    reasoningPartStarted = true
-    publish({
-      type: 'message.part.updated',
-      properties: {
-        part: {
-          id: reasoningPartId,
-          sessionID: run.sessionId,
-          messageID: assistantMessageId,
-          type: 'reasoning',
-          text: '',
-          time: { start: assistantCreatedAt },
-        },
-      },
-    })
-  }
-
-  const publishAssistantTextPartStarted = () => {
-    if (assistantTextPartStarted) return
-    assistantTextPartStarted = true
-    publish({
-      type: 'message.part.updated',
-      properties: {
-        part: {
-          id: assistantPartId,
-          sessionID: run.sessionId,
-          messageID: assistantMessageId,
-          type: 'text',
-          text: '',
-        },
-      },
-    })
+  const markContentBoundary = () => {
+    assistantTextPartNeedsSplit = true
+    reasoningPartNeedsSplit = true
   }
 
   const publishStepFinishPart = () => {
@@ -409,13 +468,19 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       if (event.type === 'message.delta') {
         assistantContent += event.content
         publishAssistantMessageStarted()
-        publishAssistantTextPartStarted()
+        if (currentTextPartId === null || assistantTextPartNeedsSplit) {
+          openTextPart()
+        }
+        const textPartId = currentTextPartId
+        if (!textPartId) continue
+        currentTextSegmentContent += event.content
+        upsertAssistantPart({ type: 'text', id: textPartId, text: currentTextSegmentContent })
         publish({
           type: 'message.part.delta',
           properties: {
             sessionID: run.sessionId,
             messageID: assistantMessageId,
-            partID: assistantPartId,
+            partID: textPartId,
             field: 'text',
             delta: event.content,
           },
@@ -424,7 +489,13 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       if (event.type === 'message.reasoning.delta') {
         reasoningContent += event.content
         publishAssistantMessageStarted()
-        publishReasoningPartStarted()
+        if (currentReasoningPartId === null || reasoningPartNeedsSplit) {
+          openReasoningPart()
+        }
+        const reasoningPartId = currentReasoningPartId
+        if (!reasoningPartId) continue
+        currentReasoningSegmentContent += event.content
+        upsertAssistantPart({ type: 'reasoning', id: reasoningPartId, text: currentReasoningSegmentContent, time: { start: currentReasoningPartStart } })
         publish({
           type: 'message.part.delta',
           properties: {
@@ -438,11 +509,12 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       }
       if (event.type === 'message.completed') {
         assistantCompletedAt = Date.now()
-        assistantModelId = event.model ?? assistantModelId
+        assistantModelId = getAssistantModelId(event.model, assistantModelId)
         assistantFinishReason = event.reason ?? assistantFinishReason
         assistantUsage = event.usage ? normalizeUsage(event.usage) : assistantUsage
       }
       if (event.type === 'tool.requested') {
+        markContentBoundary()
         const state = {
           status: 'running',
           input: asRecord(event.input),
@@ -450,9 +522,17 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
         }
         const toolPart = { callID: event.toolCallId, tool: event.toolName, state }
         toolParts.set(event.toolCallId, toolPart)
+        upsertAssistantPart({
+          type: 'tool',
+          id: `${assistantMessageId}-tool-${toolPart.callID}`,
+          callID: toolPart.callID,
+          tool: toolPart.tool,
+          state: toolPart.state,
+        })
         publishToolPart(toolPart)
       }
       if (event.type === 'tool.updated') {
+        markContentBoundary()
         const existing = toolParts.get(event.toolCallId)
         if (existing) {
           existing.state = {
@@ -462,10 +542,18 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
               output: recordToString(event.output),
             },
           }
+          upsertAssistantPart({
+            type: 'tool',
+            id: `${assistantMessageId}-tool-${existing.callID}`,
+            callID: existing.callID,
+            tool: existing.tool,
+            state: existing.state,
+          })
           publishToolPart(existing)
         }
       }
       if (event.type === 'tool.completed') {
+        markContentBoundary()
         const existing = toolParts.get(event.toolCallId) ?? { callID: event.toolCallId, tool: event.toolName ?? 'unknown', state: { input: asRecord(event.input), time: { start: Date.now() } } }
         existing.state = {
           status: 'completed',
@@ -476,9 +564,17 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
           time: { start: Number(asRecord(existing.state.time).start ?? Date.now()), end: Date.now() },
         }
         toolParts.set(event.toolCallId, existing)
+        upsertAssistantPart({
+          type: 'tool',
+          id: `${assistantMessageId}-tool-${existing.callID}`,
+          callID: existing.callID,
+          tool: existing.tool,
+          state: existing.state,
+        })
         publishToolPart(existing)
       }
       if (event.type === 'tool.failed') {
+        markContentBoundary()
         const existing = toolParts.get(event.toolCallId) ?? { callID: event.toolCallId, tool: event.toolName ?? 'unknown', state: { input: asRecord(event.input), time: { start: Date.now() } } }
         existing.state = {
           status: 'error',
@@ -488,6 +584,13 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
           time: { start: Number(asRecord(existing.state.time).start ?? Date.now()), end: Date.now() },
         }
         toolParts.set(event.toolCallId, existing)
+        upsertAssistantPart({
+          type: 'tool',
+          id: `${assistantMessageId}-tool-${existing.callID}`,
+          callID: existing.callID,
+          tool: existing.tool,
+          state: existing.state,
+        })
         publishToolPart(existing)
       }
       if (event.type === 'run.failed') {

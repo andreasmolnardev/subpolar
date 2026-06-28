@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => ({
   RepoSkillsDialog: vi.fn(() => null),
 }))
 
-vi.mock('@/hooks/useOpenCode', () => ({
+vi.mock('@/hooks/usePiHarness', () => ({
   useSession: mocks.useSession,
   useAbortSession: vi.fn(() => ({ mutate: vi.fn() })),
   useUpdateSession: vi.fn(() => ({ mutate: vi.fn() })),

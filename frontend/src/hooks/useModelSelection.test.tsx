@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useModelSelection } from './useModelSelection'
 import { useModelStore, type ModelSelection } from '@/stores/modelStore'
-import * as useOpenCodeExports from './useOpenCode'
+import * as usePiHarnessExports from './usePiHarness'
 import * as providersApi from '@/api/providers'
 
 const createTestQueryClient = () => new QueryClient({
@@ -14,8 +14,8 @@ const createTestQueryClient = () => new QueryClient({
   },
 })
 
-vi.mock('./useOpenCode', async () => {
-  const actual = await vi.importActual('./useOpenCode')
+vi.mock('./usePiHarness', async () => {
+  const actual = await vi.importActual('./usePiHarness')
   return {
     ...actual,
     useConfig: vi.fn(),
@@ -43,8 +43,8 @@ vi.mock('zustand/middleware', async () => {
   }
 })
 
-const mockUseConfig = vi.mocked(useOpenCodeExports.useConfig)
-const mockUseSubpolarClient = vi.mocked(useOpenCodeExports.useSubpolarClient)
+const mockUseConfig = vi.mocked(usePiHarnessExports.useConfig)
+const mockUseSubpolarClient = vi.mocked(usePiHarnessExports.useSubpolarClient)
 const mockGetProviders = vi.mocked(providersApi.getProviders)
 const mockGetOpenCodeModelState = vi.mocked(providersApi.getOpenCodeModelState)
 const mockAddOpenCodeRecentModel = vi.mocked(providersApi.addOpenCodeRecentModel)

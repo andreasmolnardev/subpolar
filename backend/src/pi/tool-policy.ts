@@ -76,7 +76,7 @@ export async function authorizePiToolCall(db: Database, input: PiToolAuthorizati
           sessionID: input.sessionId,
           permission: toolId === 'pi.bash' ? 'bash' : toolId,
           patterns: [toolId],
-          metadata: { agentId: input.agentId, input: input.input, reason: result.message },
+          metadata: { agentId: input.agentId, toolId, toolName: input.toolName, input: input.input, reason: result.message },
           always: [],
         },
       })

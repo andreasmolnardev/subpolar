@@ -1,6 +1,6 @@
 import { useCallback, useState, useMemo, useEffect } from "react";
-import { useSessionsAcrossDirectories, useDeleteSession, useCreateSession } from "@/hooks/useOpenCode";
-import type { DeleteSessionTarget } from "@/hooks/useOpenCode";
+import { useSessionsAcrossDirectories, useDeleteSession, useCreateSession } from "@/hooks/usePiHarness";
+import type { DeleteSessionTarget } from "@/hooks/usePiHarness";
 import { DeleteSessionDialog } from "./DeleteSessionDialog";
 import { SessionCard } from "./SessionCard";
 import { Card } from "@/components/ui/card";

@@ -39,13 +39,13 @@ function toRun(record: Record<string, unknown>): StoredRun {
   }
 }
 
-export async function createMessage(db: PocketBase, input: { sessionId: string; role: RuntimeMessage['role']; content: string; metadata?: Record<string, unknown> }): Promise<RuntimeMessage> {
+export async function createMessage(db: PocketBase, input: { sessionId: string; role: RuntimeMessage['role']; content: string; metadata?: Record<string, unknown>; createdAt?: number }): Promise<RuntimeMessage> {
   const record = await db.collection('messages').create({
     session_id: input.sessionId,
     role: input.role,
     content: input.content,
     metadata: input.metadata ?? {},
-    created_at: Date.now(),
+    created_at: input.createdAt ?? Date.now(),
   })
   return toMessage(record as unknown as Record<string, unknown>)
 }

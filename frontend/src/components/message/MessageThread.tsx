@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useCallback, useEffect } from 'react'
-import { Pencil } from 'lucide-react'
+import { Pencil, Send } from 'lucide-react'
 import { MessagePart } from './MessagePart'
 import { UserMessageActionButtons } from './UserMessageActionButtons'
 import { EditableUserMessage, ClickableUserMessage } from './EditableUserMessage'
@@ -29,6 +29,17 @@ interface MessageThreadProps {
   onChildSessionClick?: (sessionId: string) => void
   onUndoMessage?: (restoredPrompt: string) => void
   model?: string
+}
+
+function SendingIndicator() {
+  return (
+    <div className="flex flex-col items-start">
+      <div className="flex items-center gap-2 px-1 py-1 text-sm text-muted-foreground">
+        <Send className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="reasoning-text-trail font-medium">Sending...</span>
+      </div>
+    </div>
+  )
 }
 
 const isMessageStreaming = (msg: Message): boolean => {
@@ -456,6 +467,7 @@ export const MessageThread = memo(function MessageThread({
   }, [messages])
 
   const isSessionBusy = !!pendingAssistantId || isSessionStatusActive(sessionStatus)
+  const isWaitingForAssistantResponse = isSessionStatusActive(sessionStatus) && !pendingAssistantId
   const setSessionTodos = useSessionTodos((state) => state.setTodos)
 
   useEffect(() => {
@@ -541,6 +553,7 @@ export const MessageThread = memo(function MessageThread({
           showReasoning={showReasoning}
         />
       ))}
+      {isWaitingForAssistantResponse && <SendingIndicator />}
     </div>
   )
 })

@@ -172,15 +172,15 @@ export const MessagePart = memo(function MessagePart({ part, role, allParts, par
         const isFree = part.cost === 0
         const totalTokens = part.tokens.input + part.tokens.output + (part.tokens.cache?.read || 0)
         const durationSeconds = assistantMetadata?.created && assistantMetadata.completed
-          ? (assistantMetadata.completed - assistantMetadata.created) / 1000
+          ? Math.max(0, assistantMetadata.completed - assistantMetadata.created) / 1000
           : part.time ? (part.time.end - part.time.start) / 1000 : undefined
         const tokensPerSecond = durationSeconds && durationSeconds > 0 ? part.tokens.output / durationSeconds : undefined
         const startedAt = formatTime(assistantMetadata?.created)
         const endedAt = formatTime(assistantMetadata?.completed)
         const metadataItems = [
           assistantMetadata?.modelID,
-          startedAt && endedAt ? `${startedAt} -> ${endedAt}` : startedAt,
-          durationSeconds ? `${durationSeconds.toFixed(1)}s` : undefined,
+          endedAt ?? startedAt,
+          durationSeconds !== undefined ? `${durationSeconds.toFixed(1)}s` : undefined,
           tokensPerSecond ? `${tokensPerSecond.toFixed(1)} t/s` : undefined,
           isMobile && isFree ? undefined : `$${part.cost.toFixed(4)}`,
           `${totalTokens} tokens`,

@@ -27,7 +27,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { getProviders } from '@/api/providers'
 import { OPENCODE_API_ENDPOINT } from '@/config'
-import { useAgents, useConfig } from '@/hooks/useOpenCode'
+import { useAgents, useConfig } from '@/hooks/usePiHarness'
 
 type AgentOption = { name: string }
 

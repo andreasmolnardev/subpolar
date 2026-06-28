@@ -29,6 +29,23 @@ type SessionPage = { items: LegacySession[]; nextCursor?: string }
 
 export type { SendPromptResponse, SendCommandResponse, LspStatus }
 
+function getUserMessageMetadata(metadata: Record<string, unknown> | undefined) {
+  const model = metadata?.model && typeof metadata.model === 'object'
+    ? metadata.model as { providerID?: unknown; modelID?: unknown }
+    : undefined
+  return {
+    ...(typeof metadata?.agent === 'string' ? { agent: metadata.agent } : {}),
+    ...(model && typeof model.providerID === 'string' && typeof model.modelID === 'string'
+      ? { model: { providerID: model.providerID, modelID: model.modelID } }
+      : {}),
+    ...(typeof metadata?.permission === 'string' ? { permission: metadata.permission } : {}),
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 export class SubpolarClient {
   private baseURL: string
   private directory?: string
@@ -141,6 +158,7 @@ export class SubpolarClient {
   async listMessages(sessionID: string) {
     const response = await fetchWrapper<{ messages: Array<{ id: string; role: string; content: string; createdAt: number; metadata?: Record<string, unknown> }> }>(`${this.nativeBaseURL}/sessions/${sessionID}/messages`, { params: this.getParams() })
     return response.messages.map(message => {
+      const userMetadata = message.role === 'user' ? getUserMessageMetadata(message.metadata) : {}
       const reasoning = typeof message.metadata?.reasoning === 'string' ? message.metadata.reasoning : ''
       const completedAt = typeof message.metadata?.completedAt === 'number' ? message.metadata.completedAt : undefined
       const modelID = typeof message.metadata?.modelID === 'string' ? message.metadata.modelID : undefined
@@ -153,31 +171,79 @@ export class SubpolarClient {
         cacheWrite?: number
         cost?: { total?: number }
       } : undefined
+      const assistantParts = Array.isArray(message.metadata?.assistantParts)
+        ? message.metadata.assistantParts.filter(isRecord)
+        : []
       const tools = Array.isArray(message.metadata?.tools) ? message.metadata.tools : []
+      const parts = assistantParts.length > 0
+        ? assistantParts.flatMap((part, index) => {
+            const partType = part.type
+            if (partType === 'text' && typeof part.text === 'string') {
+              return [{
+                id: typeof part.id === 'string' ? part.id : `${message.id}-text-${index}`,
+                sessionID,
+                messageID: message.id,
+                type: 'text' as const,
+                text: part.text,
+              }]
+            }
+            if (partType === 'reasoning' && typeof part.text === 'string') {
+              const time = isRecord(part.time) && typeof part.time.start === 'number'
+                ? { start: part.time.start }
+                : { start: message.createdAt }
+              return [{
+                id: typeof part.id === 'string' ? part.id : `${message.id}-reasoning-${index}`,
+                sessionID,
+                messageID: message.id,
+                type: 'reasoning' as const,
+                text: part.text,
+                time,
+              }]
+            }
+            if (partType === 'tool') {
+              const state = isRecord(part.state)
+                ? part.state
+                : { status: 'error', input: {}, error: 'Tool state unavailable', time: { start: message.createdAt, end: message.createdAt } }
+              return [{
+                id: typeof part.id === 'string' ? part.id : `${message.id}-tool-${index}`,
+                sessionID,
+                messageID: message.id,
+                type: 'tool' as const,
+                callID: typeof part.callID === 'string' ? part.callID : `tool-${index}`,
+                tool: typeof part.tool === 'string' ? part.tool : 'unknown',
+                state,
+              }]
+            }
+            return []
+          })
+        : [
+            ...(reasoning ? [{ id: `${message.id}-reasoning`, sessionID, messageID: message.id, type: 'reasoning' as const, text: reasoning, time: { start: message.createdAt } }] : []),
+            ...(message.content ? [{ id: `${message.id}-text`, sessionID, messageID: message.id, type: 'text' as const, text: message.content }] : []),
+            ...tools.map((tool, index) => {
+              const item = tool && typeof tool === 'object' ? tool as Record<string, unknown> : {}
+              const callID = typeof item.callID === 'string' ? item.callID : `tool-${index}`
+              return {
+                id: `${message.id}-tool-${callID}`,
+                sessionID,
+                messageID: message.id,
+                type: 'tool' as const,
+                callID,
+                tool: typeof item.tool === 'string' ? item.tool : 'unknown',
+                state: item.state && typeof item.state === 'object' ? item.state : { status: 'error', input: {}, error: 'Tool state unavailable', time: { start: message.createdAt, end: message.createdAt } },
+              }
+            }),
+          ]
       return {
         info: {
         id: message.id,
         sessionID,
         role: message.role,
         time: completedAt ? { created: message.createdAt, completed: completedAt } : { created: message.createdAt },
+        ...userMetadata,
         ...(modelID ? { modelID } : {}),
       },
         parts: [
-          ...(reasoning ? [{ id: `${message.id}-reasoning`, sessionID, messageID: message.id, type: 'reasoning', text: reasoning, time: { start: message.createdAt } }] : []),
-          ...(message.content ? [{ id: `${message.id}-text`, sessionID, messageID: message.id, type: 'text', text: message.content }] : []),
-          ...tools.map((tool, index) => {
-            const item = tool && typeof tool === 'object' ? tool as Record<string, unknown> : {}
-            const callID = typeof item.callID === 'string' ? item.callID : `tool-${index}`
-            return {
-              id: `${message.id}-tool-${callID}`,
-              sessionID,
-              messageID: message.id,
-              type: 'tool',
-              callID,
-              tool: typeof item.tool === 'string' ? item.tool : 'unknown',
-              state: item.state && typeof item.state === 'object' ? item.state : { status: 'error', input: {}, error: 'Tool state unavailable', time: { start: message.createdAt, end: message.createdAt } },
-            }
-          }),
+          ...parts,
           ...(message.role === 'assistant' && completedAt ? [{
             id: `${message.id}-step-finish`,
             sessionID,
@@ -210,21 +276,41 @@ export class SubpolarClient {
   }
 
   private async createNativeMessageAndRun(sessionID: string, data: SendPromptRequest | SendPromptAsyncRequest): Promise<void> {
+    const requestedAt = Date.now()
     const prompt = typeof data === 'object' && data && 'parts' in data && Array.isArray(data.parts)
       ? data.parts.map((part) => 'text' in part && typeof part.text === 'string' ? part.text : '').join('\n')
       : typeof data === 'object' && data && 'text' in data
       ? String(data.text ?? '')
       : ''
-    await fetchWrapper(`${this.nativeBaseURL}/sessions/${sessionID}/messages`, { method: 'POST', params: this.getParams(), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'user', content: prompt }), timeout: 0 })
+    const model = typeof data === 'object' && data && 'model' in data ? data.model : undefined
+    const agent = typeof data === 'object' && data && 'agent' in data ? data.agent : undefined
+    const permission = typeof data === 'object' && data && 'permission' in data ? data.permission : undefined
+    await fetchWrapper(`${this.nativeBaseURL}/sessions/${sessionID}/messages`, {
+      method: 'POST',
+      params: this.getParams(),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        role: 'user',
+        content: prompt,
+        createdAt: requestedAt,
+        metadata: {
+          ...(agent ? { agent } : {}),
+          ...(model ? { model } : {}),
+          ...(permission ? { permission } : {}),
+        },
+      }),
+      timeout: 0,
+    })
     await fetchWrapper(`${this.nativeBaseURL}/sessions/${sessionID}/runs`, {
       method: 'POST',
       params: this.getParams(),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         runtime: 'pi',
-        agentId: typeof data === 'object' && data && 'agent' in data ? data.agent : 'default',
-        model: typeof data === 'object' && data && 'model' in data ? data.model : undefined,
-        permissionOverride: typeof data === 'object' && data && 'permission' in data ? data.permission : undefined,
+        agentId: agent ?? 'default',
+        model,
+        permissionOverride: permission,
+        requestedAt,
       }),
       timeout: 0,
     })

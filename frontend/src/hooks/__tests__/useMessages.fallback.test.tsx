@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useMessages } from '../useOpenCode'
+import { useMessages } from '../usePiHarness'
 
 const mocks = vi.hoisted(() => ({
   listMessages: vi.fn(),

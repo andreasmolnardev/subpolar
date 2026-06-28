@@ -349,6 +349,7 @@ const createOptimisticUserMessageInfo = (
   optimisticID: string,
   model?: string,
   agent?: string,
+  permission?: string,
   variant?: string,
 ): Message => {
   const message = {
@@ -365,12 +366,13 @@ const createOptimisticUserMessageInfo = (
         ...message,
         model: parsedModel,
         agent,
+        permission,
         variant,
       } as Message;
     }
   }
 
-  return { ...message, agent, variant } as Message;
+  return { ...message, agent, permission, variant } as Message;
 };
 
 const getPromptText = (prompt: string | undefined, parts: ContentPart[] | undefined): string => {
@@ -417,7 +419,7 @@ export const useSendPrompt = (apiUrl: string | null | undefined, directory?: str
         contentParts,
         optimisticUserID,
       );
-      const userMessageInfo = createOptimisticUserMessageInfo(sessionID, optimisticUserID, model, agent, variant);
+      const userMessageInfo = createOptimisticUserMessageInfo(sessionID, optimisticUserID, model, agent, permission, variant);
 
       const queryKey = messagesQueryKey(apiUrl, sessionID, directory);
       await queryClient.cancelQueries({ queryKey });
@@ -547,6 +549,11 @@ export const useSendPrompt = (apiUrl: string | null | undefined, directory?: str
       useSendErrorStore.getState().clearError(sessionID);
 
       if (data.queued || !response) {
+        queryClient.invalidateQueries({ queryKey });
+        return;
+      }
+
+      if (!('info' in response) || !response.info) {
         queryClient.invalidateQueries({ queryKey });
         return;
       }

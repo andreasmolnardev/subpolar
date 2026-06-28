@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useLoadSkill } from '../useOpenCode'
+import { useLoadSkill } from '../usePiHarness'
 import type { MessageWithParts } from '../../api/types'
 
 import { showToast } from '../../lib/toast'

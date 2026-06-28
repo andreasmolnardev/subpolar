@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useMessages } from './useOpenCode'
+import { useMessages } from './usePiHarness'
 import { useQuery } from '@tanstack/react-query'
 import { fetchWrapper } from '@/api/fetchWrapper'
 

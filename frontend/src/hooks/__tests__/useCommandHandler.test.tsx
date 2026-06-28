@@ -24,7 +24,7 @@ vi.mock('@/lib/toast', () => ({
   },
 }))
 
-vi.mock('@/hooks/useOpenCode', () => ({
+vi.mock('@/hooks/usePiHarness', () => ({
   useCreateSession: vi.fn(() => ({
     mutateAsync: vi.fn(),
   })),

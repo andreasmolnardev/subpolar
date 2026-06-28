@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ContextUsageIndicator } from "@/components/session/ContextUsageIndicator";
-import { useSession, useAbortSession, useMessages, useCreateSession, useSendPrompt } from "@/hooks/useOpenCode";
+import { useSession, useAbortSession, useMessages, useCreateSession, useSendPrompt } from "@/hooks/usePiHarness";
 import { useProjectActivity } from "@/hooks/useProjectActivity";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { useSSE } from "@/hooks/useSSE";
@@ -47,6 +47,7 @@ import { useSessionStatusForSession } from "@/stores/sessionStatusStore";
 import type { QuestionRequest } from "@/api/types";
 import { QuestionPrompt } from "@/components/session/QuestionPrompt";
 import { MinimizedQuestionIndicator } from "@/components/session/MinimizedQuestionIndicator";
+import { PermissionRequestDialog } from "@/components/session/PermissionRequestDialog";
 import { PendingActionsGroup } from "@/components/notifications/PendingActionsGroup";
 import { SessionSendErrorBanner } from "@/components/session/SessionSendErrorBanner";
 import { SessionTodoDisplay } from "@/components/message/SessionTodoDisplay";
@@ -158,7 +159,12 @@ export function SessionDetail() {
   const setActivePromptFileBasePath = useUIState((state) => state.setActivePromptFileBasePath);
   const { isEnabled: ttsEnabled } = useTTS();
   const sessionStatus = useSessionStatusForSession(sessionId);
-  const { syncForSession: syncPermissionsForSession } = usePermissions();
+  const {
+    pendingCount: pendingPermissionCount,
+    respond: respondToPermission,
+    getForSession: getPermissionForSession,
+    syncForSession: syncPermissionsForSession,
+  } = usePermissions();
   const { current: currentQuestion, reply: replyToQuestion, reject: rejectQuestion, syncForSession: syncQuestionsForSession } = useQuestions();
 
   const lastAssistantMessage = messages?.filter(m => m.info.role === 'assistant').at(-1);
@@ -175,6 +181,7 @@ export function SessionDetail() {
   const isStreamingResponse = hasIncompleteMessages && isSessionActive;
   const workspaceBasePath = repo?.localPath;
   const pendingPrompt = (location.state as PendingPromptLocationState | null)?.pendingPrompt;
+  const activePermission = getPermissionForSession(sessionId);
 
   useEffect(() => {
     if (!pendingPrompt || !sessionId || !isConnected || messagesLoading) return
@@ -573,6 +580,17 @@ export function SessionDetail() {
                   onMinimize={() => handleMinimizeQuestion(currentQuestion)}
                 />
               )}
+              {activePermission && (
+                <PermissionRequestDialog
+                  key={activePermission.id}
+                  permission={activePermission}
+                  pendingCount={pendingPermissionCount}
+                  isFromDifferentSession={false}
+                  sessionTitle={sessionTitle}
+                  repoDirectory={repoDirectory}
+                  onRespond={respondToPermission}
+                />
+              )}
               <SessionSendErrorBanner sessionId={sessionId} />
               <ChatInputBar
                 ref={promptInputRef}
@@ -580,6 +598,7 @@ export function SessionDetail() {
                 defaultProjectId={repoId.toString()}
                 defaultAgent={sessionAgent.agent ? sessionAgent.agent : "__default__"}
                 defaultModel={sessionAgent.model ? `${sessionAgent.model.providerID}/${sessionAgent.model.modelID}` : "__auto__"}
+                defaultPermission={sessionAgent.permission ?? "default"}
                 sessionID={sessionId}
                 disabled={!isConnected}
                 isSessionActive={isStreamingResponse}

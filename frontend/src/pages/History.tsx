@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Plus } from 'lucide-react'
 import { OPENCODE_API_ENDPOINT } from '@/config'
-import { useCreateSession } from '@/hooks/useOpenCode'
+import { useCreateSession } from '@/hooks/usePiHarness'
 import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
 import { formatDistanceToNow } from 'date-fns'
 

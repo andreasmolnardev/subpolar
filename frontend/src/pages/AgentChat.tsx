@@ -7,7 +7,7 @@ import { getProject } from '@/api/projects'
 import { settingsApi } from '@/api/settings'
 import { ChatInputBar } from '@/components/chat/ChatInputBar'
 import { Card, CardContent } from '@/components/ui/card'
-import { useAgents } from '@/hooks/useOpenCode'
+import { useAgents } from '@/hooks/usePiHarness'
 import { useSidebarAction } from '@/hooks/useSidebarAction'
 import { OPENCODE_API_ENDPOINT } from '@/config'
 

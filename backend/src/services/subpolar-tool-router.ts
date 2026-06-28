@@ -4,6 +4,8 @@ import { getAgentByIdOrSlug } from '../db/subpolar-agents'
 import type { Database } from '../db/schema'
 import { getEnabledIntegrationForTool } from '../db/integrations'
 import type { IntegrationType } from '@subpolar/shared/types'
+import { getUpcomingCalDavEvents, type CalDavEventQuery } from './caldav'
+import { webScrape, webSearch } from './web-research'
 
 type PolicyResult =
   | { decision: 'allow' }
@@ -53,12 +55,18 @@ async function checkPolicy(db: Database, agent: AgentDefinition, tool: ToolDefin
 }
 
 async function callIntegrationTool(db: Database, tool: ToolDefinition, input: unknown): Promise<unknown> {
+  const inputObject = input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : {}
+
+  if (tool.target === 'web') {
+    if (tool.operation === 'search') return webSearch(inputObject)
+    if (tool.operation === 'scrape') return webScrape(inputObject)
+  }
+
   const integrationType = typeof tool.metadata.integrationType === 'string' ? tool.metadata.integrationType as IntegrationType : undefined
   if (!integrationType) {
     return { toolId: tool.tool_id, result: null }
   }
 
-  const inputObject = input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : {}
   const integrationId = typeof inputObject.integrationId === 'string' ? inputObject.integrationId : undefined
   const integration = await getEnabledIntegrationForTool(db, integrationType, integrationId)
   if (!integration) {
@@ -66,6 +74,7 @@ async function callIntegrationTool(db: Database, tool: ToolDefinition, input: un
   }
 
   if (tool.target === 'caldav') {
+    if (tool.operation === 'get_events') return getUpcomingCalDavEvents(db, inputObject as CalDavEventQuery)
     return { toolId: tool.tool_id, integrationId: integration.id, provider: 'caldav', operation: tool.operation, status: 'configured', input }
   }
 

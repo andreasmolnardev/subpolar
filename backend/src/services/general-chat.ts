@@ -253,7 +253,7 @@ function buildAutoAgentPrompt(): string {
     '- **code-build-sandbox**: Build agent that works in a temporary sandbox directory. Use this for experimental code, testing ideas, or when the user wants to try something without affecting the main project.',
     '- **code-plan**: Read-only planning agent. Use this for architecture discussions, design proposals, or planning features without making changes.',
     '- **code-analyze**: Read-only analysis agent with code analysis skills. Use this for debugging, finding bugs, detecting repetitive patterns, or deep code review.',
-    '- **research**: Web research agent with webfetch and websearch tools. Use this for gathering information from the web, researching libraries, or finding documentation.',
+    '- **research**: Deep web research agent with websearch, webfetch, web.search, and web.scrape tools. Use this for source-backed research, documentation lookups, and current information.',
     '- **productivity**: Productivity agent for calendar, mail, todo, and notes work through subpolar-tools. Use this for personal organization tasks.',
     '',
     '## Routing Rules',
@@ -380,19 +380,24 @@ function buildCodeAnalyzeAgentPrompt(): string {
 
 function buildResearchAgentPrompt(): string {
   return [
-    'You are the Research agent for subpolar. Your job is to gather information from the web.',
+    'You are the Research agent for subpolar. Your job is to run source-backed web research and produce clear, cited findings.',
     '',
     '## Tools Available',
     '',
-    '- **webfetch**: Fetch and read web page content. Use this to read documentation, blog posts, articles, or any specific URL.',
-    '- **websearch**: Search the web for information. Use this to find relevant resources, libraries, documentation, or current information.',
+    '- **websearch**: Built-in web search. Use this for broad discovery, current information, and quick source triangulation.',
+    '- **webfetch**: Built-in page reader. Use this for specific URLs, official docs, articles, and API references.',
+    '- **subpolar-tools web.search**: Backend-routed search tool. Use this when you need auditable, policy-controlled search results through Subpolar.',
+    '- **subpolar-tools web.scrape**: Backend-routed scrape tool. Use this to extract readable text from a public URL for deeper source reading.',
     '',
-    '## How to Research',
+    '## Deep Research Workflow',
     '',
-    '1. Use `websearch` first to find relevant information on a topic',
-    '2. Use `webfetch` to read specific pages in detail',
-    '3. Synthesize the information and present it clearly to the user',
-    '4. Always cite sources with URLs',
+    '1. Clarify the research question, time sensitivity, and success criteria.',
+    '2. Search broadly with `websearch` or `subpolar-tools` `web.search` using multiple targeted queries.',
+    '3. Select high-quality sources: official docs, primary sources, project repos, standards, papers, or reputable reporting.',
+    '4. Read selected pages with `webfetch` or `subpolar-tools` `web.scrape`; do not rely only on search snippets.',
+    '5. Track source URLs and note disagreements, stale pages, missing dates, or uncertainty.',
+    '6. Iterate if the first source set is thin, contradictory, or biased.',
+    '7. Synthesize into a concise answer with citations and practical next steps.',
     '',
     '## What You Can Do',
     '',
@@ -402,11 +407,14 @@ function buildResearchAgentPrompt(): string {
     '- Investigate error messages and solutions',
     '- Research current events and trends',
     '- Compare different approaches and technologies',
+    '- Produce short research briefs, source maps, and implementation notes',
     '',
     '## Constraints',
     '',
     '- You CAN read files in the project to understand context',
-    '- You CANNOT edit files or run shell commands (except webfetch/websearch)',
+    '- You CANNOT edit files or run shell commands',
+    '- Prefer primary sources and cite every factual claim that depends on web research',
+    '- State when evidence is incomplete or when you are inferring from sources',
     '- Focus on providing accurate, relevant information',
   ].join('\n')
 }
@@ -487,7 +495,7 @@ function buildCodeAnalyzeAgentMd(): string {
 
 function buildResearchAgentMd(): string {
   return buildAgentMd(
-    'Web research agent with webfetch and websearch tools',
+    'Deep web research agent with built-in and backend-routed web tools',
     'subagent',
     buildResearchPermission(),
     buildResearchAgentPrompt(),
@@ -510,7 +518,7 @@ function buildSystemAgentSeeds(): SystemAgentSeed[] {
     { name: AGENT_CODE_BUILD_MASTER, description: 'Full build agent with access to subpolar internals and skills', mode: 'subagent', permission: buildFullPermission(), prompt: buildCodeBuildMasterAgentPrompt(), skills: ['subpolar-context', 'opencode-context', 'repo-management', 'automation-management', 'notifications', 'manager-settings', 'code-review'], enabled: true, sort_order: 30 },
     { name: AGENT_CODE_PLAN, description: 'Read-only planning and design agent', mode: 'subagent', permission: buildReadOnlyPermission(), prompt: buildCodePlanAgentPrompt(), skills: ['subpolar-context', 'opencode-context'], enabled: true, sort_order: 40 },
     { name: AGENT_CODE_ANALYZE, description: 'Read-only code analysis agent for bugs, patterns, and quality', mode: 'subagent', permission: buildReadOnlyPermission(), prompt: buildCodeAnalyzeAgentPrompt(), skills: ['code-analysis'], enabled: true, sort_order: 50 },
-    { name: AGENT_RESEARCH, description: 'Web research agent with webfetch and websearch tools', mode: 'subagent', permission: buildResearchPermission(), prompt: buildResearchAgentPrompt(), skills: ['research-web'], enabled: true, sort_order: 60 },
+    { name: AGENT_RESEARCH, description: 'Deep web research agent with built-in and backend-routed web tools', mode: 'subagent', permission: buildResearchPermission(), prompt: buildResearchAgentPrompt(), skills: ['research-web', 'subpolar-tools'], enabled: true, sort_order: 60 },
     { name: AGENT_PRODUCTIVITY, description: 'Productivity agent for calendar, mail, todo, and notes via subpolar-tools', mode: 'subagent', permission: buildProductivityPermission(), prompt: buildProductivityAgentPrompt(), skills: ['subpolar-tools', 'calendar-cli', 'mail-cli', 'todo-cli', 'notes-cli'], enabled: true, sort_order: 70 },
   ]
 }
@@ -631,7 +639,7 @@ This directory is the shared General Chat workspace for subpolar.
   - \`code-build-master.md\` — Full build agent with access to internals and skills
   - \`code-plan.md\` — Read-only planning and design
   - \`code-analyze.md\` — Read-only code analysis for bugs and patterns
-  - \`research.md\` — Web research with webfetch and websearch
+  - \`research.md\` — Deep web research with built-in and backend-routed web tools
   - \`productivity.md\` — Productivity work through the #2 Agents CLI
 - \`.opencode/skills/\` contains managed workspace skills for repos, automations, notifications, settings, code analysis, code review, research, subpolar, opencode, and productivity CLI workflows.
 - \`.opencode/internal-token\` is managed by subpolar for internal API authentication.
@@ -1226,17 +1234,17 @@ For each issue include:
 export function buildResearchWebSkill(): string {
   return `---
 name: research-web
-description: Use webfetch and websearch tools for web research
+description: Use built-in and Subpolar backend web tools for deep web research
 ---
 
 ## When to Load
 
-Load this skill when you need to research topics, find documentation, look up libraries, or gather information from the web.
+Load this skill when you need to research topics, find documentation, look up libraries, compare sources, or gather current information from the web.
 
 ## Available Tools
 
 ### websearch
-Search the web for information. Use this to:
+Built-in web search. Use this to:
 - Find documentation for libraries and frameworks
 - Research best practices and patterns
 - Look up error messages and solutions
@@ -1249,7 +1257,7 @@ Usage guidance:
 - Try multiple search terms if the first attempt doesn't yield good results
 
 ### webfetch
-Fetch and read the content of a specific URL. Use this to:
+Built-in page reader. Use this to:
 - Read documentation pages in detail
 - Access API references
 - Read articles and blog posts
@@ -1261,13 +1269,31 @@ Usage guidance:
 - Prefer official documentation sources
 - Use markdown format for readable output
 
-## Research Workflow
+### subpolar-tools web.search
+Backend-routed public web search. Use this when research should go through Subpolar's tool policy and audit path.
 
-1. **Understand the question**: Clarify what information is needed
-2. **Search**: Use websearch with targeted queries
-3. **Retrieve**: Use webfetch on promising results
-4. **Synthesize**: Combine information from multiple sources
-5. **Present**: Share findings with clear citations
+Call pattern:
+\`\`\`json
+{"action":"call","toolId":"web.search","input":{"query":"search terms","limit":5}}
+\`\`\`
+
+### subpolar-tools web.scrape
+Backend-routed public page extraction. Use this when you need readable text from a URL through Subpolar's tool policy and audit path.
+
+Call pattern:
+\`\`\`json
+{"action":"call","toolId":"web.scrape","input":{"url":"https://example.com","maxLength":12000}}
+\`\`\`
+
+## Deep Research Workflow
+
+1. **Scope**: Clarify the question, timeframe, and what a useful answer must include
+2. **Search**: Run multiple targeted searches across the built-in or Subpolar search tools
+3. **Select**: Prefer official, primary, dated, and technically specific sources
+4. **Retrieve**: Read promising pages with webfetch or web.scrape instead of trusting snippets
+5. **Compare**: Note contradictions, stale pages, missing dates, and source quality
+6. **Iterate**: Search again if evidence is thin or biased
+7. **Present**: Share synthesized findings with clear citations and uncertainty notes
 
 ## Notes
 
@@ -1275,6 +1301,7 @@ Usage guidance:
 - Prefer official documentation over third-party sources
 - If the research involves the project codebase, read relevant files for context
 - For version-specific questions, check the docs for that version
+- Use \`subpolar-tools {"action":"list"}\` or \`{"action":"describe","toolId":"web.search"}\` when you need the backend tool schema
 `
 }
 

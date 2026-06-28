@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement } from 'react'
-import { useSendPrompt } from './useOpenCode'
+import { useSendPrompt } from './usePiHarness'
 import { FetchError } from '../api/fetchWrapper'
 
 const mockSendPrompt = vi.fn()
@@ -263,5 +263,24 @@ describe('useSendPrompt', () => {
     ).resolves.toBeDefined()
 
     expect(mockClearError).toHaveBeenCalledWith('session-2')
+  })
+
+  it('invalidates messages when native send response has no assistant payload', async () => {
+    mockSendPrompt.mockResolvedValueOnce({ parts: [] })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+
+    const { result } = renderHookWithProviders()
+
+    await expect(
+      result.current.mutateAsync({
+        sessionID: 'session-native',
+        prompt: 'Hello again',
+      })
+    ).resolves.toEqual(expect.objectContaining({ queued: false }))
+
+    expect(mockClearError).toHaveBeenCalledWith('session-native')
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['subpolar', 'messages', 'http://localhost:5551', 'session-native', '/test'],
+    })
   })
 })

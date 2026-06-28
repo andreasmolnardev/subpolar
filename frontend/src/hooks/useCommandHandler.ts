@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createSubpolarClient } from '@/api/subpolar'
-import { useCreateSession } from '@/hooks/useOpenCode'
+import { useCreateSession } from '@/hooks/usePiHarness'
 import { useModelSelection } from '@/hooks/useModelSelection'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/opencode-types'

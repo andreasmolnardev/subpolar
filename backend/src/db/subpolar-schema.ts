@@ -19,6 +19,31 @@ async function ensureCollection(pb: PocketBase, name: string, fields: Field[], i
 }
 
 export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
+  await ensureCollection(pb, 'todo_lists', [
+    text('user_id'),
+    text('name'),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE INDEX idx_todo_lists_user_updated ON todo_lists (user_id, updated_at)'])
+
+  await ensureCollection(pb, 'todo_items', [
+    text('user_id'),
+    text('list_id'),
+    text('text'),
+    bool('completed'),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE INDEX idx_todo_items_list_updated ON todo_items (list_id, updated_at)', 'CREATE INDEX idx_todo_items_user_completed ON todo_items (user_id, completed)'])
+
+  await ensureCollection(pb, 'notes', [
+    text('user_id'),
+    text('title'),
+    json('tags'),
+    text('text', false),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE INDEX idx_notes_user_updated ON notes (user_id, updated_at)'])
+
   await ensureCollection(pb, 'integrations', [
     text('name'),
     select('type', ['mcp', 'caldav', 'imap_smtp']),

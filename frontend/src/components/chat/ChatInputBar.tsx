@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAgents, useAbortSession, useConfig, useCreateSession, useSendPrompt } from "@/hooks/useOpenCode";
+import { useAgents, useAbortSession, useConfig, useCreateSession, useSendPrompt } from "@/hooks/usePiHarness";
 import { getProviders } from "@/api/providers";
 import { DEFAULT_USER_PREFERENCES } from "@/api/types/settings";
 import { getProject, listProjects } from "@/api/projects";
@@ -186,6 +186,9 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const selectedAgentForRequest = selectedAgent === "__default__" || (!hideAgentSelect && !agents.some((agent) => agent.name === selectedAgent))
     ? undefined
     : selectedAgent;
+  const selectedPermissionForRequest = selectedPermission === "default" && !selectedAgentForRequest
+    ? "ask"
+    : selectedPermission;
 
   const createSession = useCreateSession(apiUrl, selectedDirectory);
   const sendPrompt = useSendPrompt(apiUrl, selectedDirectory);
@@ -272,7 +275,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           prompt,
           model: selectedModel === "__auto__" ? undefined : selectedModel,
           agent: selectedAgentForRequest,
-          permission: selectedPermission,
+          permission: selectedPermissionForRequest,
         },
         {
           onSuccess: () => {
@@ -299,7 +302,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
               prompt,
               model: selectedModel === "__auto__" ? undefined : selectedModel,
               agent: selectedAgentForRequest,
-              permission: selectedPermission,
+              permission: selectedPermissionForRequest,
             } satisfies PendingSessionPrompt,
           },
         });
@@ -318,7 +321,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             prompt,
             model: selectedModel === "__auto__" ? undefined : selectedModel,
             agent: selectedAgentForRequest,
-            permission: selectedPermission,
+            permission: selectedPermissionForRequest,
           } satisfies PendingSessionPrompt,
         },
       });
@@ -339,7 +342,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     onSend,
     selectedAgentForRequest,
     selectedModel,
-    selectedPermission,
+    selectedPermissionForRequest,
     selectedProject,
     sendImmediately,
     sendPrompt,

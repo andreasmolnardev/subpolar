@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useSubpolarClient } from './useOpenCode'
+import { useSubpolarClient } from './usePiHarness'
 import { invalidateSessionListCaches, invalidateSessionListCachesDebounced, messagesQueryKey } from '@/lib/queryInvalidation'
 import type { SSEEvent, MessageWithParts } from '@/api/types'
 import { showToast } from '@/lib/toast'

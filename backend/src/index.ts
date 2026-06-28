@@ -10,6 +10,7 @@ import { createTTSRoutes, cleanupExpiredCache } from './routes/tts';
 import { createSTTRoutes } from './routes/stt'
 import { createFileRoutes } from './routes/files'
 import { createAutomationRoutes } from './routes/automations'
+import { createProductivityRoutes } from './routes/productivity'
 
 async function getAppVersion(): Promise<string> {
   try {
@@ -204,6 +205,7 @@ protectedApi.route('/sse', createSSERoutes())
 protectedApi.route('/notifications', createNotificationRoutes(notificationService!))
 protectedApi.route('/prompt-templates', createPromptTemplateRoutes(db!))
 protectedApi.route('/automations', createAutomationRoutes(automationService!))
+protectedApi.route('/productivity', createProductivityRoutes(db!))
 protectedApi.route('/sessions', createSessionRoutes(db!, runtimeRegistry))
 protectedApi.route('/runs', createRunRoutes(db!, runtimeRegistry))
 protectedApi.route('/agent', createAgentRoutes(db!))

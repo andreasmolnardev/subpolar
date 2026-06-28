@@ -9,7 +9,7 @@ import { getProject, listProjects, createProject } from "@/api/projects";
 import { listStoredSessions } from "@/api/sessions";
 import { settingsApi, type AgentToolPolicyEffect } from "@/api/settings";
 import { DEFAULT_USER_PREFERENCES } from "@/api/types/settings";
-import { useAgents } from "@/hooks/useOpenCode";
+import { useAgents } from "@/hooks/usePiHarness";
 import { useSettings } from "@/hooks/useSettings";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { GENERAL_CHAT_PROJECT_ID } from "@subpolar/shared/utils";

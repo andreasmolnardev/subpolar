@@ -11,6 +11,7 @@ function toPermissionRequest(approval: ToolApprovalRecord) {
     patterns: [approval.tool_id],
     metadata: {
       agentId: approval.agent_id,
+      toolId: approval.tool_id,
       input: approval.input,
       reason: approval.reason,
     },

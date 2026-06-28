@@ -203,20 +203,72 @@ describe('SubpolarClient', () => {
       'http://localhost/api/sessions/ses_1/messages?directory=%2Frepo',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ role: 'user', content: 'Hello Pi' }),
       }),
     )
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      role: 'user',
+      content: 'Hello Pi',
+      metadata: {
+        agent: 'build',
+        model: { providerID: 'openai', modelID: 'gpt-4.1' },
+      },
+    })
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       'http://localhost/api/sessions/ses_1/runs?directory=%2Frepo',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({
-          runtime: 'pi',
-          agentId: 'build',
-          model: { providerID: 'openai', modelID: 'gpt-4.1' },
-        }),
       }),
     )
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toMatchObject({
+      runtime: 'pi',
+      agentId: 'build',
+      model: { providerID: 'openai', modelID: 'gpt-4.1' },
+    })
+  })
+
+  it('reconstructs split reasoning blocks around tool calls', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          messages: [
+            {
+              id: 'msg_1',
+              role: 'assistant',
+              content: 'Final answer',
+              createdAt: 1000,
+              metadata: {
+                completedAt: 2000,
+                assistantParts: [
+                  { type: 'reasoning', id: 'msg_1-reasoning-0', text: 'First thought' },
+                  {
+                    type: 'tool',
+                    id: 'msg_1-tool-call_1',
+                    callID: 'call_1',
+                    tool: 'task',
+                    state: { status: 'completed', input: {}, output: 'done', time: { start: 1100, end: 1200 } },
+                  },
+                  { type: 'reasoning', id: 'msg_1-reasoning-1', text: 'Second thought' },
+                  { type: 'text', id: 'msg_1-text-0', text: 'Final answer' },
+                ],
+                tools: [
+                  { callID: 'call_1', tool: 'task', state: { status: 'completed', input: {}, output: 'done', time: { start: 1100, end: 1200 } } },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    )
+
+    const result = await new SubpolarClient('/api/opencode', '/repo').listMessages('ses_1')
+
+    expect(result[0].parts).toHaveLength(5)
+    expect(result[0].parts[0]).toMatchObject({ type: 'reasoning', text: 'First thought' })
+    expect(result[0].parts[1]).toMatchObject({ type: 'tool', callID: 'call_1' })
+    expect(result[0].parts[2]).toMatchObject({ type: 'reasoning', text: 'Second thought' })
+    expect(result[0].parts[3]).toMatchObject({ type: 'text', text: 'Final answer' })
+    expect(result[0].parts[4]).toMatchObject({ type: 'step-finish' })
   })
 })
