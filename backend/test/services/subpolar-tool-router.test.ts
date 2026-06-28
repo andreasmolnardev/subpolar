@@ -237,10 +237,16 @@ describe('subpolar tool router', () => {
   })
 
   it('searches the web for web.search', async () => {
-    globalThis.fetch = vi.fn(async () => new Response(`
-      <a class="result__a" href="https://duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fdocs">Example &amp; Docs</a>
-      <a class="result__snippet">Useful <b>documentation</b> snippet.</a>
-    `, { status: 200, headers: { 'content-type': 'text/html' } })) as unknown as typeof fetch
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      result: {
+        content: [{
+          type: 'text',
+          text: '[Example & Docs](https://example.com/docs)\nUseful documentation snippet.',
+        }],
+      },
+    }), { status: 200, headers: { 'content-type': 'application/json' } })) as unknown as typeof fetch
 
     await expect(callTool(createResearchDb(), 'research', 'web.search', {
       query: 'example docs',
@@ -255,8 +261,28 @@ describe('subpolar tool router', () => {
           url: 'https://example.com/docs',
           snippet: 'Useful documentation snippet.',
         }],
+        context: '[Example & Docs](https://example.com/docs)\nUseful documentation snippet.',
+        provider: 'exa',
       },
     })
+    expect(globalThis.fetch).toHaveBeenCalledWith('https://mcp.exa.ai/mcp', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'web_search_exa',
+          arguments: {
+            query: 'example docs',
+            type: 'auto',
+            numResults: 3,
+            livecrawl: 'fallback',
+            contextMaxCharacters: 10000,
+          },
+        },
+      }),
+    }))
   })
 
   it('scrapes readable page text for web.scrape', async () => {

@@ -415,6 +415,7 @@ function buildResearchAgentPrompt(): string {
     '- You CANNOT edit files or run shell commands',
     '- Prefer primary sources and cite every factual claim that depends on web research',
     '- State when evidence is incomplete or when you are inferring from sources',
+    '- If every search attempt returns no usable results or a web tool fails, say that you could not retrieve sources and do not answer with invented dates, citations, or source names',
     '- Focus on providing accurate, relevant information',
   ].join('\n')
 }
@@ -1299,6 +1300,7 @@ Call pattern:
 
 - Always cite sources with URLs
 - Prefer official documentation over third-party sources
+- If every search attempt returns no usable results or a web tool fails, say that you could not retrieve sources and do not answer with invented dates, citations, or source names
 - If the research involves the project codebase, read relevant files for context
 - For version-specific questions, check the docs for that version
 - Use \`subpolar-tools {"action":"list"}\` or \`{"action":"describe","toolId":"web.search"}\` when you need the backend tool schema

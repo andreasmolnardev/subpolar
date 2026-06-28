@@ -1,6 +1,9 @@
 type SearchInput = {
   query?: unknown
   limit?: unknown
+  type?: unknown
+  livecrawl?: unknown
+  contextMaxCharacters?: unknown
 }
 
 type ScrapeInput = {
@@ -13,6 +16,15 @@ type SearchResult = {
   url: string
   snippet: string
 }
+
+type SearchOutput = {
+  query: string
+  results: SearchResult[]
+  context: string
+  provider: 'exa'
+}
+
+const EXA_MCP_URL = 'https://mcp.exa.ai/mcp'
 
 function decodeHtml(value: string): string {
   return value
@@ -33,28 +45,59 @@ function stripTags(value: string): string {
   return normalizeText(value.replace(/<[^>]+>/g, ' '))
 }
 
-function extractDuckDuckGoUrl(value: string): string {
+function asPositiveInteger(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(Math.max(Math.floor(parsed), min), max)
+}
+
+function exaUrl(): string {
+  const apiKey = process.env.EXA_API_KEY
+  if (!apiKey) return EXA_MCP_URL
+  const url = new URL(EXA_MCP_URL)
+  url.searchParams.set('exaApiKey', apiKey)
+  return url.toString()
+}
+
+function parseMcpPayload(payload: string): string | undefined {
+  const trimmed = payload.trim()
+  if (!trimmed.startsWith('{')) return undefined
   try {
-    const parsed = new URL(decodeHtml(value))
-    const redirected = parsed.searchParams.get('uddg')
-    return redirected ? decodeURIComponent(redirected) : parsed.toString()
+    const data = JSON.parse(trimmed) as { result?: { content?: Array<{ type?: unknown; text?: unknown }> } }
+    const content = data.result?.content?.find(item => typeof item.text === 'string')
+    return typeof content?.text === 'string' ? content.text : undefined
   } catch {
-    return decodeHtml(value)
+    return undefined
   }
 }
 
-function parseDuckDuckGoResults(html: string, limit: number): SearchResult[] {
+function parseMcpResponse(body: string): string | undefined {
+  const trimmed = body.trim()
+  if (trimmed) {
+    const direct = parseMcpPayload(trimmed)
+    if (direct) return direct
+  }
+  for (const line of body.split('\n')) {
+    if (!line.startsWith('data: ')) continue
+    const data = parseMcpPayload(line.slice(6))
+    if (data) return data
+  }
+  return undefined
+}
+
+function extractMarkdownSearchResults(text: string, limit: number): SearchResult[] {
   const results: SearchResult[] = []
-  const resultPattern = /<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/g
+  const seen = new Set<string>()
+  const linkPattern = /\[([^\]]+)]\((https?:\/\/[^)\s]+)\)/g
   let match: RegExpExecArray | null
-  while ((match = resultPattern.exec(html)) && results.length < limit) {
-    const url = extractDuckDuckGoUrl(match[1] ?? '')
-    if (!url.startsWith('http://') && !url.startsWith('https://')) continue
-    results.push({
-      title: stripTags(match[2] ?? ''),
-      url,
-      snippet: stripTags(match[3] ?? ''),
-    })
+  while ((match = linkPattern.exec(text)) && results.length < limit) {
+    const title = normalizeText(match[1] ?? '')
+    const url = normalizeText(match[2] ?? '')
+    if (!title || !url || seen.has(url)) continue
+    seen.add(url)
+    const after = text.slice(match.index + match[0].length, match.index + match[0].length + 500)
+    const snippet = normalizeText(after.split('\n').find(line => stripTags(line).length > 0) ?? '')
+    results.push({ title, url, snippet })
   }
   return results
 }
@@ -79,21 +122,40 @@ function htmlToText(html: string): string {
     .replace(/<br\s*\/?>/gi, '\n'))
 }
 
-export async function webSearch(input: SearchInput): Promise<{ query: string; results: SearchResult[] }> {
+export async function webSearch(input: SearchInput): Promise<SearchOutput> {
   const query = typeof input.query === 'string' ? input.query.trim() : ''
   if (!query) throw Object.assign(new Error('query is required'), { code: 'VALIDATION_FAILED' })
-  const limit = Math.min(Math.max(Number(input.limit) || 5, 1), 10)
-  const url = new URL('https://duckduckgo.com/html/')
-  url.searchParams.set('q', query)
-  const response = await fetch(url, {
+  const limit = asPositiveInteger(input.limit, 8, 1, 20)
+  const contextMaxCharacters = asPositiveInteger(input.contextMaxCharacters, 10000, 1000, 50000)
+  const searchType = input.type === 'fast' || input.type === 'deep' ? input.type : 'auto'
+  const livecrawl = input.livecrawl === 'preferred' ? 'preferred' : 'fallback'
+  const response = await fetch(exaUrl(), {
+    method: 'POST',
     headers: {
-      accept: 'text/html',
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
       'user-agent': 'Subpolar research agent',
     },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: 'web_search_exa',
+        arguments: {
+          query,
+          type: searchType,
+          numResults: limit,
+          livecrawl,
+          contextMaxCharacters,
+        },
+      },
+    }),
   })
   if (!response.ok) throw Object.assign(new Error(`Search failed with HTTP ${response.status}`), { code: 'WEB_SEARCH_FAILED' })
-  const html = await response.text()
-  return { query, results: parseDuckDuckGoResults(html, limit) }
+  const body = await response.text()
+  const context = parseMcpResponse(body) ?? ''
+  return { query, results: extractMarkdownSearchResults(context, limit), context, provider: 'exa' }
 }
 
 export async function webScrape(input: ScrapeInput): Promise<{ url: string; title: string; content: string; truncated: boolean }> {
