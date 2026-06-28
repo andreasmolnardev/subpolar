@@ -38,6 +38,7 @@ export class EventStream {
   private watchdogTimer: ReturnType<typeof setInterval> | null = null
   private upstreamConnectedCount: number | null = null
   private upstreamTotalCount: number | null = null
+  private lastVisibilityReport: { clientId: string; visible: boolean; activeSessionId: string | null } | null = null
 
   constructor(options: EventStreamOptions = {}) {
     this.transport = options.transport ?? createBrowserEventStreamTransport()
@@ -207,6 +208,7 @@ export class EventStream {
   private handleError(): void {
     this.connected = false
     this.clientId = null
+    this.lastVisibilityReport = null
     this.upstreamConnectedCount = null
     this.upstreamTotalCount = null
     this.stopWatchdog()
@@ -268,6 +270,7 @@ export class EventStream {
     this.connection = null
     this.connected = false
     this.clientId = null
+    this.lastVisibilityReport = null
     this.upstreamConnectedCount = null
     this.upstreamTotalCount = null
     this.lastEventAt = null
@@ -294,6 +297,7 @@ export class EventStream {
     this.connection = null
     this.connected = false
     this.clientId = null
+    this.lastVisibilityReport = null
     this.upstreamConnectedCount = null
     this.upstreamTotalCount = null
     this.lastEventAt = null
@@ -407,10 +411,24 @@ export class EventStream {
   private reportVisibility(visible: boolean, activeSessionId?: string): void {
     if (!this.clientId || !this.connected) return
 
-    void this.transport.post('/api/sse/visibility', {
+    const report = {
       clientId: this.clientId,
       visible,
       activeSessionId: activeSessionId ?? null,
+    }
+    if (
+      this.lastVisibilityReport?.clientId === report.clientId &&
+      this.lastVisibilityReport.visible === report.visible &&
+      this.lastVisibilityReport.activeSessionId === report.activeSessionId
+    ) {
+      return
+    }
+    this.lastVisibilityReport = report
+
+    void this.transport.post('/api/sse/visibility', {
+      clientId: report.clientId,
+      visible: report.visible,
+      activeSessionId: report.activeSessionId,
     })
   }
 }

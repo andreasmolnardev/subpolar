@@ -103,6 +103,18 @@ export async function listSessionRecords(pb: PocketBase): Promise<StoredSession[
   return (records as unknown as SessionRecord[]).map(rowToStoredSession)
 }
 
+export async function listSessionRecordsByDirectory(pb: PocketBase, directory: string): Promise<StoredSession[]> {
+  const escapedDirectory = directory.replaceAll('"', '\\"')
+  const records = await pb.collection('sessions').getFullList({
+    filter: `directory = "${escapedDirectory}"`,
+    sort: '-updated_at',
+  }).catch((error: unknown) => {
+    if (isMissingCollectionError(error)) return []
+    throw error
+  })
+  return (records as unknown as SessionRecord[]).map(rowToStoredSession)
+}
+
 function isMissingCollectionError(error: unknown): boolean {
   return typeof error === 'object' &&
     error !== null &&

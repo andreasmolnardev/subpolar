@@ -51,12 +51,11 @@ const handleRestartServer = async () => {
 
 
 export const useSSE = (apiUrl: string | null | undefined, directory?: string | string[], currentSessionId?: string) => {
-  const directoriesList = useMemo(() => {
-    if (!directory) return [] as string[]
-    if (Array.isArray(directory)) return directory.filter(Boolean)
-    return [directory]
+  const directoryKey = useMemo(() => {
+    const directories = Array.isArray(directory) ? directory.filter(Boolean) : directory ? [directory] : []
+    return JSON.stringify(directories)
   }, [directory])
-  const directoryKey = directoriesList.join('|')
+  const directoriesList = useMemo(() => JSON.parse(directoryKey) as string[], [directoryKey])
   const primaryDirectory = directoriesList[0]
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const directorySet = useMemo(() => new Set(directoriesList), [directoryKey])
@@ -324,7 +323,7 @@ export const useSSE = (apiUrl: string | null | undefined, directory?: string | s
             message: parsed.message,
           })
         }
-        if (sessionID === currentSessionId) break
+        if (sessionID === sessionIdRef.current) break
         
         const error = event.properties.error
         if (error?.name === 'MessageAbortedError') break
@@ -351,7 +350,7 @@ export const useSSE = (apiUrl: string | null | undefined, directory?: string | s
       default:
         break
     }
-  }, [queryClient, apiUrl, directorySet, resolveCacheDirectory, setSessionStatus, setSessionTodos, currentSessionId])
+  }, [queryClient, apiUrl, directorySet, resolveCacheDirectory, setSessionStatus, setSessionTodos])
 
   const fetchInitialData = useCallback(async () => {
     if (!client || !primaryDirectory || !mountedRef.current) return

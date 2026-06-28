@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Database } from '../db/schema'
-import { deleteSessionRecord, getSessionRecord, listSessionRecords, upsertSessionRecord } from '../db/sessions'
+import { deleteSessionRecord, getSessionRecord, listSessionRecords, listSessionRecordsByDirectory, upsertSessionRecord } from '../db/sessions'
 import { createMessage, createRun, getRun, getSessionStatuses, listMessages, updateRunStatus, writeRuntimeEvent } from '../db/runs'
 import type { RuntimeId, RuntimeUsage } from '../runtime/types'
 import type { RuntimeRegistry } from '../runtime/registry'
@@ -24,7 +24,10 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
   const app = new Hono()
 
   app.get('/', async (c) => {
-    const sessions = await listSessionRecords(db)
+    const directory = c.req.query('directory')
+    const sessions = directory
+      ? await listSessionRecordsByDirectory(db, directory)
+      : await listSessionRecords(db)
     return c.json({ sessions })
   })
 

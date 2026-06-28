@@ -3,7 +3,7 @@ import { API_BASE_URL } from '@/config'
 import type { GeneralChatStatus, GeneralChatInitRequest } from '@subpolar/shared/types'
 
 export interface Project {
-  id: number
+  id: number | null
   name: string
   directory: string
   fullPath: string
@@ -15,6 +15,10 @@ export interface Project {
   updatedAt: number
   lastAccessedAt?: number
   isGeneralChat?: boolean
+}
+
+export function hasProjectId(project: Project): project is Project & { id: number } {
+  return typeof project.id === 'number' && Number.isFinite(project.id)
 }
 
 export async function listProjects(): Promise<Project[]> {

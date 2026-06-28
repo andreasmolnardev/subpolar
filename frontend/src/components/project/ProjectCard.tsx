@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Folder, AlertCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { ProjectRowActions } from './ProjectRowActions'
-import type { Project } from '@/api/projects'
+import { hasProjectId, type Project } from '@/api/projects'
 
 interface ProjectCardProps {
   project: Project
@@ -42,9 +42,10 @@ export function ProjectCard({
   const [actionsOpen, setActionsOpen] = useState(false)
 
   const isReady = project.status === 'ready'
+  const canNavigate = isReady && hasProjectId(project)
 
   const handleCardClick = () => {
-    if (isReady && !actionsOpen) {
+    if (canNavigate && !actionsOpen) {
       navigate(`/projects/${project.id}`)
     }
   }
@@ -55,7 +56,7 @@ export function ProjectCard({
     <div
       onClick={handleCardClick}
       className={`relative border rounded-xl overflow-hidden transition-all duration-200 w-full ${
-        isReady ? 'cursor-pointer active:scale-[0.98] hover:border-blue-500/50 hover:bg-accent/50 hover:shadow-md' : 'cursor-default'
+        canNavigate ? 'cursor-pointer active:scale-[0.98] hover:border-blue-500/50 hover:bg-accent/50 hover:shadow-md' : 'cursor-default'
       } border-border bg-card`}
     >
       <div className="p-4">

@@ -27,10 +27,13 @@ export const SessionList = ({
   activeSessionID,
   onSelectSession,
 }: SessionListProps) => {
-  const directoriesList = useMemo(() => {
+  const directoriesKey = useMemo(() => {
     const source = directories && directories.length > 0 ? directories : directory ? [directory] : [];
-    return Array.from(new Set(source.filter(Boolean)));
+    return JSON.stringify(source.filter(Boolean));
   }, [directory, directories]);
+  const directoriesList = useMemo(() => {
+    return Array.from(new Set(JSON.parse(directoriesKey) as string[]));
+  }, [directoriesKey]);
   const directorySet = useMemo(() => new Set(directoriesList), [directoriesList]);
   const primaryDirectory = directoriesList[0];
   const sessionCreateDirectory = createDirectory ?? primaryDirectory;
@@ -88,17 +91,17 @@ export const SessionList = ({
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   useEffect(() => {
-    if (!isLoading && filteredSessions.length === 0 && hasNextPage && !isFetchingNextPage) {
+    if (!isLoading && sessions.length > 0 && filteredSessions.length === 0 && hasNextPage && !isFetchingNextPage) {
       void fetchNextPage();
     }
-  }, [isLoading, filteredSessions.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [isLoading, sessions.length, filteredSessions.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   if (isLoading) {
     return <div className="p-4 text-sm text-muted-foreground">Loading sessions...</div>;
   }
 
   if (!sessions || sessions.length === 0) {
-    if (hasNextPage || isFetchingNextPage) {
+    if (isFetchingNextPage) {
       return <div className="p-4 text-sm text-muted-foreground">Loading sessions...</div>;
     }
     if (!searchQuery.trim()) {

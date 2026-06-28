@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getProject } from '@/api/projects'
@@ -40,7 +40,7 @@ export function ProjectDetail() {
 
   const apiUrl = OPENCODE_API_ENDPOINT
   const composerDirectory = project?.fullPath
-  const subscriptionDirectories = composerDirectory ? [composerDirectory] : []
+  const subscriptionDirectories = useMemo(() => composerDirectory ? [composerDirectory] : [], [composerDirectory])
 
   useSSE(apiUrl, subscriptionDirectories)
 

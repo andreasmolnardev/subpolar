@@ -54,13 +54,14 @@ export const useSessionsAcrossDirectories = (
   directories: string[],
   options?: UseSessionsAcrossDirectoriesOptions,
 ) => {
+  const directoriesKey = useMemo(() => JSON.stringify(directories.filter(Boolean)), [directories]);
   const uniqueDirectories = useMemo(
-    () => Array.from(new Set(directories.filter(Boolean))),
-    [directories],
+    () => Array.from(new Set(JSON.parse(directoriesKey) as string[])),
+    [directoriesKey],
   );
   const normalizedSearch = options?.search?.trim() || undefined;
   const limit = options?.limit ?? SESSION_LIST_PAGE_SIZE;
-  const directoryKey = uniqueDirectories.join('|');
+  const directoryKey = useMemo(() => JSON.stringify(uniqueDirectories), [uniqueDirectories]);
 
   const query = useInfiniteQuery({
     queryKey: ['subpolar', 'sessions', apiUrl, directoryKey, { search: normalizedSearch, limit }],

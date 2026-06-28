@@ -45,7 +45,7 @@ describe('useDeleteSession', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      'http://localhost/api/opencode/session/ses_1?directory=%2Fw%2Fstale',
+      'http://localhost/api/sessions/ses_1?directory=%2Fw%2Fstale',
       expect.objectContaining({ method: 'DELETE' }),
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -98,10 +98,9 @@ describe('useSessionsAcrossDirectories', () => {
   it('fetches first page of sessions with v2 pagination and adapted items', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({
-        items: [
-          { id: 'session-1', projectID: 'proj-1', title: 'Test Session', time: { created: 1000, updated: 1000 } },
+        sessions: [
+          { id: 'session-1', projectId: 1, directory: '/repo', title: 'Test Session', createdAt: 1000, updatedAt: 1000 },
         ],
-        cursor: { next: 'cursor_abc' },
       }), { headers: { 'Content-Type': 'application/json' } }),
     )
 
@@ -119,31 +118,18 @@ describe('useSessionsAcrossDirectories', () => {
     expect(result.current.data).toHaveLength(1)
     expect(result.current.data[0].id).toBe('session-1')
     expect(result.current.data[0].title).toBe('Test Session')
-    expect(result.current.hasNextPage).toBe(true)
+    expect(result.current.hasNextPage).toBe(false)
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost/api/opencode/api/session?limit=25&order=desc&directory=%2Frepo',
+      'http://localhost/api/sessions?limit=25&order=desc&directory=%2Frepo',
       expect.objectContaining({ credentials: 'include' }),
     )
   })
 
-  it('fetches next page via cursor when fetchNextPage is called and flattens items', async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({
-          items: [
-            { id: 'session-1', projectID: 'proj-1', title: 'Page 1', time: { created: 1000, updated: 1000 } },
-          ],
-          cursor: { next: 'cursor_next' },
-        }), { headers: { 'Content-Type': 'application/json' } }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({
-          items: [
-            { id: 'session-2', projectID: 'proj-1', title: 'Page 2', time: { created: 2000, updated: 2000 } },
-          ],
-        }), { headers: { 'Content-Type': 'application/json' } }),
-      )
+  it('treats an empty project session response as a settled empty list', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ sessions: [] }), { headers: { 'Content-Type': 'application/json' } }),
+    )
 
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
     const wrapper = ({ children }: { children: ReactNode }) => (
@@ -156,48 +142,24 @@ describe('useSessionsAcrossDirectories', () => {
       expect(result.current.isLoading).toBe(false)
     })
 
-    expect(result.current.data).toHaveLength(1)
-    expect(result.current.data[0].id).toBe('session-1')
-
-    await act(async () => {
-      result.current.fetchNextPage()
-    })
-
-    await waitFor(() => {
-      expect(result.current.data).toHaveLength(2)
-    })
-
-    expect(result.current.data[0].id).toBe('session-1')
-    expect(result.current.data[1].id).toBe('session-2')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      'http://localhost/api/opencode/api/session?cursor=cursor_next',
-      expect.objectContaining({ credentials: 'include' }),
-    )
+    expect(result.current.data).toEqual([])
+    expect(result.current.hasNextPage).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('handles multi-directory cursors and only fetches directories with nextCursor', async () => {
+  it('fetches and flattens sessions across multiple directories', async () => {
     fetchMock
       .mockResolvedValueOnce(
         new Response(JSON.stringify({
-          items: [
-            { id: 'session-a1', projectID: 'proj-1', title: 'Session A1', time: { created: 1000, updated: 1000 } },
-          ],
-          cursor: { next: 'cursor_a' },
-        }), { headers: { 'Content-Type': 'application/json' } }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({
-          items: [
-            { id: 'session-b1', projectID: 'proj-1', title: 'Session B1', time: { created: 1000, updated: 1000 } },
+          sessions: [
+            { id: 'session-a1', projectId: 1, directory: '/w/a', title: 'Session A1', createdAt: 1000, updatedAt: 1000 },
           ],
         }), { headers: { 'Content-Type': 'application/json' } }),
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({
-          items: [
-            { id: 'session-a2', projectID: 'proj-1', title: 'Session A2', time: { created: 2000, updated: 2000 } },
+          sessions: [
+            { id: 'session-b1', projectId: 1, directory: '/w/b', title: 'Session B1', createdAt: 1000, updatedAt: 1000 },
           ],
         }), { headers: { 'Content-Type': 'application/json' } }),
       )
@@ -217,29 +179,15 @@ describe('useSessionsAcrossDirectories', () => {
     })
 
     expect(result.current.data).toHaveLength(2)
-    expect(result.current.hasNextPage).toBe(true)
-
-    await act(async () => {
-      result.current.fetchNextPage()
-    })
-
-    await waitFor(() => {
-      expect(result.current.data).toHaveLength(3)
-    })
-
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
-      'http://localhost/api/opencode/api/session?cursor=cursor_a',
-      expect.objectContaining({ credentials: 'include' }),
-    )
+    expect(result.current.hasNextPage).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('sends search parameter when search option is provided', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({
-        items: [
-          { id: 'session-1', projectID: 'proj-1', title: 'Deploy Session', time: { created: 1000, updated: 1000 } },
+        sessions: [
+          { id: 'session-1', projectId: 1, directory: '/repo', title: 'Deploy Session', createdAt: 1000, updatedAt: 1000 },
         ],
       }), { headers: { 'Content-Type': 'application/json' } }),
     )
@@ -259,7 +207,7 @@ describe('useSessionsAcrossDirectories', () => {
     })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost/api/opencode/api/session?limit=25&order=desc&search=deploy&directory=%2Frepo',
+      'http://localhost/api/sessions?limit=25&order=desc&search=deploy&directory=%2Frepo',
       expect.objectContaining({ credentials: 'include' }),
     )
   })

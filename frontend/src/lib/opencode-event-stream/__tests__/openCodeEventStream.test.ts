@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { OpenCodeEventStream, TestEventStreamTransport } from '..'
+import { EventStream, TestEventStreamTransport } from '..'
 import type { EventStreamHealthState } from '..'
 
 describe('OpenCodeEventStream', () => {
@@ -13,7 +13,7 @@ describe('OpenCodeEventStream', () => {
 
   it('delivers raw events to the global monitor', () => {
     const transport = new TestEventStreamTransport()
-    const stream = new OpenCodeEventStream({ transport })
+    const stream = new EventStream({ transport })
     const onEvent = vi.fn()
 
     stream.subscribeGlobalMonitor({ directories: ['/repo'], onEvent })
@@ -30,7 +30,7 @@ describe('OpenCodeEventStream', () => {
 
   it('publishes health through monitor output', () => {
     const transport = new TestEventStreamTransport()
-    const stream = new OpenCodeEventStream({ transport })
+    const stream = new EventStream({ transport })
     const healthStates: EventStreamHealthState[] = []
 
     stream.subscribeGlobalMonitor({
@@ -46,7 +46,7 @@ describe('OpenCodeEventStream', () => {
 
   it('reconnects when the watchdog detects a stall', async () => {
     const transport = new TestEventStreamTransport()
-    const stream = new OpenCodeEventStream({ transport })
+    const stream = new EventStream({ transport })
 
     stream.subscribeGlobalMonitor({ directories: [], onEvent: vi.fn() })
     transport.openConnection()
@@ -58,7 +58,7 @@ describe('OpenCodeEventStream', () => {
 
   it('diffs global monitor directories through the transport adapter', async () => {
     const transport = new TestEventStreamTransport()
-    const stream = new OpenCodeEventStream({ transport })
+    const stream = new EventStream({ transport })
 
     const subscription = stream.subscribeGlobalMonitor({ directories: ['/repo-a'], onEvent: vi.fn() })
     transport.openConnection()
@@ -81,7 +81,7 @@ describe('OpenCodeEventStream', () => {
 
   it('opens the initial EventSource URL with first subscriber directories', () => {
     const transport = new TestEventStreamTransport()
-    const stream = new OpenCodeEventStream({ transport })
+    const stream = new EventStream({ transport })
 
     stream.subscribeGlobalMonitor({ directories: ['/repo'], onEvent: vi.fn() })
 
@@ -93,7 +93,7 @@ describe('OpenCodeEventStream', () => {
 
   it('opens the initial EventSource URL with all first subscriber directories', () => {
     const transport = new TestEventStreamTransport()
-    const stream = new OpenCodeEventStream({ transport })
+    const stream = new EventStream({ transport })
 
     stream.subscribeGlobalMonitor({ directories: ['/repo-a', '/repo-b'], onEvent: vi.fn() })
 
@@ -106,7 +106,7 @@ describe('OpenCodeEventStream', () => {
 
   it('marks health unhealthy when backend connected event reports no upstream connection', () => {
     const transport = new TestEventStreamTransport()
-    const stream = new OpenCodeEventStream({ transport })
+    const stream = new EventStream({ transport })
     const healthStates: EventStreamHealthState[] = []
 
     stream.subscribeGlobalMonitor({
@@ -131,7 +131,7 @@ describe('OpenCodeEventStream', () => {
 
   it('reports visibility through the transport adapter', async () => {
     const transport = new TestEventStreamTransport()
-    const stream = new OpenCodeEventStream({ transport })
+    const stream = new EventStream({ transport })
 
     const subscription = stream.subscribeGlobalMonitor({ directories: ['/repo'], onEvent: vi.fn() })
     transport.openConnection()
@@ -143,5 +143,19 @@ describe('OpenCodeEventStream', () => {
       path: '/api/sse/visibility',
       body: { clientId: 'client-1', visible: true, activeSessionId: 'session-1' },
     })
+  })
+
+  it('skips duplicate visibility reports for the same client state', async () => {
+    const transport = new TestEventStreamTransport()
+    const stream = new EventStream({ transport })
+
+    const subscription = stream.subscribeGlobalMonitor({ directories: ['/repo'], onEvent: vi.fn() })
+    transport.openConnection()
+    transport.connected('client-1')
+    subscription.reportVisibility(true, 'session-1')
+    subscription.reportVisibility(true, 'session-1')
+    await Promise.resolve()
+
+    expect(transport.posts.filter((post) => post.path === '/api/sse/visibility')).toHaveLength(1)
   })
 })

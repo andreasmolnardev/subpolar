@@ -181,6 +181,35 @@ describe('useSSE', () => {
     expect(useSessionStatus.getState().getStatus('session-1')).toEqual({ type: 'idle' })
   })
 
+  it('keeps the same subscription across rerenders with the same directory', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    })
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+
+    const { rerender, unmount } = renderHook(
+      ({ sessionId }) => useSSE('http://localhost:5551', '/repo', sessionId),
+      { wrapper, initialProps: { sessionId: 'session-1' } },
+    )
+
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1))
+
+    act(() => {
+      MockEventSource.instances[0].emit('connected', { clientId: 'client-1' })
+    })
+
+    rerender({ sessionId: 'session-2' })
+    rerender({ sessionId: 'session-3' })
+
+    expect(MockEventSource.instances).toHaveLength(1)
+
+    unmount()
+  })
+
   it('ignores stale status snapshots after the directory changes', async () => {
     const queryClient = new QueryClient({
       defaultOptions: {

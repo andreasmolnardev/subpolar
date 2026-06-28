@@ -5,7 +5,7 @@ import { useDesktop } from "@/hooks/useDesktop";
 import { useSidebarCollapsed } from "@/hooks/useSidebarCollapsed";
 import { useAuth } from "@/hooks/useAuth";
 import { useUrlParams } from "@/hooks/useUrlParams";
-import { getProject, listProjects, createProject } from "@/api/projects";
+import { createProject, getProject, hasProjectId, listProjects } from "@/api/projects";
 import { listStoredSessions } from "@/api/sessions";
 import { settingsApi, type AgentToolPolicyEffect } from "@/api/settings";
 import { DEFAULT_USER_PREFERENCES } from "@/api/types/settings";
@@ -37,6 +37,7 @@ import { AgentDialog } from "@/components/settings/AgentDialog";
 import { ProjectDialog } from "@/components/project/ProjectDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { showToast } from "@/lib/toast";
+import { getSidebarProjectRoute } from "@/lib/projectNavigation";
 
 function SidebarSection({
   label,
@@ -257,9 +258,10 @@ export function DesktopSidebar() {
     [preferences?.hiddenSidebarAgents],
   );
   const visibleGeneralChatAgents = generalChatAgents.filter((agent) => !hiddenSidebarAgents.has(agent.name.toLowerCase()));
+  const navigableProjects = useMemo(() => projects?.filter(hasProjectId) ?? [], [projects]);
   const selectedSidebarProject = selectedSidebarProjectId === String(GENERAL_CHAT_PROJECT_ID)
     ? generalChatProject
-    : projects?.find((project) => String(project.id) === selectedSidebarProjectId);
+    : navigableProjects.find((project) => String(project.id) === selectedSidebarProjectId);
   const selectedSidebarDirectory = selectedSidebarProject?.fullPath;
   const { data: projectAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, selectedSidebarDirectory);
   const visibleProjectAgents = useMemo(() => {
@@ -383,7 +385,7 @@ export function DesktopSidebar() {
   const getSessionProjectId = (directory: string | null, projectId: number | null) => {
     if (projectId !== null) return projectId;
     if (directory && directory === generalChatDirectory) return GENERAL_CHAT_PROJECT_ID;
-    return projects?.find((project) => project.fullPath === directory)?.id ?? GENERAL_CHAT_PROJECT_ID;
+    return navigableProjects.find((project) => project.fullPath === directory)?.id ?? GENERAL_CHAT_PROJECT_ID;
   };
 
   const isSessionActive = (sessionId: string) => {
@@ -433,8 +435,10 @@ onValueChange={(value) => {
                        setIsCreateProjectDialogOpen(true);
                        return;
                      }
+                     const route = getSidebarProjectRoute(value, projects);
+                     if (!route) return;
                      setSelectedSidebarProjectId(value);
-                     navigate(value === String(GENERAL_CHAT_PROJECT_ID) ? "/home" : `/projects/${value}`);
+                     navigate(route);
                    }}
                 >
                   <SelectTrigger className="h-9 min-w-0 flex-1">
@@ -444,7 +448,7 @@ onValueChange={(value) => {
                     {generalChatProject && (
                       <SelectItem value={String(GENERAL_CHAT_PROJECT_ID)}>{generalChatProject.name}</SelectItem>
                     )}
-                    {projects?.map((project) => (
+                    {navigableProjects.map((project) => (
                       <SelectItem key={project.id} value={String(project.id)}>
                         {project.name}
                       </SelectItem>

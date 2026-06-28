@@ -230,7 +230,7 @@ describe('SessionList', () => {
     expect(screen.getByText('Click here to start a new session')).toBeTruthy()
   })
 
-  it('shows loading state instead of create-session card when the first page is empty but more pages are pending', () => {
+  it('shows create-session card when the first page is empty even if more pages are reported', () => {
     sessionsData.splice(0, sessionsData.length)
     hasNextPageRef.current = true
 
@@ -242,9 +242,9 @@ describe('SessionList', () => {
       />,
     )
 
-    expect(screen.getByText('Loading sessions...')).toBeTruthy()
-    expect(screen.queryByText('No sessions yet')).toBeNull()
-    expect(screen.queryByText('Click here to start a new session')).toBeNull()
+    expect(screen.getByText('No sessions yet')).toBeTruthy()
+    expect(screen.getByText('Click here to start a new session')).toBeTruthy()
+    expect(fetchNextPageMock).not.toHaveBeenCalled()
   })
 
   it('auto-fetches next page when all visible sessions are filtered out as child sessions', async () => {

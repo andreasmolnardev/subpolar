@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getProject, listProjects } from "@/api/projects";
+import { getProject, hasProjectId, listProjects } from "@/api/projects";
 import { MessageThread } from "@/components/message/MessageThread";
 import { ChatInputBar, type ChatInputBarHandle, type PendingSessionPrompt } from "@/components/chat/ChatInputBar";
 import { FloatingTTSButton } from '@/components/message/FloatingTTSButton'
@@ -117,6 +117,10 @@ export function SessionDetail() {
     queryKey: ["projects"],
     queryFn: listProjects,
   });
+  const selectableProjects = useMemo(
+    () => projects?.filter((project) => hasProjectId(project) && project.id !== GENERAL_CHAT_PROJECT_ID) ?? [],
+    [projects],
+  );
 
   useProjectActivity(repoId, Boolean(repo));
 
@@ -416,7 +420,6 @@ export function SessionDetail() {
   const workspaceDisplayName = repo?.name || repo?.directory.split('/').pop() || repo?.directory || 'Workspace';
   const isGeneralChatProject = repoId === GENERAL_CHAT_PROJECT_ID;
   const sessionTitle = session?.title || "Untitled Session";
-  const selectableProjects = projects?.filter((project) => project.id !== GENERAL_CHAT_PROJECT_ID) ?? [];
   const tabFromUrl = new URLSearchParams(location.search).get('projectTab') ?? undefined;
   const sessionBackPath = getSessionListPath(repoId, tabFromUrl);
 
