@@ -1,5 +1,14 @@
 /// <reference path="../pb_data/types.d.ts" />
 migrate((app) => {
+  const hasCollection = (name) => {
+    try {
+      app.findCollectionByNameOrId(name);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const todoLists = new Collection({
     "createRule": null,
     "deleteRule": null,
@@ -64,11 +73,27 @@ migrate((app) => {
     "viewRule": null
   });
 
-  app.save(todoLists);
-  app.save(todoItems);
-  return app.save(notes);
+  if (!hasCollection("todo_lists")) {
+    app.save(todoLists);
+  }
+
+  if (!hasCollection("todo_items")) {
+    app.save(todoItems);
+  }
+
+  if (!hasCollection("notes")) {
+    app.save(notes);
+  }
 }, (app) => {
-  app.delete(app.findCollectionByNameOrId("pbc_2324600003"));
-  app.delete(app.findCollectionByNameOrId("pbc_2324600002"));
-  return app.delete(app.findCollectionByNameOrId("pbc_2324600001"));
+  const deleteCollection = (id) => {
+    try {
+      app.delete(app.findCollectionByNameOrId(id));
+    } catch {
+      return null;
+    }
+  };
+
+  deleteCollection("pbc_2324600003");
+  deleteCollection("pbc_2324600002");
+  return deleteCollection("pbc_2324600001");
 })

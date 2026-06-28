@@ -1,5 +1,10 @@
 /// <reference path="../pb_data/types.d.ts" />
 migrate((app) => {
+  try {
+    app.findCollectionByNameOrId("notes");
+    return null;
+  } catch {}
+
   const collection = new Collection({
     "createRule": null,
     "deleteRule": null,
@@ -109,7 +114,13 @@ migrate((app) => {
 
   return app.save(collection);
 }, (app) => {
-  const collection = app.findCollectionByNameOrId("pbc_3395098727");
+  let collection;
+
+  try {
+    collection = app.findCollectionByNameOrId("pbc_3395098727");
+  } catch {
+    return null;
+  }
 
   return app.delete(collection);
 })
