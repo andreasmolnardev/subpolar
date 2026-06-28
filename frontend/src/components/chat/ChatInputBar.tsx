@@ -17,11 +17,12 @@ import {
 import { useAgents, useAbortSession, useConfig, useCreateSession, useSendPrompt } from "@/hooks/usePiHarness";
 import { getProviders } from "@/api/providers";
 import { DEFAULT_USER_PREFERENCES } from "@/api/types/settings";
-import { getProject, listProjects } from "@/api/projects";
+import { getProject, listProjectMentions, listProjects, loadMentionContext, type MentionContextItem, type Project } from "@/api/projects";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { useSettings } from "@/hooks/useSettings";
 import { showToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { MentionSuggestions, type MentionItem } from "@/components/message/MentionSuggestions";
 
 export interface ChatInputBarHandle {
   setPromptValue: (value: string) => void;
@@ -92,6 +93,9 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const [selectedPermission, setSelectedPermission] = useState(defaultPermission);
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [hasPromptContent, setHasPromptContent] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+  const [selectedMentions, setSelectedMentions] = useState<MentionContextItem[]>([]);
 
   const apiUrl = OPENCODE_API_ENDPOINT;
 
@@ -105,12 +109,18 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     queryFn: () => getProject(GENERAL_CHAT_PROJECT_ID),
   });
 
+  const getProjectIdValue = (project: Project) => {
+    if (project.id === null || project.id === undefined) return null;
+    return String(project.id);
+  };
+
   const targetProjectId = selectedProjectId ?? GENERAL_CHAT_PROJECT_ID.toString();
   const selectedProject = targetProjectId === GENERAL_CHAT_PROJECT_ID.toString()
     ? generalChatProject
-    : projects.find((p) => p.id.toString() === targetProjectId);
+    : projects.find((p) => getProjectIdValue(p) === targetProjectId);
   const isGeneralChatProject = targetProjectId === GENERAL_CHAT_PROJECT_ID.toString();
   const selectedDirectory = sessionID ? directory : selectedProject?.fullPath;
+  const canMentionContext = Boolean(selectedDirectory);
 
   const { data: agents = [] } = useAgents(apiUrl, selectedDirectory);
   const hiddenChatInputAgents = useMemo(
@@ -118,8 +128,13 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     [preferences?.hiddenChatInputAgents],
   );
   const visibleAgents = useMemo(
-    () => agents.filter((agent) => !hiddenChatInputAgents.has(agent.name.toLowerCase())),
-    [agents, hiddenChatInputAgents],
+    () => {
+      const overrideNames = selectedProject?.hasAgentOverride ? new Set(selectedProject.agentNames ?? []) : null;
+      return agents.filter((agent) =>
+        !hiddenChatInputAgents.has(agent.name.toLowerCase()) &&
+        (!overrideNames || overrideNames.has(agent.name)));
+    },
+    [agents, hiddenChatInputAgents, selectedProject?.agentNames, selectedProject?.hasAgentOverride],
   );
   const { data: config } = useConfig(apiUrl, selectedDirectory);
 
@@ -128,6 +143,29 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     queryFn: () => getProviders(),
     staleTime: 30000,
   });
+
+  const { data: mentionResults } = useQuery({
+    queryKey: ["project-mentions", selectedDirectory, mentionQuery ?? ""],
+    queryFn: () => listProjectMentions(selectedDirectory!, mentionQuery ?? ""),
+    enabled: canMentionContext && mentionQuery !== null,
+    staleTime: 30000,
+  });
+
+  const mentionItems = useMemo<MentionItem[]>(() => {
+    if (mentionQuery === null) return [];
+    const files = (mentionResults?.files ?? []).slice(0, 10).map((file) => ({
+      type: "file" as const,
+      value: file,
+      label: file,
+    }));
+    const skills = (mentionResults?.skills ?? []).slice(0, 10).map((skill) => ({
+      type: "skill" as const,
+      value: skill.name,
+      label: skill.name,
+      description: skill.description,
+    }));
+    return [...files, ...skills].slice(0, 10);
+  }, [mentionQuery, mentionResults]);
 
   const models = useMemo(() => {
     const providers = providersData?.providers;
@@ -183,7 +221,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     return map;
   }, [models]);
 
-  const selectedAgentForRequest = selectedAgent === "__default__" || (!hideAgentSelect && !agents.some((agent) => agent.name === selectedAgent))
+  const selectedAgentForRequest = selectedAgent === "__default__" || (!hideAgentSelect && !visibleAgents.some((agent) => agent.name === selectedAgent))
     ? undefined
     : selectedAgent;
   const selectedPermissionForRequest = selectedPermission === "default" && !selectedAgentForRequest
@@ -243,9 +281,53 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       const hasContent = e.target.value.trim().length > 0;
       setHasPromptContent(hasContent);
       onPromptChange?.(hasContent);
+      const cursor = e.target.selectionStart;
+      const beforeCursor = e.target.value.slice(0, cursor);
+      const match = beforeCursor.match(/(?:^|\s)@([^\s@]*)$/);
+      setMentionQuery(match ? match[1] : null);
+      setSelectedMentionIndex(0);
     },
     [onPromptChange],
   );
+
+  const insertMention = useCallback((item: MentionItem) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const cursor = textarea.selectionStart;
+    const beforeCursor = textarea.value.slice(0, cursor);
+    const afterCursor = textarea.value.slice(cursor);
+    const match = beforeCursor.match(/(?:^|\s)@([^\s@]*)$/);
+    if (!match || match.index === undefined) return;
+    const prefixEnd = beforeCursor[match.index] === "@" ? match.index : match.index + 1;
+    const nextValue = `${textarea.value.slice(0, prefixEnd)}@${item.value} ${afterCursor}`;
+    textarea.value = nextValue;
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+    setSelectedMentions((mentions) => {
+      const next = { type: item.type, value: item.value };
+      if (mentions.some((mention) => mention.type === next.type && mention.value === next.value)) return mentions;
+      return [...mentions, next].slice(-10);
+    });
+    setMentionQuery(null);
+    setHasPromptContent(nextValue.trim().length > 0);
+    onPromptChange?.(nextValue.trim().length > 0);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const position = prefixEnd + item.value.length + 2;
+      textarea.setSelectionRange(position, position);
+    });
+  }, [onPromptChange]);
+
+  const buildPromptWithMentionContext = useCallback(async (rawPrompt: string, workspaceDirectory: string | undefined, mentions: MentionContextItem[]) => {
+    if (!workspaceDirectory || mentions.length === 0) return rawPrompt;
+    try {
+      const context = await loadMentionContext(workspaceDirectory, mentions);
+      return context ? `${rawPrompt}\n\n<context>\n${context}\n</context>` : rawPrompt;
+    } catch {
+      showToast.error("Failed to load mentioned context");
+      return null;
+    }
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     const targetSessionId = sessionID ?? activeSessionId;
@@ -257,17 +339,21 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
 
     if (sendPrompt.isPending) return;
 
-    const prompt = textareaRef.current?.value.trim();
-    if (!prompt) return;
+    const rawPrompt = textareaRef.current?.value.trim();
+    if (!rawPrompt) return;
     if (!sessionID && !selectedProject) {
       showToast.error(sendImmediately ? "Select a project before sending" : "General chat is still loading");
       return;
     }
 
+    const prompt = await buildPromptWithMentionContext(rawPrompt, selectedDirectory, selectedMentions);
+    if (!prompt) return;
+
     if (sessionID) {
       textareaRef.current!.value = "";
       textareaRef.current!.style.height = "auto";
       setHasPromptContent(false);
+      setSelectedMentions([]);
       onPromptChange?.(false);
       sendPrompt.mutate(
         {
@@ -295,6 +381,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
         textareaRef.current!.value = "";
         textareaRef.current!.style.height = "auto";
         setHasPromptContent(false);
+        setSelectedMentions([]);
         onPromptChange?.(false);
         navigate(`/projects/${targetProjectId}/sessions/${session.id}`, {
           state: {
@@ -314,6 +401,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       textareaRef.current!.value = "";
       textareaRef.current!.style.height = "auto";
       setHasPromptContent(false);
+      setSelectedMentions([]);
       onPromptChange?.(false);
       navigate(`/projects/${targetProjectId}/sessions/${session.id}`, {
         state: {
@@ -333,6 +421,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   }, [
     abortSession,
     activeSessionId,
+    buildPromptWithMentionContext,
     createSession,
     sessionID,
     isGeneratingMessage,
@@ -344,6 +433,8 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     selectedModel,
     selectedPermissionForRequest,
     selectedProject,
+    selectedDirectory,
+    selectedMentions,
     sendImmediately,
     sendPrompt,
     targetProjectId,
@@ -351,12 +442,33 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (mentionQuery !== null && mentionItems.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setSelectedMentionIndex((index) => Math.min(index + 1, mentionItems.length - 1));
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setSelectedMentionIndex((index) => Math.max(index - 1, 0));
+          return;
+        }
+        if (e.key === "Tab" || e.key === "Enter") {
+          e.preventDefault();
+          insertMention(mentionItems[selectedMentionIndex]);
+          return;
+        }
+        if (e.key === "Escape") {
+          setMentionQuery(null);
+          return;
+        }
+      }
       if (e.key === "Enter" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
     },
-    [handleSubmit],
+    [handleSubmit, insertMention, mentionItems, mentionQuery, selectedMentionIndex],
   );
 
   const selectedProjectName = isGeneralChatProject ? null : selectedProject?.name ?? null;
@@ -364,6 +476,13 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   return (
     <div className="w-full max-w-3xl mx-auto">
       <div className="relative backdrop-blur-md bg-muted/50 rounded-xl p-4 shadow-lg">
+        <MentionSuggestions
+          isOpen={mentionQuery !== null && mentionItems.length > 0}
+          items={mentionItems}
+          onSelect={insertMention}
+          onClose={() => setMentionQuery(null)}
+          selectedIndex={selectedMentionIndex}
+        />
           <textarea
             ref={textareaRef}
             onChange={handleTextareaInput}
@@ -377,6 +496,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
         <input ref={fileInputRef} type="file" className="hidden" />
 
         <div className="flex mt-3 items-center">
+          {!sessionID && (
           <Select
             value={selectedProjectId ?? undefined}
             onValueChange={(v) => {
@@ -397,13 +517,19 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
               )}
             </SelectTrigger>
             <SelectContent className="max-h-[300px] overflow-y-auto">
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id.toString()}>
-                  {project.name}
-                </SelectItem>
-              ))}
+              {projects.map((project) => {
+                const projectId = getProjectIdValue(project);
+                if (!projectId) return null;
+
+                return (
+                  <SelectItem key={projectId} value={projectId}>
+                    {project.name}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
+          )}
 
           <Button
             type="button"

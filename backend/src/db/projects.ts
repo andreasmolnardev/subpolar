@@ -20,6 +20,7 @@ export interface ProjectRecord {
 }
 
 let projectFieldNames: Set<string> | null = null
+type ProjectSettingsRecord = { id: string; project_id: string; agent_names?: unknown; created_at: number; updated_at: number }
 
 async function getProjectFieldNames(pb: PocketBase): Promise<Set<string>> {
   if (projectFieldNames) return projectFieldNames
@@ -36,16 +37,24 @@ async function withExistingProjectFields<T extends Record<string, unknown>>(pb: 
   ) as Partial<T>
 }
 
-function rowToProject(row: ProjectRecord): Project {
+function normalizeAgentNames(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)))
+}
+
+function rowToProject(row: ProjectRecord, settings?: ProjectSettingsRecord | null): Project {
   const isGeneralChat = row.is_general_chat ?? (row.user_id === 'default' && row.name === 'General Chat')
   const numId = isGeneralChat ? GENERAL_CHAT_PROJECT_ID : parseInt(row.id, 10)
   const fullPath = isGeneralChat ? path.join(getWorkspacePath(), 'general-chat') : row.full_path ?? row.directory
+  const agentNames = normalizeAgentNames(settings?.agent_names)
   return {
     id: numId,
     name: row.name,
     directory: row.directory || '',
     fullPath,
-    openCodeConfigName: row.opencode_config_name,
+    piConfigName: row.opencode_config_name,
+    agentNames,
+    hasAgentOverride: settings !== undefined && settings !== null,
     status: (row.status as Project['status']) || 'ready',
     isGeneralChat,
     createdAt: row.created_at,
@@ -54,14 +63,28 @@ function rowToProject(row: ProjectRecord): Project {
   }
 }
 
+async function getProjectSettings(pb: PocketBase, projectId: string): Promise<ProjectSettingsRecord | null> {
+  const escaped = projectId.replaceAll('"', '\\"')
+  return await pb.collection('project_settings').getFirstListItem(`project_id = "${escaped}"`).catch((error: unknown) => {
+    if (isMissingCollectionError(error)) return null
+    return null
+  }) as unknown as ProjectSettingsRecord | null
+}
+
+async function projectWithSettings(pb: PocketBase, row: ProjectRecord): Promise<Project> {
+  const isGeneralChat = row.is_general_chat ?? (row.user_id === 'default' && row.name === 'General Chat')
+  const projectId = isGeneralChat ? String(GENERAL_CHAT_PROJECT_ID) : row.id
+  return rowToProject(row, await getProjectSettings(pb, projectId))
+}
+
 export async function listProjects(pb: PocketBase, userId: string): Promise<Project[]> {
   const result = await pb.collection('projects').getFullList({
     sort: '-created_at',
     filter: `user_id = "${userId}"`,
   })
-  return (result as unknown as ProjectRecord[])
+  return Promise.all((result as unknown as ProjectRecord[])
     .filter((r) => !isGeneralChatRecord(r))
-    .map(rowToProject)
+    .map((row) => projectWithSettings(pb, row)))
 }
 
 function isGeneralChatRecord(row: ProjectRecord): boolean {
@@ -75,7 +98,7 @@ export async function getProjectById(pb: PocketBase, id: string): Promise<Projec
 
   try {
     const record = await pb.collection('projects').getOne(id)
-    return rowToProject(record as unknown as ProjectRecord)
+    return projectWithSettings(pb, record as unknown as ProjectRecord)
   } catch {
     return null
   }
@@ -97,7 +120,7 @@ async function findGeneralChatRecord(pb: PocketBase): Promise<ProjectRecord | nu
 
 export async function getGeneralChatProject(pb: PocketBase): Promise<Project | null> {
   const record = await findGeneralChatRecord(pb)
-  return record ? rowToProject(record) : null
+  return record ? projectWithSettings(pb, record) : null
 }
 
 export async function ensureGeneralChatProject(pb: PocketBase): Promise<Project> {
@@ -118,7 +141,7 @@ export async function ensureGeneralChatProject(pb: PocketBase): Promise<Project>
     updated_at: now,
     last_accessed_at: now,
   }))
-  return rowToProject(record as unknown as ProjectRecord)
+  return projectWithSettings(pb, record as unknown as ProjectRecord)
 }
 
 export async function createProject(
@@ -146,7 +169,7 @@ export async function createProject(
     created_at: now,
     updated_at: now,
   }))
-  return rowToProject(record as unknown as ProjectRecord)
+  return projectWithSettings(pb, record as unknown as ProjectRecord)
 }
 
 export async function updateProject(
@@ -159,10 +182,25 @@ export async function updateProject(
   const record = await pb.collection('projects').update(id, {
     name: data.name ?? existing.name,
     directory: data.directory !== undefined ? data.directory : existing.directory,
-    opencode_config_name: data.openCodeConfigName !== undefined ? data.openCodeConfigName : existing.openCodeConfigName,
+    opencode_config_name: data.openCodeConfigName !== undefined ? data.openCodeConfigName : existing.piConfigName,
     updated_at: Date.now(),
   })
-  return rowToProject(record as unknown as ProjectRecord)
+  return projectWithSettings(pb, record as unknown as ProjectRecord)
+}
+
+export async function setProjectAgentNames(pb: PocketBase, projectId: string, agentNames: string[]): Promise<void> {
+  const now = Date.now()
+  const normalized = normalizeAgentNames(agentNames) ?? []
+  const escaped = projectId.replaceAll('"', '\\"')
+  const existing = await pb.collection('project_settings').getFirstListItem(`project_id = "${escaped}"`).catch((error: unknown) => {
+    if (isMissingCollectionError(error)) return null
+    return null
+  })
+  if (existing) {
+    await pb.collection('project_settings').update(existing.id, { agent_names: normalized, updated_at: now })
+    return
+  }
+  await pb.collection('project_settings').create({ project_id: projectId, agent_names: normalized, created_at: now, updated_at: now })
 }
 
 export async function deleteProject(pb: PocketBase, id: string): Promise<boolean> {
@@ -210,4 +248,11 @@ async function resolveProjectRecordId(pb: PocketBase, id: string): Promise<strin
   const record = await findGeneralChatRecord(pb)
   if (!record) throw new Error(`Project with id ${id} not found`)
   return record.id
+}
+
+function isMissingCollectionError(error: unknown): boolean {
+  return typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    error.status === 404
 }

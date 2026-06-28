@@ -95,6 +95,13 @@ export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
     number('updated_at'),
   ], ['CREATE UNIQUE INDEX idx_agent_tool_policies_agent_tool ON agent_tool_policies (agent_id, tool_id)'])
 
+  await ensureCollection(pb, 'project_settings', [
+    text('project_id'),
+    json('agent_names'),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE UNIQUE INDEX idx_project_settings_project ON project_settings (project_id)'])
+
   await ensureCollection(pb, 'tool_approvals', [
     text('agent_id'),
     text('session_id', false),

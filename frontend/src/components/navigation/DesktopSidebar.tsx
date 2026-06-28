@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDesktop } from "@/hooks/useDesktop";
@@ -17,7 +17,6 @@ import {
   Bot,
   ChevronDown,
   ChevronRight,
-  FolderKanban,
   History,
   Home,
   MoreHorizontal,
@@ -36,6 +35,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AgentDialog } from "@/components/settings/AgentDialog";
 import { ProjectDialog } from "@/components/project/ProjectDialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { showToast } from "@/lib/toast";
 
 function SidebarSection({
   label,
@@ -227,9 +228,8 @@ export function DesktopSidebar() {
   const isDesktop = useDesktop();
 
   const [agentsExpanded, setAgentsExpanded] = useState(true);
-  const [projectsExpanded, setProjectsExpanded] = useState(true);
-  const [automationsExpanded, setAutomationsExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(true);
+  const [selectedSidebarProjectId, setSelectedSidebarProjectId] = useState<string>(String(GENERAL_CHAT_PROJECT_ID));
   const [isCreateAgentDialogOpen, setIsCreateAgentDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<{ name: string; agent: Agent } | null>(null);
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] = useState(false);
@@ -252,8 +252,33 @@ export function DesktopSidebar() {
   });
 
   const { data: generalChatAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, generalChatDirectory);
-  const hiddenSidebarAgents = new Set((preferences?.hiddenSidebarAgents ?? DEFAULT_USER_PREFERENCES.hiddenSidebarAgents).map((name) => name.toLowerCase()));
+  const hiddenSidebarAgents = useMemo(
+    () => new Set((preferences?.hiddenSidebarAgents ?? DEFAULT_USER_PREFERENCES.hiddenSidebarAgents).map((name) => name.toLowerCase())),
+    [preferences?.hiddenSidebarAgents],
+  );
   const visibleGeneralChatAgents = generalChatAgents.filter((agent) => !hiddenSidebarAgents.has(agent.name.toLowerCase()));
+  const selectedSidebarProject = selectedSidebarProjectId === String(GENERAL_CHAT_PROJECT_ID)
+    ? generalChatProject
+    : projects?.find((project) => String(project.id) === selectedSidebarProjectId);
+  const selectedSidebarDirectory = selectedSidebarProject?.fullPath;
+  const { data: projectAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, selectedSidebarDirectory);
+  const visibleProjectAgents = useMemo(() => {
+    const base = projectAgents.filter((agent) => !hiddenSidebarAgents.has(agent.name.toLowerCase()));
+    const overrideNames = selectedSidebarProject?.hasAgentOverride ? new Set(selectedSidebarProject.agentNames ?? []) : null;
+    return (overrideNames ? base.filter((agent) => overrideNames.has(agent.name)) : base).slice(0, 5);
+  }, [hiddenSidebarAgents, projectAgents, selectedSidebarProject?.agentNames, selectedSidebarProject?.hasAgentOverride]);
+
+  const selectedProjectSessions = useMemo(() => {
+    if (!storedSessions) return [];
+    return storedSessions
+      .filter((session) => {
+        if (selectedSidebarProjectId === String(GENERAL_CHAT_PROJECT_ID)) {
+          return session.projectId === GENERAL_CHAT_PROJECT_ID || session.directory === generalChatDirectory;
+        }
+        return String(session.projectId) === selectedSidebarProjectId || session.directory === selectedSidebarDirectory;
+      })
+      .slice(0, 5);
+  }, [generalChatDirectory, selectedSidebarDirectory, selectedSidebarProjectId, storedSessions]);
 
   const { data: configs } = useQuery({
     queryKey: ["subpolar-configs"],
@@ -327,10 +352,12 @@ export function DesktopSidebar() {
     updateConfigMutation.mutate({ agents: updatedAgents });
   };
 
-  const handleCreateProject = async (data: { name: string; directory?: string }) => {
-    await createProject(data);
+  const handleCreateProject = async (data: { name: string; directory?: string; agentNames?: string[] }) => {
+    const created = await createProject(data);
     queryClient.invalidateQueries({ queryKey: ["projects"] });
+    setSelectedSidebarProjectId(String(created.id));
     setIsCreateProjectDialogOpen(false);
+    showToast.success("Project created");
   };
 
   if (isLoading || !isAuthenticated) {
@@ -388,7 +415,51 @@ export function DesktopSidebar() {
             onClick={() => navigate("/home")}
           />
 
-          {/* Agents */}
+          {/* Automations */}
+          <SidebarNavItem
+            icon={Zap}
+            label="Automations"
+            onClick={() => navigate("/automations")}
+            active={location.pathname === "/automations"}
+          />
+
+          {!collapsed && (
+            <div className="mt-3 border-t border-border pt-3">
+              <div className="mb-2 flex items-center gap-1 px-1">
+                <Select
+                  value={selectedSidebarProjectId}
+onValueChange={(value) => {
+                     if (value === "new") {
+                       setIsCreateProjectDialogOpen(true);
+                       return;
+                     }
+                     setSelectedSidebarProjectId(value);
+                     navigate(value === String(GENERAL_CHAT_PROJECT_ID) ? "/home" : `/projects/${value}`);
+                   }}
+                >
+                  <SelectTrigger className="h-9 min-w-0 flex-1">
+                    <SelectValue placeholder="Project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {generalChatProject && (
+                      <SelectItem value={String(GENERAL_CHAT_PROJECT_ID)}>{generalChatProject.name}</SelectItem>
+                    )}
+                    {projects?.map((project) => (
+                      <SelectItem key={project.id} value={String(project.id)}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                                          <SelectItem value="new" className="flex items-center">
+                          <Plus className="h-4 w-4 mr-1" />
+                          Create project
+                        </SelectItem>
+                      </SelectContent>
+                </Select>
+
+              </div>
+            </div>
+          )}
+
           <SidebarSection
             label="Agents"
             icon={Bot}
@@ -410,85 +481,29 @@ export function DesktopSidebar() {
               </button>
             }
           >
-            {visibleGeneralChatAgents.map((agent) => {
-              const name = agent.name;
-              const configuredAgent = (parsedConfig?.agent as Record<string, Agent> | undefined)?.[name];
-              const editableAgent: Agent = {
-                prompt: agent.prompt,
-                description: agent.description,
-                mode: agent.mode,
-                model: agent.model ? `${agent.model.providerID}/${agent.model.modelID}` : undefined,
-                ...configuredAgent,
-              };
-              return (
-                <SidebarAgentItem
-                  key={name}
-                  label={name}
-                  active={isAgentActive(name)}
-                  onClick={() =>
-                    navigate(`/agents/${encodeURIComponent(name)}`)}
-                  onEdit={() => setEditingAgent({ name, agent: editableAgent })}
-                  onDelete={() => handleDeleteAgent(name)}
-                />
-              );
-            })}
-          </SidebarSection>
+{visibleProjectAgents.map((agent) => {
+               const name = agent.name;
+               const configuredAgent = (parsedConfig?.agent as Record<string, Agent> | undefined)?.[name];
+               const editableAgent: Agent = {
+                 prompt: agent.prompt,
+                 description: agent.description,
+                 mode: agent.mode,
+                 model: agent.model ? `${agent.model.providerID}/${agent.model.modelID}` : undefined,
+                 ...configuredAgent,
+               };
+               return (
+                 <SidebarAgentItem
+                   key={name}
+                   label={name}
+                   active={isAgentActive(name)}
+                   onClick={() => navigate(`/agents/${encodeURIComponent(name)}`)}
+                   onEdit={() => setEditingAgent({ name, agent: editableAgent })}
+                   onDelete={() => handleDeleteAgent(name)}
+                 />
+               );
+             })}
 
-          {/* Projects */}
-          <SidebarSection
-            label="Projects"
-            icon={FolderKanban}
-            collapsed={collapsed}
-            expanded={projectsExpanded}
-            onToggle={() => setProjectsExpanded(!projectsExpanded)}
-            onClick={() => navigate("/projects")}
-            active={location.pathname === "/projects"}
-            action={
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsCreateProjectDialogOpen(true);
-                }}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-            }
-          >
-            {projects?.filter((p) => p.id !== 0).map((project) => (
-              <SidebarNavItem
-                key={project.id}
-                label={project.name}
-                active={location.pathname === `/projects/${project.id}`}
-                onClick={() => navigate(`/projects/${project.id}`)}
-                indent
-              />
-            ))}
-          </SidebarSection>
 
-          {/* Automations */}
-          <SidebarSection
-            label="Automations"
-            icon={Zap}
-            collapsed={collapsed}
-            expanded={automationsExpanded}
-            onToggle={() => setAutomationsExpanded(!automationsExpanded)}
-            onClick={() => navigate("/automations")}
-            active={location.pathname === "/automations"}
-            action={
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate("/automations", { state: { openAutomationDialog: true } });
-                }}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-            }
-          >
           </SidebarSection>
 
           {/* Sessions */}
@@ -501,18 +516,19 @@ export function DesktopSidebar() {
             onClick={() => navigate("/history")}
             active={location.pathname === "/history"}
           >
-            {storedSessions?.map((session) => {
-              const projectId = getSessionProjectId(session.directory, session.projectId);
-              return (
-                <SidebarNavItem
-                  key={session.id}
-                  label={session.title || session.id}
-                  active={isSessionActive(session.id)}
-                  onClick={() => navigate(`/projects/${projectId}/sessions/${encodeURIComponent(session.id)}`)}
-                  indent
-                />
-              );
-            })}
+{selectedProjectSessions.map((session) => {
+                const projectId = getSessionProjectId(session.directory, session.projectId);
+                return (
+                  <SidebarNavItem
+                    key={session.id}
+                    label={session.title || session.id}
+                    active={isSessionActive(session.id)}
+                    onClick={() => navigate(`/projects/${projectId}/sessions/${encodeURIComponent(session.id)}`)}
+                    indent
+                  />
+                );
+              })}
+
           </SidebarSection>
         </div>
 
@@ -579,6 +595,8 @@ export function DesktopSidebar() {
         open={isCreateProjectDialogOpen}
         onOpenChange={setIsCreateProjectDialogOpen}
         onSubmit={handleCreateProject}
+        availableAgents={visibleGeneralChatAgents}
+        userId={user?.name || user?.email || "default"}
       />
     </>
   );

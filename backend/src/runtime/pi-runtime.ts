@@ -7,6 +7,7 @@ import {
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
 import { getAuthPath, getPiModelsPath } from '@subpolar/shared/config/env'
+import fs from 'fs/promises'
 import path from 'path'
 import type { RuntimeAdapter, RuntimeEvent, RuntimeRunInput } from './types'
 
@@ -24,6 +25,8 @@ type ActivePiProcess = {
   abort: () => Promise<void>
   dispose: () => void
 }
+
+type RuntimeSkill = { name: string; description: string; filePath: string; baseDir: string }
 
 const defaultExtensionPath = new URL('../pi/extension.ts', import.meta.url).pathname
 
@@ -148,6 +151,8 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
   private async createSession(input: RuntimeRunInput, queue: RuntimeEventQueue) {
     this.setRuntimeEnvironment(input)
     const cwd = input.cwd ?? process.cwd()
+    const projectSkillPaths = await this.getProjectSkillPaths(cwd)
+    const systemPrompt = await this.getSystemPrompt(input.systemPrompt, cwd)
     const authStorage = AuthStorage.create(getAuthPath())
     const modelRegistry = ModelRegistry.create(authStorage, getPiModelsPath())
     const modelId = this.getModelArg(input.model)
@@ -157,12 +162,12 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
       cwd,
       agentDir: getAgentDir(),
       additionalExtensionPaths: [this.options.extensionPath ?? defaultExtensionPath],
-      additionalSkillPaths: [path.join(cwd, '.opencode', 'skills')],
-      systemPromptOverride: () => input.systemPrompt,
+      additionalSkillPaths: projectSkillPaths,
+      systemPromptOverride: () => systemPrompt,
     })
 
     await loader.reload()
-    this.setSkillEnvironment(loader.getSkills().skills)
+    this.setSkillEnvironment(await this.getRuntimeSkills(cwd, loader.getSkills().skills))
     const sessionManager = SessionManager.inMemory(cwd)
     this.seedSessionHistory(sessionManager, input)
 
@@ -219,6 +224,106 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
       filePath: skill.filePath,
       baseDir: skill.baseDir,
     })))
+  }
+
+  private async getSystemPrompt(systemPrompt: string | undefined, cwd: string): Promise<string | undefined> {
+    const agentsMdPath = path.join(cwd, 'AGENTS.md')
+    const agentsMd = await fs.readFile(agentsMdPath, 'utf8').catch(() => '')
+    if (!agentsMd.trim()) return systemPrompt
+    return [systemPrompt, agentsMd].filter(Boolean).join('\n\n')
+  }
+
+  private async getProjectSkillPaths(cwd: string): Promise<string[]> {
+    const candidates = [
+      path.join(cwd, '.opencode', 'skills'),
+      path.join(cwd, '.subpolar', 'skills'),
+      path.join(cwd, 'skills'),
+    ]
+    const existing = []
+    for (const candidate of candidates) {
+      const stat = await fs.stat(candidate).catch(() => null)
+      if (stat?.isDirectory()) existing.push(candidate)
+    }
+    return existing
+  }
+
+  private async getRuntimeSkills(cwd: string, loaderSkills: RuntimeSkill[]): Promise<RuntimeSkill[]> {
+    const disabled = await this.getDisabledProjectSkills(cwd)
+    const projectSkills = await this.findProjectSkills(cwd)
+    const skillsByName = new Map<string, RuntimeSkill>()
+    for (const skill of loaderSkills) {
+      if (!disabled.has(skill.name)) skillsByName.set(skill.name, skill)
+    }
+    for (const skill of projectSkills) {
+      if (!disabled.has(skill.name)) skillsByName.set(skill.name, skill)
+    }
+    return [...skillsByName.values()]
+  }
+
+  private async getDisabledProjectSkills(cwd: string): Promise<Set<string>> {
+    const disabled = new Set<string>()
+    const skillsDir = path.join(cwd, 'skills')
+    const entries = await fs.readdir(skillsDir, { withFileTypes: true }).catch(() => [])
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.disabled')) {
+        disabled.add(entry.name.slice(0, -'.disabled'.length))
+      }
+    }
+    return disabled
+  }
+
+  private async findProjectSkills(cwd: string): Promise<RuntimeSkill[]> {
+    const skills: RuntimeSkill[] = []
+    const roots = [
+      cwd,
+      path.join(cwd, '.subpolar', 'skills'),
+      path.join(cwd, 'skills'),
+    ]
+    const seen = new Set<string>()
+    for (const root of roots) {
+      for (const filePath of await this.findSkillFiles(root, root === cwd ? 3 : 2)) {
+        if (seen.has(filePath)) continue
+        seen.add(filePath)
+        const content = await fs.readFile(filePath, 'utf8').catch(() => '')
+        if (!content.trim()) continue
+        skills.push(this.parseSkillFile(filePath, content))
+      }
+    }
+    return skills
+  }
+
+  private async findSkillFiles(root: string, maxDepth: number): Promise<string[]> {
+    const resolvedRoot = path.resolve(root)
+    const stat = await fs.stat(resolvedRoot).catch(() => null)
+    if (!stat?.isDirectory()) return []
+    const files: string[] = []
+    async function visit(dir: string, depth: number): Promise<void> {
+      if (depth > maxDepth) return
+      const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])
+      for (const entry of entries) {
+        if (entry.name === 'node_modules' || entry.name === '.git') continue
+        const fullPath = path.join(dir, entry.name)
+        if (entry.isDirectory()) {
+          await visit(fullPath, depth + 1)
+        } else if (entry.name === 'SKILL.md' || (dir === resolvedRoot && entry.name.endsWith('.md'))) {
+          files.push(fullPath)
+        }
+      }
+    }
+    await visit(resolvedRoot, 0)
+    return files
+  }
+
+  private parseSkillFile(filePath: string, content: string): RuntimeSkill {
+    const frontmatter = content.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? ''
+    const name = frontmatter.match(/^name:\s*(.+)$/m)?.[1]?.trim() || path.basename(filePath, '.md')
+    const description = frontmatter.match(/^description:\s*(.+)$/m)?.[1]?.trim() || ''
+    return {
+      name,
+      description,
+      filePath,
+      baseDir: path.dirname(filePath),
+    }
   }
 
   private createPromptMessage(input: RuntimeRunInput): string {

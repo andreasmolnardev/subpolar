@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
-import { Bot, FileText } from 'lucide-react'
+import { FileText, Sparkles } from 'lucide-react'
 
 export interface MentionItem {
-  type: 'file' | 'agent'
+  type: 'file' | 'skill'
   value: string
   label: string
   description?: string
@@ -75,8 +75,8 @@ export function MentionSuggestions({
               : 'hover:bg-muted text-foreground'
           }`}
         >
-          {item.type === 'agent' ? (
-            <Bot className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          {item.type === 'skill' ? (
+            <Sparkles className="w-4 h-4 mt-0.5 flex-shrink-0" />
           ) : (
             <FileText className="w-4 h-4 mt-0.5 flex-shrink-0" />
           )}
@@ -85,7 +85,7 @@ export function MentionSuggestions({
               {item.type === 'file' ? getFilename(item.value) : item.label}
             </div>
             <div className="text-xs opacity-70 mt-0.5 truncate">
-              {item.type === 'file' ? getDirectory(item.value) : item.description || 'Agent'}
+              {item.type === 'file' ? getDirectory(item.value) : item.description || 'Skill'}
             </div>
           </div>
         </button>

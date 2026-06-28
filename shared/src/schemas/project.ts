@@ -8,6 +8,8 @@ export const ProjectSchema = z.object({
   directory: z.string(),
   fullPath: z.string(),
   piConfigName: z.string().optional(),
+  agentNames: z.array(z.string()).optional(),
+  hasAgentOverride: z.boolean().optional(),
   status: ProjectStatusSchema,
   createdAt: z.number(),
   updatedAt: z.number(),
@@ -19,12 +21,14 @@ export const CreateProjectRequestSchema = z.object({
   name: z.string().min(1).max(256),
   directory: z.string().max(1024).optional(),
   piConfigName: z.string().optional(),
+  agentNames: z.array(z.string()).optional(),
 })
 
 export const UpdateProjectRequestSchema = z.object({
   name: z.string().min(1).max(256).optional(),
   directory: z.string().max(1024).optional(),
   piConfigName: z.string().optional(),
+  agentNames: z.array(z.string()).optional(),
 })
 
 export const GeneralChatStatusSchema = z.object({
