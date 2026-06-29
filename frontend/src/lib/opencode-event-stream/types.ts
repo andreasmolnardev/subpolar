@@ -1,4 +1,4 @@
-export type OpenCodeEventHandler = (data: unknown) => void
+export type EventHandler = (data: unknown) => void
 export type EventStreamStatusHandler = (connected: boolean) => void
 
 export interface EventStreamHealthState {

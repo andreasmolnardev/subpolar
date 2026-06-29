@@ -84,8 +84,29 @@ export async function deleteSessionRecord(pb: PocketBase, sessionId: string): Pr
   }
 }
 
+export async function getSessionRecord(pb: PocketBase, sessionId: string): Promise<StoredSession | null> {
+  const escapedSessionId = sessionId.replaceAll('"', '\\"')
+  const record = await pb.collection('sessions').getFirstListItem(`session_id = "${escapedSessionId}"`).catch((error: unknown) => {
+    if (isMissingCollectionError(error)) return null
+    return null
+  })
+  return record ? rowToStoredSession(record as unknown as SessionRecord) : null
+}
+
 export async function listSessionRecords(pb: PocketBase): Promise<StoredSession[]> {
   const records = await pb.collection('sessions').getFullList({
+    sort: '-updated_at',
+  }).catch((error: unknown) => {
+    if (isMissingCollectionError(error)) return []
+    throw error
+  })
+  return (records as unknown as SessionRecord[]).map(rowToStoredSession)
+}
+
+export async function listSessionRecordsByDirectory(pb: PocketBase, directory: string): Promise<StoredSession[]> {
+  const escapedDirectory = directory.replaceAll('"', '\\"')
+  const records = await pb.collection('sessions').getFullList({
+    filter: `directory = "${escapedDirectory}"`,
     sort: '-updated_at',
   }).catch((error: unknown) => {
     if (isMissingCollectionError(error)) return []

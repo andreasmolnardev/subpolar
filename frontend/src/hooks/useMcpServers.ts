@@ -4,7 +4,7 @@ import type { McpStatusMap, McpServerConfig } from '@/api/mcp'
 import { showToast as toast } from '@/lib/toast'
 
 const SESSION_QUERY_PREDICATE = (query: { queryKey: readonly unknown[] }) =>
-  query.queryKey[0] === 'opencode' &&
+  query.queryKey[0] === 'subpolar' &&
   (query.queryKey[1] === 'sessions' || query.queryKey[1] === 'session' || query.queryKey[1] === 'messages')
 
 export function useMcpServers() {

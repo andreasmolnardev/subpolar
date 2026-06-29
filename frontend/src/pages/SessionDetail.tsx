@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getProject, listProjects } from "@/api/projects";
+import { getProject, hasProjectId, listProjects } from "@/api/projects";
 import { MessageThread } from "@/components/message/MessageThread";
 import { ChatInputBar, type ChatInputBarHandle, type PendingSessionPrompt } from "@/components/chat/ChatInputBar";
 import { FloatingTTSButton } from '@/components/message/FloatingTTSButton'
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ContextUsageIndicator } from "@/components/session/ContextUsageIndicator";
-import { useSession, useAbortSession, useMessages, useCreateSession, useSendPrompt } from "@/hooks/useOpenCode";
+import { useSession, useAbortSession, useMessages, useCreateSession, useSendPrompt } from "@/hooks/usePiHarness";
 import { useProjectActivity } from "@/hooks/useProjectActivity";
 import { OPENCODE_API_ENDPOINT } from "@/config";
 import { useSSE } from "@/hooks/useSSE";
@@ -41,12 +41,13 @@ import { useEffect, useRef, useCallback, useMemo } from "react";
 import { MessageSkeleton } from "@/components/message/MessageSkeleton";
 import { getMessagesContentVersion } from "./sessionContentVersion";
 import { showToast } from "@/lib/toast";
-import { createOpenCodeClient } from "@/api/opencode";
+import { createSubpolarClient } from '@/api/subpolar';
 import { usePermissions, useQuestions } from "@/contexts/EventContext";
 import { useSessionStatusForSession } from "@/stores/sessionStatusStore";
 import type { QuestionRequest } from "@/api/types";
 import { QuestionPrompt } from "@/components/session/QuestionPrompt";
 import { MinimizedQuestionIndicator } from "@/components/session/MinimizedQuestionIndicator";
+import { PermissionRequestDialog } from "@/components/session/PermissionRequestDialog";
 import { PendingActionsGroup } from "@/components/notifications/PendingActionsGroup";
 import { SessionSendErrorBanner } from "@/components/session/SessionSendErrorBanner";
 import { SessionTodoDisplay } from "@/components/message/SessionTodoDisplay";
@@ -116,19 +117,23 @@ export function SessionDetail() {
     queryKey: ["projects"],
     queryFn: listProjects,
   });
+  const selectableProjects = useMemo(
+    () => projects?.filter((project) => hasProjectId(project) && project.id !== GENERAL_CHAT_PROJECT_ID) ?? [],
+    [projects],
+  );
 
   useProjectActivity(repoId, Boolean(repo));
 
-  const opcodeUrl = OPENCODE_API_ENDPOINT;
+  const apiUrl = OPENCODE_API_ENDPOINT;
   
   const repoDirectory = repo?.fullPath;
   const sessionRouteSuffix = '';
 
-  const { isConnected, isReconnecting } = useSSE(opcodeUrl, repoDirectory, sessionId);
+  const { isConnected, isReconnecting } = useSSE(apiUrl, repoDirectory, sessionId);
 
-  const { data: rawMessages, isLoading: messagesLoading } = useMessages(opcodeUrl, sessionId, repoDirectory);
+  const { data: rawMessages, isLoading: messagesLoading } = useMessages(apiUrl, sessionId, repoDirectory);
   const { data: session, isLoading: sessionLoading } = useSession(
-    opcodeUrl,
+    apiUrl,
     sessionId,
     repoDirectory,
   );
@@ -149,16 +154,21 @@ export function SessionDetail() {
     contentVersion: messagesContentVersion,
     onScrollStateChange: () => {}
   });
-  const abortSession = useAbortSession(opcodeUrl, repoDirectory, sessionId);
-  const createSession = useCreateSession(opcodeUrl, repoDirectory);
-  const sendPendingPrompt = useSendPrompt(opcodeUrl, repoDirectory);
-  const { model, modelString } = useModelSelection(opcodeUrl, repoDirectory);
-  const sessionAgent = useSessionAgent(opcodeUrl, sessionId, repoDirectory);
+  const abortSession = useAbortSession(apiUrl, repoDirectory, sessionId);
+  const createSession = useCreateSession(apiUrl, repoDirectory);
+  const sendPendingPrompt = useSendPrompt(apiUrl, repoDirectory);
+  const { model, modelString } = useModelSelection(apiUrl, repoDirectory);
+  const sessionAgent = useSessionAgent(apiUrl, sessionId, repoDirectory);
   const isEditingMessage = useUIState((state) => state.isEditingMessage);
   const setActivePromptFileBasePath = useUIState((state) => state.setActivePromptFileBasePath);
   const { isEnabled: ttsEnabled } = useTTS();
   const sessionStatus = useSessionStatusForSession(sessionId);
-  const { syncForSession: syncPermissionsForSession } = usePermissions();
+  const {
+    pendingCount: pendingPermissionCount,
+    respond: respondToPermission,
+    getForSession: getPermissionForSession,
+    syncForSession: syncPermissionsForSession,
+  } = usePermissions();
   const { current: currentQuestion, reply: replyToQuestion, reject: rejectQuestion, syncForSession: syncQuestionsForSession } = useQuestions();
 
   const lastAssistantMessage = messages?.filter(m => m.info.role === 'assistant').at(-1);
@@ -175,6 +185,7 @@ export function SessionDetail() {
   const isStreamingResponse = hasIncompleteMessages && isSessionActive;
   const workspaceBasePath = repo?.localPath;
   const pendingPrompt = (location.state as PendingPromptLocationState | null)?.pendingPrompt;
+  const activePermission = getPermissionForSession(sessionId);
 
   useEffect(() => {
     if (!pendingPrompt || !sessionId || !isConnected || messagesLoading) return
@@ -188,6 +199,7 @@ export function SessionDetail() {
       prompt: pendingPrompt.prompt,
       model: pendingPrompt.model,
       agent: pendingPrompt.agent,
+      permission: pendingPrompt.permission,
       queued: true,
     })
 
@@ -241,7 +253,7 @@ export function SessionDetail() {
   }, [repoDirectory, sessionId, syncPermissionsForSession, syncQuestionsForSession])
 
   useQuery({
-    queryKey: ['opencode', 'pending-actions', opcodeUrl, sessionId, repoDirectory],
+    queryKey: ['subpolar', 'pending-actions', apiUrl, sessionId, repoDirectory],
     queryFn: async () => {
       await syncPendingActionsForSession()
       return null
@@ -270,7 +282,7 @@ export function SessionDetail() {
   });
 
   const handleCompact = useCallback(async () => {
-    if (!opcodeUrl || !sessionId) return;
+    if (!apiUrl || !sessionId) return;
     if (!model?.providerID || !model?.modelID) {
       showToast.error('No model selected. Please select a provider and model first.');
       return;
@@ -279,37 +291,37 @@ export function SessionDetail() {
     showToast.loading('Compacting session...', { id: `compact-${sessionId}` });
 
     try {
-      const client = createOpenCodeClient(opcodeUrl, repoDirectory);
+      const client = createSubpolarClient(apiUrl, repoDirectory);
       await client.summarizeSession(sessionId, model.providerID, model.modelID);
     } catch (error) {
       showToast.error(`Compact failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [opcodeUrl, sessionId, model, repoDirectory]);
+  }, [apiUrl, sessionId, model, repoDirectory]);
 
   const handleUndo = useCallback(async () => {
-    if (!opcodeUrl || !sessionId) return;
+    if (!apiUrl || !sessionId) return;
     try {
-      const client = createOpenCodeClient(opcodeUrl, repoDirectory);
+      const client = createSubpolarClient(apiUrl, repoDirectory);
       await client.sendCommand(sessionId, { command: 'undo', arguments: '' });
     } catch (error) {
       showToast.error(`Undo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [opcodeUrl, sessionId, repoDirectory]);
+  }, [apiUrl, sessionId, repoDirectory]);
 
   const handleRedo = useCallback(async () => {
-    if (!opcodeUrl || !sessionId) return;
+    if (!apiUrl || !sessionId) return;
     try {
-      const client = createOpenCodeClient(opcodeUrl, repoDirectory);
+      const client = createSubpolarClient(apiUrl, repoDirectory);
       await client.sendCommand(sessionId, { command: 'redo', arguments: '' });
     } catch (error) {
       showToast.error(`Redo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [opcodeUrl, sessionId, repoDirectory]);
+  }, [apiUrl, sessionId, repoDirectory]);
 
   const handleFork = useCallback(async () => {
-    if (!opcodeUrl || !sessionId) return;
+    if (!apiUrl || !sessionId) return;
     try {
-      const client = createOpenCodeClient(opcodeUrl, repoDirectory);
+      const client = createSubpolarClient(apiUrl, repoDirectory);
       const forkedSession = await client.forkSession(sessionId);
       if (forkedSession?.id) {
         navigate(`/repos/${repoId}/sessions/${forkedSession.id}${sessionRouteSuffix}`);
@@ -318,7 +330,7 @@ export function SessionDetail() {
     } catch (error) {
       showToast.error(`Fork failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [opcodeUrl, sessionId, repoDirectory, navigate, repoId, sessionRouteSuffix]);
+  }, [apiUrl, sessionId, repoDirectory, navigate, repoId, sessionRouteSuffix]);
 
   const handleCloseSession = useCallback(() => {
     const tab = new URLSearchParams(location.search).get('repoTab') ?? undefined;
@@ -408,7 +420,6 @@ export function SessionDetail() {
   const workspaceDisplayName = repo?.name || repo?.directory.split('/').pop() || repo?.directory || 'Workspace';
   const isGeneralChatProject = repoId === GENERAL_CHAT_PROJECT_ID;
   const sessionTitle = session?.title || "Untitled Session";
-  const selectableProjects = projects?.filter((project) => project.id !== GENERAL_CHAT_PROJECT_ID) ?? [];
   const tabFromUrl = new URLSearchParams(location.search).get('projectTab') ?? undefined;
   const sessionBackPath = getSessionListPath(repoId, tabFromUrl);
 
@@ -482,9 +493,9 @@ export function SessionDetail() {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start" className="h-[min(70vh,34rem)] w-[min(92vw,34rem)] p-0">
-                    {opcodeUrl && (
+                    {apiUrl && (
                       <SessionList
-                        opcodeUrl={opcodeUrl}
+                        apiUrl={apiUrl}
                         directory={repoDirectory}
                         activeSessionID={sessionId || undefined}
                         onSelectSession={(selectedSessionID) => {
@@ -503,7 +514,7 @@ export function SessionDetail() {
               <PendingActionsGroup />
             </div>
             <ContextUsageIndicator
-              opcodeUrl={opcodeUrl}
+              apiUrl={apiUrl}
               sessionID={sessionId}
               directory={repoDirectory}
               isConnected={isConnected}
@@ -523,9 +534,9 @@ export function SessionDetail() {
         <div key={sessionId} ref={messageContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [mask-image:linear-gradient(to_bottom,transparent,black_16px,black)]" style={{ paddingBottom: promptOverlayHeight + inputBottomOffset + PROMPT_OVERLAY_CLEARANCE_PX }}>
           {repoLoading || sessionLoading || messagesLoading ? (
             <MessageSkeleton />
-          ) : opcodeUrl && repoDirectory ? (
+          ) : apiUrl && repoDirectory ? (
             <MessageThread 
-              opcodeUrl={opcodeUrl} 
+              apiUrl={apiUrl} 
               sessionID={sessionId} 
               directory={repoDirectory}
               messages={messages}
@@ -536,7 +547,7 @@ export function SessionDetail() {
             />
           ) : null}
         </div>
-        {opcodeUrl && repoDirectory && !isEditingMessage && (
+        {apiUrl && repoDirectory && !isEditingMessage && (
           <div
             ref={promptOverlayRef}
             className="absolute left-0 right-0 flex justify-center"
@@ -572,6 +583,17 @@ export function SessionDetail() {
                   onMinimize={() => handleMinimizeQuestion(currentQuestion)}
                 />
               )}
+              {activePermission && (
+                <PermissionRequestDialog
+                  key={activePermission.id}
+                  permission={activePermission}
+                  pendingCount={pendingPermissionCount}
+                  isFromDifferentSession={false}
+                  sessionTitle={sessionTitle}
+                  repoDirectory={repoDirectory}
+                  onRespond={respondToPermission}
+                />
+              )}
               <SessionSendErrorBanner sessionId={sessionId} />
               <ChatInputBar
                 ref={promptInputRef}
@@ -579,6 +601,7 @@ export function SessionDetail() {
                 defaultProjectId={repoId.toString()}
                 defaultAgent={sessionAgent.agent ? sessionAgent.agent : "__default__"}
                 defaultModel={sessionAgent.model ? `${sessionAgent.model.providerID}/${sessionAgent.model.modelID}` : "__auto__"}
+                defaultPermission={sessionAgent.permission ?? "default"}
                 sessionID={sessionId}
                 disabled={!isConnected}
                 isSessionActive={isStreamingResponse}

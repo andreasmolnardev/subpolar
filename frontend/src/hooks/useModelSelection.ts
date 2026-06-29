@@ -1,9 +1,9 @@
 import { useEffect, useMemo } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useConfig } from './useOpenCode'
-import { useOpenCodeClient } from './useOpenCode'
+import { useConfig } from './usePiHarness'
+import { useSubpolarClient } from './usePiHarness'
 import { useModelStore, modelExists, type ModelSelection } from '@/stores/modelStore'
-import { addOpenCodeRecentModel, getOpenCodeModelState, getProviders, removeOpenCodeRecentModel, toggleOpenCodeFavoriteModel, type OpenCodeModelState } from '@/api/providers'
+import { addPiRecentModel, getPiModelState, getProviders, removePiRecentModel, togglePiFavoriteModel, type PiModelState } from '@/api/providers'
 
 interface UseModelSelectionResult {
   model: ModelSelection | null
@@ -18,22 +18,22 @@ interface UseModelSelectionResult {
   isModelStateLoading: boolean
 }
 
-const modelStateQueryKey = ['opencode', 'model-state']
+const modelStateQueryKey = ['subpolar', 'model-state']
 
 const isSameModel = (left: ModelSelection, right: ModelSelection) => (
   left.providerID === right.providerID && left.modelID === right.modelID
 )
 
 export function useModelSelection(
-  opcodeUrl: string | null | undefined,
+  apiUrl: string | null | undefined,
   directory?: string
 ): UseModelSelectionResult {
-  const { data: config } = useConfig(opcodeUrl, directory)
-  const client = useOpenCodeClient(opcodeUrl, directory)
+  const { data: config } = useConfig(apiUrl, directory)
+  const client = useSubpolarClient(apiUrl, directory)
   const queryClient = useQueryClient()
   
   const { data: providersData } = useQuery({
-    queryKey: ['opencode', 'providers', opcodeUrl, directory],
+    queryKey: ['subpolar', 'providers', apiUrl, directory],
     queryFn: () => getProviders(directory),
     enabled: !!client,
     staleTime: 30000,
@@ -49,19 +49,19 @@ export function useModelSelection(
   } = useModelStore()
 
   const { data: modelState, isLoading: isModelStateLoading } = useQuery({
-    queryKey: [...modelStateQueryKey, opcodeUrl, directory],
-    queryFn: () => getOpenCodeModelState(),
+    queryKey: [...modelStateQueryKey, apiUrl, directory],
+    queryFn: () => getPiModelState(),
     enabled: !!client,
     staleTime: 30000,
     placeholderData: keepPreviousData,
   })
 
   const updateRecentModel = useMutation({
-    mutationFn: addOpenCodeRecentModel,
+    mutationFn: addPiRecentModel,
     onSuccess: (state) => {
       syncModelState(state)
-      queryClient.setQueryData([...modelStateQueryKey, opcodeUrl, directory], state)
-      queryClient.invalidateQueries({ queryKey: [...modelStateQueryKey, opcodeUrl, directory] })
+      queryClient.setQueryData([...modelStateQueryKey, apiUrl, directory], state)
+      queryClient.invalidateQueries({ queryKey: [...modelStateQueryKey, apiUrl, directory] })
     },
     onError: (error) => {
       console.error('Failed to sync recent model to backend', error)
@@ -69,11 +69,11 @@ export function useModelSelection(
   })
 
   const updateFavoriteModel = useMutation({
-    mutationFn: toggleOpenCodeFavoriteModel,
+    mutationFn: togglePiFavoriteModel,
     onSuccess: (state) => {
       syncModelState(state)
-      queryClient.setQueryData([...modelStateQueryKey, opcodeUrl, directory], state)
-      queryClient.invalidateQueries({ queryKey: [...modelStateQueryKey, opcodeUrl, directory] })
+      queryClient.setQueryData([...modelStateQueryKey, apiUrl, directory], state)
+      queryClient.invalidateQueries({ queryKey: [...modelStateQueryKey, apiUrl, directory] })
     },
     onError: (error) => {
       console.error('Failed to toggle favorite model on backend', error)
@@ -81,14 +81,14 @@ export function useModelSelection(
   })
 
   const removeRecentMutation = useMutation({
-    mutationFn: removeOpenCodeRecentModel,
+    mutationFn: removePiRecentModel,
     onMutate: async (removedModel) => {
-      const queryKey = [...modelStateQueryKey, opcodeUrl, directory]
+      const queryKey = [...modelStateQueryKey, apiUrl, directory]
       await queryClient.cancelQueries({ queryKey })
-      const previousState = queryClient.getQueryData<OpenCodeModelState>(queryKey)
+      const previousState = queryClient.getQueryData<PiModelState>(queryKey)
 
       if (previousState) {
-        const nextState: OpenCodeModelState = {
+        const nextState: PiModelState = {
           ...previousState,
           recent: previousState.recent.filter((model) => !isSameModel(model, removedModel)),
         }
@@ -100,13 +100,13 @@ export function useModelSelection(
     },
     onSuccess: (state) => {
       syncModelState(state)
-      queryClient.setQueryData([...modelStateQueryKey, opcodeUrl, directory], state)
-      queryClient.invalidateQueries({ queryKey: [...modelStateQueryKey, opcodeUrl, directory] })
+      queryClient.setQueryData([...modelStateQueryKey, apiUrl, directory], state)
+      queryClient.invalidateQueries({ queryKey: [...modelStateQueryKey, apiUrl, directory] })
     },
     onError: (error, _removedModel, context) => {
       if (context?.previousState) {
         syncModelState(context.previousState)
-        queryClient.setQueryData([...modelStateQueryKey, opcodeUrl, directory], context.previousState)
+        queryClient.setQueryData([...modelStateQueryKey, apiUrl, directory], context.previousState)
       }
       console.error('Failed to remove recent model on backend', error)
     },

@@ -21,7 +21,11 @@ function fail(code: number, value: unknown): never {
 
 function parseArgs(args: string[]): { agentId: string; command: string[] } {
   const index = args.findIndex(arg => arg === '--agentId' || arg.startsWith('--agentId='))
-  if (index === -1) fail(EXIT.general, { ok: false, error: { code: 'MISSING_AGENT_ID', message: 'Missing --agentId' } })
+  if (index === -1) {
+    const agentId = process.env.SUBPOLAR_AGENT_ID
+    if (!agentId) fail(EXIT.general, { ok: false, error: { code: 'MISSING_AGENT_ID', message: 'Missing SUBPOLAR_AGENT_ID' } })
+    return { agentId, command: args }
+  }
   const current = args[index]
   const agentId = current.includes('=') ? current.slice(current.indexOf('=') + 1) : args[index + 1]
   if (!agentId) fail(EXIT.general, { ok: false, error: { code: 'MISSING_AGENT_ID', message: 'Missing --agentId value' } })
@@ -33,8 +37,8 @@ function parseArgs(args: string[]): { agentId: string; command: string[] } {
 async function readToken(): Promise<string> {
   if (process.env.SUBPOLAR_INTERNAL_TOKEN) return process.env.SUBPOLAR_INTERNAL_TOKEN
   const paths = [
-    `${process.cwd()}/.opencode/internal-token`,
-    `${process.cwd()}/general-chat/.opencode/internal-token`,
+    `${process.cwd()}/.subpolar/internal-token`,
+    `${process.cwd()}/general-chat/.subpolar/internal-token`,
   ]
   for (const path of paths) {
     const file = Bun.file(path)

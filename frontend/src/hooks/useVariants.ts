@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useModelSelection } from './useModelSelection'
 import { useModelStore } from '@/stores/modelStore'
-import { useOpenCodeClient } from './useOpenCode'
+import { useSubpolarClient } from './usePiHarness'
 import { getProviders } from '@/api/providers'
 import { useQuery } from '@tanstack/react-query'
 
@@ -15,15 +15,15 @@ export interface UseVariantsResult {
 }
 
 export function useVariants(
-  opcodeUrl: string | null | undefined,
+  apiUrl: string | null | undefined,
   directory?: string
 ): UseVariantsResult {
-  const { model } = useModelSelection(opcodeUrl, directory)
+  const { model } = useModelSelection(apiUrl, directory)
   const { setVariant: setStoreVariant, clearVariant: clearStoreVariant } = useModelStore()
-  const client = useOpenCodeClient(opcodeUrl, directory)
+  const client = useSubpolarClient(apiUrl, directory)
 
    const { data: providersData, isLoading } = useQuery({
-     queryKey: ['opencode', 'providers', opcodeUrl, directory],
+     queryKey: ['subpolar', 'providers', apiUrl, directory],
      queryFn: () => getProviders(directory),
      enabled: !!client && !!model,
      staleTime: 30000,

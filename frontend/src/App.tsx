@@ -28,9 +28,8 @@ import { useRightEdgeSwipe, useSwipeBack } from './hooks/useMobile'
 import { useMobileTabBar } from '@/hooks/useMobileTabBar'
 import { TTSProvider } from './contexts/TTSContext'
 import { AuthProvider } from './contexts/AuthContext'
-import { EventProvider, usePermissions, useEventContext } from '@/contexts/EventContext'
+import { EventProvider, useEventContext } from '@/contexts/EventContext'
 import { SwipeNavigationProvider, useSwipeNavigation } from '@/contexts/SwipeNavigationContext'
-import { PermissionRequestDialog } from './components/session/PermissionRequestDialog'
 import { SSHHostKeyDialog } from './components/ssh/SSHHostKeyDialog'
 import { loginLoader, setupLoader, registerLoader, protectedLoader } from './lib/auth-loaders'
 import { getSwipeBackTarget } from '@/lib/navigation'
@@ -69,28 +68,6 @@ function HealthMonitor() {
   const { isAuthenticated } = useAuth()
   useServerHealth(isAuthenticated)
   return null
-}
-
-function PermissionDialogWrapper() {
-  const {
-    current: currentPermission,
-    pendingCount,
-    respond: respondToPermission,
-    showDialog,
-    setShowDialog,
-  } = usePermissions()
-
-  return (
-    <PermissionRequestDialog
-      permission={currentPermission}
-      pendingCount={pendingCount}
-      isFromDifferentSession={false}
-      onRespond={respondToPermission}
-      open={showDialog}
-      onOpenChange={setShowDialog}
-      repoDirectory={null}
-    />
-  )
 }
 
 function AppShell() {
@@ -177,7 +154,6 @@ function AppShell() {
         </div>
         <MobileTabBar />
         <MobileSheetHost />
-        <PermissionDialogWrapper />
         <SSHHostKeyDialogWrapper />
         <SettingsDialog />
         <HealthMonitor />

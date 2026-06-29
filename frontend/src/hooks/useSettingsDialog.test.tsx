@@ -13,9 +13,15 @@ describe('useSettingsDialog', () => {
   })
 
   it('reads open state and tab from URL', () => {
-    const { result } = renderHookWithRouter(() => useSettingsDialog(), ['/?settings=open&settingsTab=git'])
+    const { result } = renderHookWithRouter(() => useSettingsDialog(), ['/?settings=open&settingsTab=providers'])
     expect(result.current.isOpen).toBe(true)
-    expect(result.current.activeTab).toBe('git')
+    expect(result.current.activeTab).toBe('providers')
+  })
+
+  it('falls back to account for removed settings tabs', () => {
+    const { result } = renderHookWithRouter(() => useSettingsDialog(), ['/?settings=open&settingsTab=opencode'])
+    expect(result.current.isOpen).toBe(true)
+    expect(result.current.activeTab).toBe('account')
   })
 
   it('defaults activeTab to account when settingsTab is missing', () => {
@@ -47,10 +53,10 @@ describe('useSettingsDialog', () => {
   it('setActiveTab updates settingsTab param and keeps settings=open', () => {
     const { result } = renderHookWithRouter(() => useSettingsDialog(), ['/?settings=open&settingsTab=account'])
 
-    act(() => { result.current.setActiveTab('git') })
+    act(() => { result.current.setActiveTab('providers') })
 
     expect(result.current.isOpen).toBe(true)
-    expect(result.current.activeTab).toBe('git')
+    expect(result.current.activeTab).toBe('providers')
   })
 
   it('toggle opens when closed', () => {
@@ -163,7 +169,7 @@ describe('useSettingsDialog', () => {
             open()
           } else if (step === 'switched') {
             handled.current = true
-            setActiveTab('git')
+            setActiveTab('providers')
           } else if (step === 'back') {
             handled.current = true
             navigate(-1)
@@ -198,7 +204,7 @@ describe('useSettingsDialog', () => {
       expect(screen.getByTestId('active-tab').textContent).toBe('account')
 
       act(() => { screen.getByText('switch').click() })
-      expect(screen.getByTestId('active-tab').textContent).toBe('git')
+      expect(screen.getByTestId('active-tab').textContent).toBe('providers')
 
       act(() => { screen.getByText('back').click() })
       // navigate(-1) goes directly to / (pre-settings page), not through old tab

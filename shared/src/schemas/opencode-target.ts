@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const OpenCodeTargetStateSchema = z.enum([
+export const PiTargetStateSchema = z.enum([
   'missing',
   'starting',
   'healthy',
@@ -9,9 +9,9 @@ export const OpenCodeTargetStateSchema = z.enum([
   'stopped',
 ])
 
-export const OpenCodeTargetSchema = z.object({
+export const PiTargetSchema = z.object({
   repoId: z.number(),
-  state: OpenCodeTargetStateSchema,
+  state: PiTargetStateSchema,
   openCodeUrl: z.string().optional(),
   token: z.string().optional(),
   startedAt: z.number().optional(),
@@ -20,14 +20,14 @@ export const OpenCodeTargetSchema = z.object({
   reused: z.boolean(),
 })
 
-export const EnsureOpenCodeTargetRequestSchema = z.object({
+export const EnsurePiTargetRequestSchema = z.object({
   workspaceId: z.string().optional(),
   clientId: z.string().optional(),
 })
 
-export const EnsureOpenCodeTargetResponseSchema = z.object({
+export const EnsurePiTargetResponseSchema = z.object({
   repoId: z.number(),
-  state: OpenCodeTargetStateSchema,
+  state: PiTargetStateSchema,
   openCodeUrl: z.string(),
   headers: z.record(z.string(), z.string()),
   reused: z.boolean(),

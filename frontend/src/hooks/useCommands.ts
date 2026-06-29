@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { createOpenCodeClient } from '@/api/opencode'
+import { createSubpolarClient } from '@/api/subpolar'
 import type { components } from '@/api/opencode-types'
 
 type CommandType = components['schemas']['Command']
@@ -163,20 +163,20 @@ const BUILTIN_COMMANDS: CommandType[] = [
   }
 ]
 
-export function useCommands(opcodeUrl: string | null) {
+export function useCommands(apiUrl: string | null) {
   const [commands, setCommands] = useState<CommandType[]>(sortCommandsByName(BUILTIN_COMMANDS))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!opcodeUrl) return
+    if (!apiUrl) return
 
     const fetchCommands = async () => {
       setLoading(true)
       setError(null)
       
       try {
-        const client = createOpenCodeClient(opcodeUrl)
+        const client = createSubpolarClient(apiUrl)
         const commandList = await client.listCommands()
         const allCommands = [...BUILTIN_COMMANDS, ...commandList]
         const uniqueCommands = allCommands.filter((command, index, self) =>
@@ -192,7 +192,7 @@ export function useCommands(opcodeUrl: string | null) {
     }
 
     fetchCommands()
-  }, [opcodeUrl])
+  }, [apiUrl])
 
   const filterCommands = (query: string) => {
     if (!query.trim()) return commands

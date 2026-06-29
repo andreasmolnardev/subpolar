@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import type { OpenCodeClient } from '../../services/opencode/client'
+import type { PiInternalClient } from '../../runtime/pi/internal-client-types'
 import { getGeneralChatDirectory } from '../../services/general-chat'
 import { TokenBucketRateLimiter } from '../../utils/rate-limit'
 
-export function createInternalAssistantRoutes(openCodeClient: OpenCodeClient) {
+export function createInternalAssistantRoutes(openCodeClient: PiInternalClient) {
   const app = new Hono()
   const limiter = new TokenBucketRateLimiter({ capacity: 5, refillPerMs: 60_000 })
 

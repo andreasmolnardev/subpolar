@@ -1,6 +1,6 @@
 import { useCallback, useState, useMemo, useEffect } from "react";
-import { useSessionsAcrossDirectories, useDeleteSession, useCreateSession } from "@/hooks/useOpenCode";
-import type { DeleteSessionTarget } from "@/hooks/useOpenCode";
+import { useSessionsAcrossDirectories, useDeleteSession, useCreateSession } from "@/hooks/usePiHarness";
+import type { DeleteSessionTarget } from "@/hooks/usePiHarness";
 import { DeleteSessionDialog } from "./DeleteSessionDialog";
 import { SessionCard } from "./SessionCard";
 import { Card } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Trash2, Pencil, X } from "lucide-react";
 
 interface SessionListProps {
-  opcodeUrl: string;
+  apiUrl: string;
   directory?: string;
   directories?: string[];
   createDirectory?: string;
@@ -19,7 +19,7 @@ interface SessionListProps {
 }
 
 export const SessionList = ({
-  opcodeUrl,
+  apiUrl,
   directory,
   directories,
   createDirectory,
@@ -27,10 +27,13 @@ export const SessionList = ({
   activeSessionID,
   onSelectSession,
 }: SessionListProps) => {
-  const directoriesList = useMemo(() => {
+  const directoriesKey = useMemo(() => {
     const source = directories && directories.length > 0 ? directories : directory ? [directory] : [];
-    return Array.from(new Set(source.filter(Boolean)));
+    return JSON.stringify(source.filter(Boolean));
   }, [directory, directories]);
+  const directoriesList = useMemo(() => {
+    return Array.from(new Set(JSON.parse(directoriesKey) as string[]));
+  }, [directoriesKey]);
   const directorySet = useMemo(() => new Set(directoriesList), [directoriesList]);
   const primaryDirectory = directoriesList[0];
   const sessionCreateDirectory = createDirectory ?? primaryDirectory;
@@ -38,9 +41,9 @@ export const SessionList = ({
     `${session.directory ?? primaryDirectory ?? ''}:${session.id}`,
   [primaryDirectory]);
   const [searchQuery, setSearchQuery] = useState("");
-  const { data: sessions, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useSessionsAcrossDirectories(opcodeUrl, directoriesList, { search: searchQuery, limit: 25 });
-  const deleteSession = useDeleteSession(opcodeUrl, directoriesList);
-  const createSession = useCreateSession(opcodeUrl, sessionCreateDirectory, (newSession) => {
+  const { data: sessions, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useSessionsAcrossDirectories(apiUrl, directoriesList, { search: searchQuery, limit: 25 });
+  const deleteSession = useDeleteSession(apiUrl, directoriesList);
+  const createSession = useCreateSession(apiUrl, sessionCreateDirectory, (newSession) => {
     onSelectSession(newSession.id);
   });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -88,17 +91,17 @@ export const SessionList = ({
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   useEffect(() => {
-    if (!isLoading && filteredSessions.length === 0 && hasNextPage && !isFetchingNextPage) {
+    if (!isLoading && sessions.length > 0 && filteredSessions.length === 0 && hasNextPage && !isFetchingNextPage) {
       void fetchNextPage();
     }
-  }, [isLoading, filteredSessions.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [isLoading, sessions.length, filteredSessions.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   if (isLoading) {
     return <div className="p-4 text-sm text-muted-foreground">Loading sessions...</div>;
   }
 
   if (!sessions || sessions.length === 0) {
-    if (hasNextPage || isFetchingNextPage) {
+    if (isFetchingNextPage) {
       return <div className="p-4 text-sm text-muted-foreground">Loading sessions...</div>;
     }
     if (!searchQuery.trim()) {

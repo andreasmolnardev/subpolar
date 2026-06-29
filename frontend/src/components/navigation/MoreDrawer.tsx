@@ -104,10 +104,10 @@ export function MoreDrawer({ isOpen, onClose }: MoreDrawerProps) {
   const items = buildMoreItems(location.pathname)
   const commands = filterCommands('')
 
-  const opencodeVersion = health?.opencodeVersion
+  const runtimeVersion = health?.opencodeVersion
   const managerVersion = health?.opencodeManagerVersion
   const versionLabel = [
-    opencodeVersion ? `v${opencodeVersion}` : null,
+    runtimeVersion ? `v${runtimeVersion}` : null,
     managerVersion ? `Manager v${managerVersion}` : null,
   ].filter(Boolean).join(' · ')
 

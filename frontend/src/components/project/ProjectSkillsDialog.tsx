@@ -3,7 +3,7 @@ import { ProjectSkillsList } from './ProjectSkillsList'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useQuery } from '@tanstack/react-query'
 import { settingsApi } from '@/api/settings'
-import { useLoadSkill } from '@/hooks/useOpenCode'
+import { useLoadSkill } from '@/hooks/usePiHarness'
 import type { SkillFileInfo } from '@subpolar/shared'
 import { useMemo, useState, useEffect } from 'react'
 
@@ -14,8 +14,8 @@ type ProjectSkillsDialogBaseProps = {
 }
 
 type ProjectSkillsDialogProps = ProjectSkillsDialogBaseProps & (
-  | { sessionId: string; opcodeUrl: string; directory?: string; onSkillLoaded?: (skill: SkillFileInfo) => void }
-  | { sessionId?: undefined; opcodeUrl?: undefined; directory?: undefined; onSkillLoaded?: undefined }
+  | { sessionId: string; apiUrl: string; directory?: string; onSkillLoaded?: (skill: SkillFileInfo) => void }
+  | { sessionId?: undefined; apiUrl?: undefined; directory?: undefined; onSkillLoaded?: undefined }
 )
 
 export function ProjectSkillsDialog({
@@ -23,7 +23,7 @@ export function ProjectSkillsDialog({
   onOpenChange,
   projectId,
   sessionId,
-  opcodeUrl,
+  apiUrl,
   directory,
   onSkillLoaded,
 }: ProjectSkillsDialogProps) {
@@ -43,8 +43,8 @@ export function ProjectSkillsDialog({
     [data],
   )
 
-  const canLoad = !!sessionId && !!opcodeUrl
-  const loadSkill = useLoadSkill(opcodeUrl, sessionId, directory)
+  const canLoad = !!sessionId && !!apiUrl
+  const loadSkill = useLoadSkill(apiUrl, sessionId, directory)
 
   const [activeTab, setActiveTab] = useState<'project' | 'global'>('project')
 

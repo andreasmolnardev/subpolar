@@ -6,7 +6,6 @@ Guide for setting up a local development environment.
 
 - [pnpm](https://pnpm.io/installation) - Package manager (required for workspaces)
 - [Bun](https://bun.sh) - Backend runtime
-- [OpenCode TUI](https://opencode.ai) - `curl -fsSL https://opencode.ai/install | bash`
 
 ## Installation
 
@@ -20,7 +19,7 @@ pnpm install
 ```
 
 The `pnpm dev` command automatically runs `scripts/setup-dev.sh` first, which:
-- Checks prerequisites (pnpm, bun, git, OpenCode TUI)
+- Checks prerequisites (pnpm, bun, git)
 - Creates required workspace directories
 - Copies `.env.example` to `.env` if missing
 
@@ -60,7 +59,7 @@ opencode-manager/
 │   │   └── contexts/     # React contexts
 │   └── public/           # Static assets
 ├── shared/               # @opencode-manager/shared types and utilities
-├── workspace/            # Runtime workspace for OpenCode
+├── workspace/            # Runtime workspace for agent operations
 ├── docs/                 # Documentation
 ├── scripts/              # Build and utility scripts
 ├── Dockerfile            # Docker image definition

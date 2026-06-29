@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createOpenCodeClient } from '@/api/opencode'
-import { useCreateSession } from '@/hooks/useOpenCode'
+import { createSubpolarClient } from '@/api/subpolar'
+import { useCreateSession } from '@/hooks/usePiHarness'
 import { useModelSelection } from '@/hooks/useModelSelection'
 import { showToast } from '@/lib/toast'
 import type { components } from '@/api/opencode-types'
@@ -10,7 +10,7 @@ import { useSessionStatus } from '@/stores/sessionStatusStore'
 type CommandType = components['schemas']['Command']
 
 interface CommandHandlerProps {
-  opcodeUrl: string
+  apiUrl: string
   sessionID: string
   directory?: string
   onShowSessionsDialog?: () => void
@@ -22,7 +22,7 @@ interface CommandHandlerProps {
 }
 
 export function useCommandHandler({
-  opcodeUrl,
+  apiUrl,
   sessionID,
   directory,
   onShowSessionsDialog,
@@ -33,18 +33,18 @@ export function useCommandHandler({
   currentAgent
 }: CommandHandlerProps) {
   const navigate = useNavigate()
-  const createSession = useCreateSession(opcodeUrl, directory)
-  const { model, modelString } = useModelSelection(opcodeUrl, directory)
+  const createSession = useCreateSession(apiUrl, directory)
+  const { model, modelString } = useModelSelection(apiUrl, directory)
   const setSessionStatus = useSessionStatus((state) => state.setStatus)
   const [loading, setLoading] = useState(false)
 
   const executeCommand = useCallback(async (command: CommandType, args: string = '') => {
-    if (!opcodeUrl) return
+    if (!apiUrl) return
 
     setLoading(true)
     
     try {
-      const client = createOpenCodeClient(opcodeUrl, directory)
+      const client = createSubpolarClient(apiUrl, directory)
       
       switch (command.name) {
         case 'sessions':
@@ -156,7 +156,7 @@ export function useCommandHandler({
     } finally {
       setLoading(false)
     }
-  }, [sessionID, opcodeUrl, directory, onShowSessionsDialog, onShowModelsDialog, onShowHelpDialog, onToggleDetails, onExportSession, createSession, navigate, model, modelString, currentAgent, setSessionStatus])
+  }, [sessionID, apiUrl, directory, onShowSessionsDialog, onShowModelsDialog, onShowHelpDialog, onToggleDetails, onExportSession, createSession, navigate, model, modelString, currentAgent, setSessionStatus])
 
   return {
     executeCommand,

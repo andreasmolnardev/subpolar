@@ -298,7 +298,9 @@ describe('buildResearchWebSkill', () => {
     expect(skill).toContain('name: research-web')
     expect(skill).toContain('websearch')
     expect(skill).toContain('webfetch')
-    expect(skill).toContain('Research Workflow')
+    expect(skill).toContain('web.search')
+    expect(skill).toContain('web.scrape')
+    expect(skill).toContain('Deep Research Workflow')
   })
 })
 
@@ -363,7 +365,7 @@ describe('ensureGeneralChat', () => {
     }
   })
 
-  it('creates all 7 skill files', async () => {
+  it('creates managed skill files', async () => {
     await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
     const skillDirs = [
       'automation-management',
@@ -373,6 +375,7 @@ describe('ensureGeneralChat', () => {
       'code-review',
       'code-analysis',
       'research-web',
+      'subpolar-tools',
     ]
     for (const dir of skillDirs) {
       const content = await readFile(path.join(ws.assistantDir, '.opencode/skills', dir, 'SKILL.md'), 'utf8')
@@ -477,6 +480,7 @@ describe('ensureGeneralChat', () => {
     const researchWebContent = await readFile(researchWebSkillPath, 'utf8')
     expect(researchWebContent).toContain('name: research-web')
     expect(researchWebContent).toContain('websearch')
+    expect(researchWebContent).toContain('web.scrape')
 
     const autoAgentContent = await readFile(autoAgentPath, 'utf8')
     expect(autoAgentContent).toContain('mode: primary')

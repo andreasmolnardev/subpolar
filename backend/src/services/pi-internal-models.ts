@@ -1,0 +1,126 @@
+import type { PiInternalClient } from '../runtime/pi/internal-client-types'
+
+interface PiInternalConfigResponse {
+  model?: string
+  small_model?: string
+}
+
+interface PiInternalProviderResponse {
+  providers?: Array<{
+    id: string
+    models?: Record<string, unknown>
+  }>
+  default?: Record<string, string>
+}
+
+export interface ResolvedPiInternalModel {
+  providerID: string
+  modelID: string
+  model: string
+}
+
+function normalizeModelCandidate(model: string | null | undefined): string | null {
+  if (!model) {
+    return null
+  }
+
+  const normalized = model.trim()
+  return normalized ? normalized : null
+}
+
+function parseModel(model: string): ResolvedPiInternalModel | null {
+  const [providerID, ...modelParts] = model.split('/')
+  const modelID = modelParts.join('/')
+
+  if (!providerID || !modelID) {
+    return null
+  }
+
+  return {
+    providerID,
+    modelID,
+    model: `${providerID}/${modelID}`,
+  }
+}
+
+function buildAvailableModels(response: PiInternalProviderResponse): Set<string> {
+  const availableModels = new Set<string>()
+
+  for (const provider of response.providers ?? []) {
+    for (const modelID of Object.keys(provider.models ?? {})) {
+      availableModels.add(`${provider.id}/${modelID}`)
+    }
+  }
+
+  return availableModels
+}
+
+function uniqueCandidates(candidates: Array<string | null | undefined>): string[] {
+  const normalizedCandidates = candidates
+    .map(normalizeModelCandidate)
+    .filter((candidate): candidate is string => candidate !== null)
+
+  return [...new Set(normalizedCandidates)]
+}
+
+async function fetchPiInternalConfig(client: PiInternalClient, directory?: string): Promise<PiInternalConfigResponse> {
+  return client.getJson<PiInternalConfigResponse>('/config', { directory })
+}
+
+async function fetchPiInternalProviders(client: PiInternalClient, directory?: string): Promise<PiInternalProviderResponse> {
+  return client.getJson<PiInternalProviderResponse>('/config/providers', { directory })
+}
+
+export async function resolvePiInternalModel(
+  client: PiInternalClient,
+  directory: string | undefined,
+  options?: {
+    preferredModel?: string | null
+    preferSmallModel?: boolean
+  },
+): Promise<ResolvedPiInternalModel> {
+  const [config, providersResponse] = await Promise.all([
+    fetchPiInternalConfig(client, directory),
+    fetchPiInternalProviders(client, directory),
+  ])
+
+  const availableModels = buildAvailableModels(providersResponse)
+  const defaultModels = providersResponse.default ?? {}
+  const configCandidates = options?.preferSmallModel
+    ? [config.small_model, config.model]
+    : [config.model, config.small_model]
+  const candidates = uniqueCandidates([options?.preferredModel, ...configCandidates])
+
+  for (const candidate of candidates) {
+    if (availableModels.has(candidate)) {
+      const parsedCandidate = parseModel(candidate)
+      if (parsedCandidate) {
+        return parsedCandidate
+      }
+    }
+  }
+
+  for (const [providerID, modelID] of Object.entries(defaultModels)) {
+    const model = `${providerID}/${modelID}`
+    if (availableModels.has(model)) {
+      return {
+        providerID,
+        modelID,
+        model,
+      }
+    }
+  }
+
+  for (const provider of providersResponse.providers ?? []) {
+    const firstModelID = Object.keys(provider.models ?? {})[0]
+    if (firstModelID) {
+      return {
+        providerID: provider.id,
+        modelID: firstModelID,
+        model: `${provider.id}/${firstModelID}`,
+      }
+    }
+  }
+
+  throw new Error('No configured OpenCode models are available')
+}

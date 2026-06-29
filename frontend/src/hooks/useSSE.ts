@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useOpenCodeClient } from './useOpenCode'
+import { useSubpolarClient } from './usePiHarness'
 import { invalidateSessionListCaches, invalidateSessionListCachesDebounced, messagesQueryKey } from '@/lib/queryInvalidation'
 import type { SSEEvent, MessageWithParts } from '@/api/types'
 import { showToast } from '@/lib/toast'
@@ -8,9 +8,9 @@ import { settingsApi } from '@/api/settings'
 import { useSessionStatus } from '@/stores/sessionStatusStore'
 import { useSessionTodos } from '@/stores/sessionTodosStore'
 import { useSendErrorStore } from '@/stores/sendErrorStore'
-import { openCodeEventStream } from '@/lib/opencode-event-stream'
+import { eventStream } from '@/lib/opencode-event-stream'
 import type { EventStreamSubscription } from '@/lib/opencode-event-stream'
-import { parseOpenCodeError } from '@/lib/opencode-errors'
+import { parseRuntimeError } from '@/lib/opencode-errors'
 import { createPartsBatcher } from '@/lib/partsBatcher'
 
 const STATUS_POLL_INTERVAL_MS = 5000
@@ -21,14 +21,14 @@ const getEventDirectory = (event: SSEEvent): string | undefined => {
 }
 
 const handleRestartServer = async () => {
-  showToast.loading('Reloading OpenCode configuration...', {
+  showToast.loading('Reloading configuration...', {
     id: 'restart-server',
   })
 
   try {
-    const result = await settingsApi.reloadOpenCodeConfig()
+    const result = await settingsApi.reloadConfig()
     if (result.success) {
-      showToast.success(result.message || 'OpenCode configuration reloaded successfully', {
+      showToast.success(result.message || 'Configuration reloaded successfully', {
         id: 'restart-server',
         duration: 3000,
       })
@@ -36,13 +36,13 @@ const handleRestartServer = async () => {
         window.location.reload()
       }, 2000)
     } else {
-      showToast.error(result.message || 'Failed to reload OpenCode configuration', {
+      showToast.error(result.message || 'Failed to reload configuration', {
         id: 'restart-server',
         duration: 5000,
       })
     }
   } catch (error) {
-    showToast.error(error instanceof Error ? error.message : 'Failed to reload OpenCode configuration', {
+    showToast.error(error instanceof Error ? error.message : 'Failed to reload configuration', {
       id: 'restart-server',
       duration: 5000,
     })
@@ -50,17 +50,16 @@ const handleRestartServer = async () => {
 }
 
 
-export const useSSE = (opcodeUrl: string | null | undefined, directory?: string | string[], currentSessionId?: string) => {
-  const directoriesList = useMemo(() => {
-    if (!directory) return [] as string[]
-    if (Array.isArray(directory)) return directory.filter(Boolean)
-    return [directory]
+export const useSSE = (apiUrl: string | null | undefined, directory?: string | string[], currentSessionId?: string) => {
+  const directoryKey = useMemo(() => {
+    const directories = Array.isArray(directory) ? directory.filter(Boolean) : directory ? [directory] : []
+    return JSON.stringify(directories)
   }, [directory])
-  const directoryKey = directoriesList.join('|')
+  const directoriesList = useMemo(() => JSON.parse(directoryKey) as string[], [directoryKey])
   const primaryDirectory = directoriesList[0]
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const directorySet = useMemo(() => new Set(directoriesList), [directoryKey])
-  const client = useOpenCodeClient(opcodeUrl, primaryDirectory)
+  const client = useSubpolarClient(apiUrl, primaryDirectory)
   const queryClient = useQueryClient()
   const mountedRef = useRef(true)
   const sessionIdRef = useRef(currentSessionId)
@@ -76,21 +75,21 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
   const batcherRef = useRef<ReturnType<typeof createPartsBatcher> | null>(null)
 
   useEffect(() => {
-    if (!opcodeUrl) {
+    if (!apiUrl) {
       batcherRef.current?.destroy()
       batcherRef.current = null
       return
     }
 
     if (!batcherRef.current) {
-      batcherRef.current = createPartsBatcher(queryClient, opcodeUrl)
+      batcherRef.current = createPartsBatcher(queryClient, apiUrl)
     }
 
     return () => {
       batcherRef.current?.destroy()
       batcherRef.current = null
     }
-  }, [queryClient, opcodeUrl])
+  }, [queryClient, apiUrl])
 
   const resolveCacheDirectory = useCallback(
     (eventDirectory: string | undefined): string | undefined => {
@@ -110,7 +109,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
       case 'session.updated':
         if ('info' in event.properties) {
           const session = event.properties.info
-          const sessionQueryKey = ['opencode', 'session', opcodeUrl, session.id, cacheDirectory]
+          const sessionQueryKey = ['subpolar', 'session', apiUrl, session.id, cacheDirectory]
 
           queryClient.setQueryData(sessionQueryKey, session)
           invalidateSessionListCachesDebounced(queryClient)
@@ -120,10 +119,10 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
         break
 
       case 'session.deleted':
-        invalidateSessionListCaches(queryClient, opcodeUrl)
+        invalidateSessionListCaches(queryClient, apiUrl)
         if ('sessionID' in event.properties) {
           queryClient.invalidateQueries({ 
-            queryKey: ['opencode', 'session', opcodeUrl, event.properties.sessionID, cacheDirectory] 
+            queryKey: ['subpolar', 'session', apiUrl, event.properties.sessionID, cacheDirectory] 
           })
         }
         break
@@ -160,7 +159,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
           useSendErrorStore.getState().clearQueuedPrompt(sessionID)
         }
 
-        const queryKey = messagesQueryKey(opcodeUrl, sessionID, cacheDirectory)
+        const queryKey = messagesQueryKey(apiUrl, sessionID, cacheDirectory)
         const currentData = queryClient.getQueryData<MessageWithParts[]>(queryKey)
         if (!currentData) {
           queryClient.invalidateQueries({ queryKey })
@@ -193,7 +192,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
         const { sessionID, messageID } = event.properties
         
         queryClient.setQueryData<MessageWithParts[]>(
-          messagesQueryKey(opcodeUrl, sessionID, cacheDirectory),
+          messagesQueryKey(apiUrl, sessionID, cacheDirectory),
           (old) => {
             if (!old) return old
             return old.filter(msgWithParts => msgWithParts.info.id !== messageID)
@@ -220,7 +219,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
         showToast.dismiss(`compact-${sessionID}`)
         showToast.success('Session compacted')
         queryClient.invalidateQueries({ 
-          queryKey: messagesQueryKey(opcodeUrl, sessionID, cacheDirectory) 
+          queryKey: messagesQueryKey(apiUrl, sessionID, cacheDirectory) 
         })
         break
       }
@@ -234,7 +233,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
         
         batcherRef.current?.flush({ sessionID, directory: cacheDirectory })
         
-        const queryKey = messagesQueryKey(opcodeUrl, sessionID, cacheDirectory)
+        const queryKey = messagesQueryKey(apiUrl, sessionID, cacheDirectory)
         const currentData = queryClient.getQueryData<MessageWithParts[]>(queryKey)
         if (!currentData) {
           queryClient.invalidateQueries({ queryKey })
@@ -286,14 +285,14 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
           const { sessionID, todos } = event.properties
           setSessionTodos(sessionID, todos)
           queryClient.invalidateQueries({ 
-            queryKey: ['opencode', 'todos', opcodeUrl, sessionID, cacheDirectory] 
+            queryKey: ['subpolar', 'todos', apiUrl, sessionID, cacheDirectory] 
           })
         }
         break
 
       case 'installation.updated':
         if ('version' in event.properties) {
-          showToast.success(`OpenCode updated to v${event.properties.version}`, {
+          showToast.success(`Updated to v${event.properties.version}`, {
             description: 'The server has been successfully upgraded.',
             duration: 5000,
           })
@@ -302,7 +301,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
 
       case 'installation.update-available':
         if ('version' in event.properties) {
-          showToast.info(`OpenCode v${event.properties.version} is available`, {
+          showToast.info(`v${event.properties.version} is available`, {
             description: 'A new version is ready to install.',
             action: {
               label: 'Reload to Update',
@@ -316,7 +315,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
       case 'session.error': {
         if (!('error' in event.properties)) break
         const sessionID = 'sessionID' in event.properties ? event.properties.sessionID : undefined
-        const parsed = parseOpenCodeError(event.properties.error)
+        const parsed = parseRuntimeError(event.properties.error)
         if (sessionID && parsed) {
           useSendErrorStore.getState().failQueuedPrompt({
             sessionID,
@@ -324,7 +323,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
             message: parsed.message,
           })
         }
-        if (sessionID === currentSessionId) break
+        if (sessionID === sessionIdRef.current) break
         
         const error = event.properties.error
         if (error?.name === 'MessageAbortedError') break
@@ -343,7 +342,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
         if (!('sessionID' in event.properties)) break
         const { sessionID } = event.properties
         queryClient.invalidateQueries({ 
-          queryKey: messagesQueryKey(opcodeUrl, sessionID, cacheDirectory) 
+          queryKey: messagesQueryKey(apiUrl, sessionID, cacheDirectory) 
         })
         break
       }
@@ -351,7 +350,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
       default:
         break
     }
-  }, [queryClient, opcodeUrl, directorySet, resolveCacheDirectory, setSessionStatus, setSessionTodos, currentSessionId])
+  }, [queryClient, apiUrl, directorySet, resolveCacheDirectory, setSessionStatus, setSessionTodos])
 
   const fetchInitialData = useCallback(async () => {
     if (!client || !primaryDirectory || !mountedRef.current) return
@@ -381,23 +380,23 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
 
   const syncCurrentSession = useCallback(() => {
     const sessionId = sessionIdRef.current
-    if (!sessionId || !opcodeUrl || !primaryDirectory) return
+    if (!sessionId || !apiUrl || !primaryDirectory) return
 
     queryClient.invalidateQueries({
-      queryKey: ['opencode', 'session', opcodeUrl, sessionId, primaryDirectory],
+      queryKey: ['subpolar', 'session', apiUrl, sessionId, primaryDirectory],
     })
     queryClient.invalidateQueries({
-      queryKey: messagesQueryKey(opcodeUrl, sessionId, primaryDirectory),
+      queryKey: messagesQueryKey(apiUrl, sessionId, primaryDirectory),
     })
     queryClient.invalidateQueries({
-      queryKey: ['opencode', 'pending-actions', opcodeUrl, sessionId, primaryDirectory],
+      queryKey: ['subpolar', 'pending-actions', apiUrl, sessionId, primaryDirectory],
     })
-  }, [queryClient, opcodeUrl, primaryDirectory])
+  }, [queryClient, apiUrl, primaryDirectory])
 
   useEffect(() => {
     mountedRef.current = true
     
-    if (!opcodeUrl || directoriesList.length === 0) {
+    if (!apiUrl || directoriesList.length === 0) {
       statusSyncVersionRef.current += 1
       setIsConnected(false)
       setIsReconnecting(false)
@@ -425,7 +424,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
       }
     }
 
-    const subscription = openCodeEventStream.subscribeGlobalMonitor({
+    const subscription = eventStream.subscribeGlobalMonitor({
       directories: directoriesList,
       onEvent: handleMessage,
       onStatusChange: handleStatusChange,
@@ -456,7 +455,7 @@ export const useSSE = (opcodeUrl: string | null | undefined, directory?: string 
         eventStreamSubscriptionRef.current = null
       }
     }
-  }, [opcodeUrl, directoryKey, directoriesList, handleSSEEvent, fetchInitialData, syncCurrentSession])
+  }, [apiUrl, directoryKey, directoriesList, handleSSEEvent, fetchInitialData, syncCurrentSession])
 
   useEffect(() => {
     if (isConnected && document.visibilityState === 'visible') {

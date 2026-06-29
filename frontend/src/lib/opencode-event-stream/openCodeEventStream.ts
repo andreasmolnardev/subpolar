@@ -6,24 +6,24 @@ import type {
   EventStreamStatusHandler,
   EventStreamTransport,
   GlobalMonitorSubscription,
-  OpenCodeEventHandler,
+  EventHandler,
 } from './types'
 
 interface Subscriber {
   id: string
-  onEvent: OpenCodeEventHandler
+  onEvent: EventHandler
   onStatusChange?: EventStreamStatusHandler
   onHealthChange?: (state: EventStreamHealthState) => void
   directories: Set<string>
 }
 
-interface OpenCodeEventStreamOptions {
+interface EventStreamOptions {
   transport?: EventStreamTransport
 }
 
 const { RECONNECT_DELAY_MS, MAX_RECONNECT_DELAY_MS, STALL_THRESHOLD_MS, WATCHDOG_TICK_MS } = DEFAULTS.SSE
 
-export class OpenCodeEventStream {
+export class EventStream {
   private connection: { close(): void } | null = null
   private readonly transport: EventStreamTransport
   private subscribers = new Map<string, Subscriber>()
@@ -38,14 +38,15 @@ export class OpenCodeEventStream {
   private watchdogTimer: ReturnType<typeof setInterval> | null = null
   private upstreamConnectedCount: number | null = null
   private upstreamTotalCount: number | null = null
+  private lastVisibilityReport: { clientId: string; visible: boolean; activeSessionId: string | null } | null = null
 
-  constructor(options: OpenCodeEventStreamOptions = {}) {
+  constructor(options: EventStreamOptions = {}) {
     this.transport = options.transport ?? createBrowserEventStreamTransport()
   }
 
   subscribeGlobalMonitor(input: {
     directories: string[]
-    onEvent: OpenCodeEventHandler
+    onEvent: EventHandler
     onStatusChange?: EventStreamStatusHandler
     onHealthChange?: (state: EventStreamHealthState) => void
   }): GlobalMonitorSubscription {
@@ -64,7 +65,7 @@ export class OpenCodeEventStream {
   }
 
   private addSubscriber(
-    onEvent: OpenCodeEventHandler,
+    onEvent: EventHandler,
     onStatusChange?: EventStreamStatusHandler,
     onHealthChange?: (state: EventStreamHealthState) => void,
     directories: string[] = [],
@@ -207,6 +208,7 @@ export class OpenCodeEventStream {
   private handleError(): void {
     this.connected = false
     this.clientId = null
+    this.lastVisibilityReport = null
     this.upstreamConnectedCount = null
     this.upstreamTotalCount = null
     this.stopWatchdog()
@@ -268,6 +270,7 @@ export class OpenCodeEventStream {
     this.connection = null
     this.connected = false
     this.clientId = null
+    this.lastVisibilityReport = null
     this.upstreamConnectedCount = null
     this.upstreamTotalCount = null
     this.lastEventAt = null
@@ -294,6 +297,7 @@ export class OpenCodeEventStream {
     this.connection = null
     this.connected = false
     this.clientId = null
+    this.lastVisibilityReport = null
     this.upstreamConnectedCount = null
     this.upstreamTotalCount = null
     this.lastEventAt = null
@@ -407,10 +411,24 @@ export class OpenCodeEventStream {
   private reportVisibility(visible: boolean, activeSessionId?: string): void {
     if (!this.clientId || !this.connected) return
 
-    void this.transport.post('/api/sse/visibility', {
+    const report = {
       clientId: this.clientId,
       visible,
       activeSessionId: activeSessionId ?? null,
+    }
+    if (
+      this.lastVisibilityReport?.clientId === report.clientId &&
+      this.lastVisibilityReport.visible === report.visible &&
+      this.lastVisibilityReport.activeSessionId === report.activeSessionId
+    ) {
+      return
+    }
+    this.lastVisibilityReport = report
+
+    void this.transport.post('/api/sse/visibility', {
+      clientId: report.clientId,
+      visible: report.visible,
+      activeSessionId: report.activeSessionId,
     })
   }
 }
@@ -429,4 +447,4 @@ function flattenEventEnvelope(parsed: unknown): unknown {
   return parsed
 }
 
-export const openCodeEventStream = new OpenCodeEventStream()
+export const eventStream = new EventStream()

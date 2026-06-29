@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import { AgentDialog } from './AgentDialog'
+import { settingsApi, type AgentToolPolicyEffect } from '@/api/settings'
 
 interface Agent {
   prompt?: string
@@ -22,8 +23,26 @@ interface Agent {
   icon?: string
   skills?: string[]
   allowedCommands?: string[]
+  toolAccess?: Array<{ type: 'builtin' | 'skill' | 'cli' | 'subpolar'; id: string; permission: 'allow' | 'ask' | 'deny'; command?: string }>
   disable?: boolean
   [key: string]: unknown
+}
+
+function policyEffect(permission: 'allow' | 'ask' | 'deny'): AgentToolPolicyEffect {
+  if (permission === 'ask') return 'approval'
+  return permission
+}
+
+function subpolarPolicies(agent: Agent) {
+  const policies = (agent.toolAccess ?? [])
+    .filter(tool => tool.type === 'subpolar')
+    .map(tool => ({ toolId: tool.id, effect: policyEffect(tool.permission) }))
+  const bashTool = (agent.toolAccess ?? []).find(tool => tool.type === 'builtin' && tool.id === 'other-bash')
+  if (bashTool) policies.push({ toolId: 'pi.bash', effect: policyEffect(bashTool.permission) })
+  if (policies.some(policy => policy.effect !== 'deny') && !policies.some(policy => policy.toolId === 'tools.list')) {
+    return [{ toolId: 'tools.list', effect: 'allow' as const }, ...policies]
+  }
+  return policies
 }
 
 interface AgentsEditorProps {
@@ -35,7 +54,9 @@ export function AgentsEditor({ agents, onChange }: AgentsEditorProps) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingAgent, setEditingAgent] = useState<{ name: string; agent: Agent } | null>(null)
 
-  const handleAgentSubmit = (name: string, agent: Agent) => {
+  const handleAgentSubmit = async (name: string, agent: Agent) => {
+    await settingsApi.replaceAgentToolPolicies(name, subpolarPolicies(agent))
+
     if (editingAgent) {
       const updatedAgents = { ...agents }
       delete updatedAgents[editingAgent.name]

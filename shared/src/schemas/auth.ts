@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const AuthEntrySchema = z.object({
-  type: z.enum(["api", "oauth"]),
+  type: z.enum(["api_key", "oauth"]),
   key: z.string().optional(),
   refresh: z.string().optional(),
   access: z.string().optional(),

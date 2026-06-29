@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { settingsApi } from '@/api/settings'
 import * as projectsApi from '@/api/projects'
-import type { OpenCodeConfig } from '@/api/types/settings'
+import type { PiConfig } from '@/api/types/settings'
 
 interface ProjectConfigDialogProps {
   open: boolean
@@ -22,7 +22,7 @@ export function ProjectConfigDialog({
   currentConfigName,
   onConfigSwitched,
 }: ProjectConfigDialogProps) {
-  const [configs, setConfigs] = useState<OpenCodeConfig[]>([])
+  const [configs, setConfigs] = useState<PiConfig[]>([])
   const [selectedConfig, setSelectedConfig] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [switching, setSwitching] = useState(false)
@@ -35,7 +35,7 @@ export function ProjectConfigDialog({
       try {
         setLoading(true)
         setError(null)
-        const response = await settingsApi.getOpenCodeConfigs()
+        const response = await settingsApi.getPiConfigs()
         setConfigs(response.configs || [])
         setSelectedConfig(currentConfigName || '')
       } catch (err) {

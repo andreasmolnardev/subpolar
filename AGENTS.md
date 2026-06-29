@@ -28,6 +28,24 @@
 - Strict TypeScript everywhere, proper typing required
 - Named imports only: `import { Hono } from 'hono'`, `import { useState } from 'react'`
 
+## Project Overview
+
+Subpolar is a workspace for agents. Think ChatGPT with terminal access, organized around projects, reusable agent instructions, and explicit permission boundaries.
+
+The homepage is a new chat UI where a user selects an agent, model, project, and permissions before starting work. Projects are folders the agent runs in. Each user also gets a `General chat` project for general-purpose tasks that are not tied to a specific workspace.
+
+Agents combine a system prompt with permissions, including which skills they can access. Skills are dynamically loaded instructions: the model can discover them with a get-skills flow, optionally search for the right skill, then load the full skill instructions into context before using them.
+
+Subpolar uses the `pi-coding-agent` package as its agent harness and extends it with Subpolar-specific projects, permission handling, session persistence, provider compatibility APIs, and tool authorization callbacks.
+
+## Pi Runtime Architecture
+
+- Subpolar uses Pi as the native coding-agent runtime and keeps OpenCode-shaped frontend APIs as compatibility adapters where needed.
+- Prefer the Pi SDK from `@earendil-works/pi-coding-agent` for runtime integration instead of spawning `pi --mode rpc`.
+- Model selection flows from the frontend as `providerID/modelID`, is posted to the native session run API, and is resolved through the Pi SDK before execution.
+- `/api/provider` is a compatibility endpoint backed by the Pi SDK `ModelRegistry`; it maps Pi models into the provider/model shape expected by the current React model selector.
+- Session messages are persisted in Subpolar's database, while each run creates a Pi SDK `AgentSession` with Subpolar's Pi extension loaded for tool authorization callbacks.
+
 ### Backend (Bun + Hono)
 
 - Hono framework with Zod validation, Bun SQLite (bun:sqlite) database
@@ -57,6 +75,6 @@
 - Never leave dead code: remove unused code, commented-out blocks, and unused variables/imports.
 - ./temp/opencode is reference only, never commit has opencode src
 - Use shared types from workspace package (@opencode-manager/shared)
-- OpenCode server runs on port 5551, backend API on port 5003
+- Pi runs through the SDK; backend API runs on port 5003
 - Prefer pnpm over npm for all package management
 - Run `pnpm lint` after completing tasks to ensure code quality

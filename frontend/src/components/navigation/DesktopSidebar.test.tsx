@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DesktopSidebar } from './DesktopSidebar'
+import { getSidebarProjectRoute } from '@/lib/projectNavigation'
 import * as useDesktopModule from '@/hooks/useDesktop'
 import * as useSidebarCollapsedModule from '@/hooks/useSidebarCollapsed'
 import * as useAuthModule from '@/hooks/useAuth'
@@ -13,12 +14,13 @@ vi.mock('@/hooks/useAuth')
 
 vi.mock('@/api/projects', () => ({
   listProjects: vi.fn().mockResolvedValue([]),
+  hasProjectId: (project: { id: unknown }) => typeof project.id === 'number' && Number.isFinite(project.id),
   createProject: vi.fn(),
 }))
 
 vi.mock('@/api/settings', () => ({
   settingsApi: {
-    getOpenCodeConfigs: vi.fn().mockResolvedValue({ configs: [], defaultConfig: null }),
+    getPiConfigs: vi.fn().mockResolvedValue({ configs: [], defaultConfig: null }),
   },
 }))
 
@@ -157,5 +159,37 @@ describe('DesktopSidebar', () => {
     render(<DesktopSidebar />, { wrapper: createWrapper(['/']) })
 
     expect(screen.getByText('A')).toBeInTheDocument()
+  })
+
+  it('does not build a project route for null project IDs', () => {
+    const route = getSidebarProjectRoute('null', [
+      {
+        id: null,
+        name: 'Broken Project',
+        directory: 'broken-project',
+        fullPath: '/tmp/broken-project',
+        status: 'ready',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ])
+
+    expect(route).toBeNull()
+  })
+
+  it('builds project routes only from finite project IDs', () => {
+    const route = getSidebarProjectRoute('7', [
+      {
+        id: 7,
+        name: 'Real Project',
+        directory: 'real-project',
+        fullPath: '/tmp/real-project',
+        status: 'ready',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ])
+
+    expect(route).toBe('/projects/7')
   })
 })

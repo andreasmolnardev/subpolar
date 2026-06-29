@@ -12,7 +12,7 @@ import { ChevronDown } from 'lucide-react'
 import type { MessageWithParts, Part } from '@/api/types'
 
 interface ContextUsageIndicatorProps {
-  opcodeUrl: string | null
+  apiUrl: string | null
   sessionID: string | undefined
   directory?: string
   isConnected: boolean
@@ -46,8 +46,8 @@ const getConversationHistory = (messages: MessageWithParts[] = []) => {
     .join('\n\n---\n\n')
 }
 
-export function ContextUsageIndicator({ opcodeUrl, sessionID, directory, isConnected, isReconnecting, messages }: ContextUsageIndicatorProps) {
-  const { totalTokens, contextLimit, usagePercentage, currentModel, isLoading } = useContextUsage(opcodeUrl, sessionID, directory)
+export function ContextUsageIndicator({ apiUrl, sessionID, directory, isConnected, isReconnecting, messages }: ContextUsageIndicatorProps) {
+  const { totalTokens, contextLimit, usagePercentage, currentModel, isLoading } = useContextUsage(apiUrl, sessionID, directory)
 
   if (isLoading) {
     return (

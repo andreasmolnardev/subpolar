@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getProject } from '@/api/projects'
@@ -9,7 +9,7 @@ import { Header } from '@/components/ui/header'
 import { ProjectConfigDialog } from '@/components/project/ProjectConfigDialog'
 import { ProjectMcpDialog } from '@/components/project/ProjectMcpDialog'
 import { ProjectSkillsDialog } from '@/components/project/ProjectSkillsDialog'
-import { useCreateSession } from '@/hooks/useOpenCode'
+import { useCreateSession } from '@/hooks/usePiHarness'
 import { useProjectActivity } from '@/hooks/useProjectActivity'
 import { useSSE } from '@/hooks/useSSE'
 import { useDialogParam } from '@/hooks/useDialogParam'
@@ -38,11 +38,11 @@ export function ProjectDetail() {
 
   useProjectActivity(projectId, Boolean(project))
 
-  const opcodeUrl = OPENCODE_API_ENDPOINT
+  const apiUrl = OPENCODE_API_ENDPOINT
   const composerDirectory = project?.fullPath
-  const subscriptionDirectories = composerDirectory ? [composerDirectory] : []
+  const subscriptionDirectories = useMemo(() => composerDirectory ? [composerDirectory] : [], [composerDirectory])
 
-  useSSE(opcodeUrl, subscriptionDirectories)
+  useSSE(apiUrl, subscriptionDirectories)
 
   const sessionUrl = useCallback(
     (sessionId: string) => {
@@ -51,7 +51,7 @@ export function ProjectDetail() {
     [projectId],
   )
 
-  const createSessionMutation = useCreateSession(opcodeUrl, composerDirectory, (session) => {
+  const createSessionMutation = useCreateSession(apiUrl, composerDirectory, (session) => {
     navigate(sessionUrl(session.id))
   })
 
@@ -105,7 +105,7 @@ export function ProjectDetail() {
         <Header.Actions>
           <Button
             onClick={() => handleCreateSession()}
-            disabled={!opcodeUrl || createSessionMutation.isPending}
+            disabled={!apiUrl || createSessionMutation.isPending}
             size="sm"
             className="sm:hidden h-10 w-10 p-0 bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 hover:scale-105"
           >
@@ -115,9 +115,9 @@ export function ProjectDetail() {
       </Header>
 
       <div className="flex-1 flex flex-col min-h-0">
-        {opcodeUrl && composerDirectory && (
+        {apiUrl && composerDirectory && (
           <SessionList
-            opcodeUrl={opcodeUrl}
+            apiUrl={apiUrl}
             directories={[composerDirectory]}
             createDirectory={composerDirectory}
             onSelectSession={handleSelectSession}
@@ -155,11 +155,11 @@ export function ProjectDetail() {
           open={switchConfigOpen}
           onOpenChange={setSwitchConfigOpen}
           projectId={projectId}
-          currentConfigName={project.openCodeConfigName}
+          currentConfigName={project.piConfigName}
           onConfigSwitched={(configName) => {
             queryClient.setQueryData(['project', projectId], {
               ...project,
-              openCodeConfigName: configName,
+              piConfigName: configName,
             })
             invalidateConfigCaches(queryClient)
           }}

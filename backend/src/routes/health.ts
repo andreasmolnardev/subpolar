@@ -1,8 +1,6 @@
 import { Hono } from 'hono'
 import { healthCheck as pbHealthCheck } from '../db/pocketbase-client'
 import { readFile } from 'fs/promises'
-import { opencodeServerManager } from '../services/opencode-single-server'
-import type { OpenCodeSupervisor } from '../services/opencode-supervisor'
 import { compareVersions } from '../utils/version-utils'
 
 const GITHUB_REPO_OWNER = 'chriswritescode-dev'
@@ -67,46 +65,25 @@ const opencodeManagerVersionPromise = (async (): Promise<string | null> => {
   }
 })()
 
-export function createHealthRoutes(openCodeSupervisor?: OpenCodeSupervisor) {
+export function createHealthRoutes() {
   const app = new Hono()
 
   app.get('/', async (c) => {
     try {
       const opencodeManagerVersion = await opencodeManagerVersionPromise
       const dbCheck = await pbHealthCheck()
-      const lifecycle = openCodeSupervisor
-        ? await openCodeSupervisor.checkNow('api_probe')
-        : null
-      const opencodeHealthy = lifecycle?.healthy ?? await opencodeServerManager.checkHealth()
-      const startupError = lifecycle?.lastError ?? opencodeServerManager.getLastStartupError()
-
-      const status = lifecycle?.state === 'recovering'
-        ? 'degraded'
-        : startupError && !opencodeHealthy
-        ? 'unhealthy'
-        : (dbCheck && opencodeHealthy ? 'healthy' : 'degraded')
+      const status = dbCheck ? 'healthy' : 'degraded'
 
       const response: Record<string, unknown> = {
         status,
         timestamp: new Date().toISOString(),
         database: dbCheck ? 'connected' : 'disconnected',
-        opencode: opencodeHealthy ? 'healthy' : 'unhealthy',
-        opencodePort: opencodeServerManager.getPort(),
-        opencodeVersion: opencodeServerManager.getVersion(),
-        opencodeMinVersion: opencodeServerManager.getMinVersion(),
-        opencodeVersionSupported: opencodeServerManager.isVersionSupported(),
+        runtime: 'pi',
+        pi: 'healthy',
         opencodeManagerVersion,
       }
 
-      if (lifecycle) {
-        response.opencodeLifecycle = lifecycle
-      }
-
-      if (startupError && !opencodeHealthy) {
-        response.error = startupError
-      }
-
-      return c.json(response, status === 'unhealthy' ? 503 : 200)
+      return c.json(response, 200)
     } catch (error) {
       const opencodeManagerVersion = await opencodeManagerVersionPromise
       return c.json({
@@ -119,26 +96,10 @@ export function createHealthRoutes(openCodeSupervisor?: OpenCodeSupervisor) {
   })
 
   app.get('/processes', async (c) => {
-    try {
-      const lifecycle = openCodeSupervisor
-        ? await openCodeSupervisor.checkNow('api_probe')
-        : null
-      const opencodeHealthy = lifecycle?.healthy ?? await opencodeServerManager.checkHealth()
-       
-      return c.json({
-        opencode: {
-          port: opencodeServerManager.getPort(),
-          healthy: opencodeHealthy,
-          lifecycle,
-        },
-        timestamp: new Date().toISOString()
-      })
-    } catch (error) {
-      return c.json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      }, 500)
-    }
+    return c.json({
+      pi: { healthy: true },
+      timestamp: new Date().toISOString(),
+    })
   })
 
   app.get('/version', async (c) => {

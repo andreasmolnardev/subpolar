@@ -1,14 +1,18 @@
-import type { ToolDefinition } from '@subpolar/shared/types'
+import type { AgentDefinition, ToolDefinition } from '@subpolar/shared/types'
 import { createApproval, getEnabledTool, listEnabledTools, listPoliciesForAgent, writeToolAudit } from '../db/subpolar-tools'
-import { getAgentById } from '../db/subpolar-agents'
+import { getAgentByIdOrSlug } from '../db/subpolar-agents'
 import type { Database } from '../db/schema'
 import { getEnabledIntegrationForTool } from '../db/integrations'
 import type { IntegrationType } from '@subpolar/shared/types'
+import { getUpcomingCalDavEvents, type CalDavEventQuery } from './caldav'
+import { webScrape, webSearch } from './web-research'
 
 type PolicyResult =
   | { decision: 'allow' }
   | { decision: 'deny'; code: string; message: string }
   | { decision: 'approval'; approvalId: string; message: string }
+
+export type ToolPermissionOverride = 'ask' | 'none' | 'allow_all'
 
 function validateInput(schema: Record<string, unknown>, input: unknown): string | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return 'Input must be a JSON object'
@@ -20,12 +24,20 @@ function validateInput(schema: Record<string, unknown>, input: unknown): string 
   return null
 }
 
-async function checkPolicy(db: Database, agentId: string, tool: ToolDefinition, input: unknown, sessionId?: string): Promise<PolicyResult> {
-  const agent = await getAgentById(db, agentId)
-  if (!agent || !agent.enabled) return { decision: 'deny', code: 'UNKNOWN_AGENT', message: 'Agent is not enabled or does not exist' }
+async function checkPolicy(db: Database, agent: AgentDefinition, tool: ToolDefinition, input: unknown, sessionId?: string, permissionOverride?: ToolPermissionOverride): Promise<PolicyResult> {
+  const agentId = agent.id
 
   const validationError = validateInput(tool.input_schema, input)
   if (validationError) return { decision: 'deny', code: 'VALIDATION_FAILED', message: validationError }
+
+  if (permissionOverride === 'none') return { decision: 'deny', code: 'PERMISSION_DENIED', message: `Tool calls are disabled for this run: ${tool.tool_id}` }
+
+  if (permissionOverride === 'ask') {
+    const approvalId = await createApproval(db, { agent_id: agentId, session_id: sessionId, tool_id: tool.tool_id, input, reason: `${tool.tool_id} requires approval` })
+    return { decision: 'approval', approvalId, message: `${tool.tool_id} requires approval` }
+  }
+
+  if (permissionOverride === 'allow_all') return { decision: 'allow' }
 
   const policies = await listPoliciesForAgent(db, agentId)
   const matching = policies.filter(policy => policy.tool_id === tool.tool_id || policy.tool_id === '*')
@@ -43,12 +55,18 @@ async function checkPolicy(db: Database, agentId: string, tool: ToolDefinition, 
 }
 
 async function callIntegrationTool(db: Database, tool: ToolDefinition, input: unknown): Promise<unknown> {
+  const inputObject = input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : {}
+
+  if (tool.target === 'web') {
+    if (tool.operation === 'search') return webSearch(inputObject)
+    if (tool.operation === 'scrape') return webScrape(inputObject)
+  }
+
   const integrationType = typeof tool.metadata.integrationType === 'string' ? tool.metadata.integrationType as IntegrationType : undefined
   if (!integrationType) {
     return { toolId: tool.tool_id, result: null }
   }
 
-  const inputObject = input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : {}
   const integrationId = typeof inputObject.integrationId === 'string' ? inputObject.integrationId : undefined
   const integration = await getEnabledIntegrationForTool(db, integrationType, integrationId)
   if (!integration) {
@@ -56,6 +74,7 @@ async function callIntegrationTool(db: Database, tool: ToolDefinition, input: un
   }
 
   if (tool.target === 'caldav') {
+    if (tool.operation === 'get_events') return getUpcomingCalDavEvents(db, inputObject as CalDavEventQuery)
     return { toolId: tool.tool_id, integrationId: integration.id, provider: 'caldav', operation: tool.operation, status: 'configured', input }
   }
 
@@ -71,11 +90,11 @@ async function callIntegrationTool(db: Database, tool: ToolDefinition, input: un
 }
 
 export async function listToolsForAgent(db: Database, agentId: string) {
-  const agent = await getAgentById(db, agentId)
+  const agent = await getAgentByIdOrSlug(db, agentId)
   if (!agent || !agent.enabled) return []
 
   const tools = await listEnabledTools(db)
-  const policies = await listPoliciesForAgent(db, agentId)
+  const policies = await listPoliciesForAgent(db, agent.id)
   const allowedIds = new Set(policies.filter(policy => policy.effect === 'allow' || policy.effect === 'approval').map(policy => policy.tool_id))
   return tools
     .filter(tool => allowedIds.has(tool.tool_id) || allowedIds.has('*'))
@@ -85,9 +104,9 @@ export async function listToolsForAgent(db: Database, agentId: string) {
 export async function describeToolForAgent(db: Database, agentId: string, toolId: string) {
   const tool = await getEnabledTool(db, toolId)
   if (!tool) return null
-  const agent = await getAgentById(db, agentId)
+  const agent = await getAgentByIdOrSlug(db, agentId)
   if (!agent || !agent.enabled) return null
-  const policies = await listPoliciesForAgent(db, agentId)
+  const policies = await listPoliciesForAgent(db, agent.id)
   const matching = policies.filter(policy => policy.tool_id === tool.tool_id || policy.tool_id === '*')
   if (matching.some(policy => policy.effect === 'deny')) return null
   const allowed = matching.some(policy => policy.effect === 'allow' || policy.effect === 'approval')
@@ -103,32 +122,39 @@ export async function describeToolForAgent(db: Database, agentId: string, toolId
   }
 }
 
-export async function callTool(db: Database, agentId: string, toolId: string, input: unknown, sessionId?: string) {
+export async function callTool(db: Database, agentId: string, toolId: string, input: unknown, sessionId?: string, permissionOverride?: ToolPermissionOverride) {
   const tool = await getEnabledTool(db, toolId)
   if (!tool) {
     await writeToolAudit(db, { agent_id: agentId, session_id: sessionId, tool_id: toolId, input, status: 'error', error_code: 'UNKNOWN_TOOL' })
     return { ok: false as const, toolId, error: { code: 'UNKNOWN_TOOL', message: 'Tool does not exist or is disabled' } }
   }
 
-  const policy = await checkPolicy(db, agentId, tool, input, sessionId)
+  const agent = await getAgentByIdOrSlug(db, agentId)
+  if (!agent || !agent.enabled) {
+    await writeToolAudit(db, { agent_id: agentId, session_id: sessionId, tool_id: toolId, input, status: 'denied', error_code: 'UNKNOWN_AGENT' })
+    return { ok: false as const, toolId, error: { code: 'UNKNOWN_AGENT', message: 'Agent is not enabled or does not exist' } }
+  }
+
+  const resolvedAgentId = agent.id
+  const policy = await checkPolicy(db, agent, tool, input, sessionId, permissionOverride)
   if (policy.decision === 'deny') {
-    await writeToolAudit(db, { agent_id: agentId, session_id: sessionId, tool_id: toolId, input, status: policy.code === 'VALIDATION_FAILED' ? 'error' : 'denied', error_code: policy.code })
+    await writeToolAudit(db, { agent_id: resolvedAgentId, session_id: sessionId, tool_id: toolId, input, status: policy.code === 'VALIDATION_FAILED' ? 'error' : 'denied', error_code: policy.code })
     return { ok: false as const, toolId, error: { code: policy.code, message: policy.message } }
   }
 
   if (policy.decision === 'approval') {
-    await writeToolAudit(db, { agent_id: agentId, session_id: sessionId, tool_id: toolId, input, status: 'approval_required', approval_id: policy.approvalId })
+    await writeToolAudit(db, { agent_id: resolvedAgentId, session_id: sessionId, tool_id: toolId, input, status: 'approval_required', approval_id: policy.approvalId })
     return { ok: false as const, toolId, approvalRequired: true, approvalId: policy.approvalId, message: policy.message }
   }
 
   try {
     const result = await callIntegrationTool(db, tool, input)
-    await writeToolAudit(db, { agent_id: agentId, session_id: sessionId, tool_id: toolId, input, status: 'success', result_summary: `${tool.target} adapter accepted call` })
+    await writeToolAudit(db, { agent_id: resolvedAgentId, session_id: sessionId, tool_id: toolId, input, status: 'success', result_summary: `${tool.target} adapter accepted call` })
     return { ok: true as const, toolId, result }
   } catch (error) {
     const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as { code: unknown }).code) : 'TOOL_EXECUTION_FAILED'
     const message = error instanceof Error ? error.message : 'Tool execution failed'
-    await writeToolAudit(db, { agent_id: agentId, session_id: sessionId, tool_id: toolId, input, status: 'error', error_code: code })
+    await writeToolAudit(db, { agent_id: resolvedAgentId, session_id: sessionId, tool_id: toolId, input, status: 'error', error_code: code })
     return { ok: false as const, toolId, error: { code, message } }
   }
 }

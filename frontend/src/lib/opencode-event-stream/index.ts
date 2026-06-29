@@ -1,4 +1,4 @@
-export { openCodeEventStream, OpenCodeEventStream } from './openCodeEventStream'
+export { eventStream, EventStream } from './openCodeEventStream'
 export { createBrowserEventStreamTransport } from './browserTransport'
 export { TestEventStreamTransport } from './testTransport'
 export type {
@@ -9,5 +9,5 @@ export type {
   EventStreamTransport,
   EventStreamTransportHandlers,
   GlobalMonitorSubscription,
-  OpenCodeEventHandler,
+  EventHandler,
 } from './types'

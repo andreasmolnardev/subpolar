@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createOpenCodeClient } from '@/api/opencode'
+import { createSubpolarClient } from '@/api/subpolar'
 import { showToast } from '@/lib/toast'
 import { messagesQueryKey } from '@/lib/queryInvalidation'
 import type { Message, Part, MessageWithParts } from '@/api/types'
 
 interface UseRemoveMessageOptions {
-  opcodeUrl: string | null
+  apiUrl: string | null
   sessionId: string
   directory?: string
 }
@@ -14,18 +14,18 @@ interface RemoveMessageContext {
   previousMessages?: MessageWithParts[]
 }
 
-export function useRemoveMessage({ opcodeUrl, sessionId, directory }: UseRemoveMessageOptions) {
+export function useRemoveMessage({ apiUrl, sessionId, directory }: UseRemoveMessageOptions) {
   const queryClient = useQueryClient()
 
   return useMutation<unknown, Error, { messageID: string; partID?: string }, RemoveMessageContext>({
     mutationFn: async ({ messageID, partID }: { messageID: string, partID?: string }) => {
-      if (!opcodeUrl) throw new Error('OpenCode URL not available')
+      if (!apiUrl) throw new Error('Subpolar URL not available')
       
-      const client = createOpenCodeClient(opcodeUrl, directory)
+      const client = createSubpolarClient(apiUrl, directory)
       return client.revertMessage(sessionId, { messageID, partID })
     },
     onMutate: async ({ messageID }) => {
-      const queryKey = messagesQueryKey(opcodeUrl, sessionId, directory)
+      const queryKey = messagesQueryKey(apiUrl, sessionId, directory)
       
       await queryClient.cancelQueries({ queryKey })
       
@@ -44,7 +44,7 @@ export function useRemoveMessage({ opcodeUrl, sessionId, directory }: UseRemoveM
     onError: (_error, _variables, _context: RemoveMessageContext | undefined) => {
       if (_context?.previousMessages) {
         queryClient.setQueryData(
-          messagesQueryKey(opcodeUrl, sessionId, directory),
+          messagesQueryKey(apiUrl, sessionId, directory),
           _context.previousMessages
         )
       }
@@ -53,24 +53,24 @@ export function useRemoveMessage({ opcodeUrl, sessionId, directory }: UseRemoveM
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: messagesQueryKey(opcodeUrl, sessionId, directory)
+        queryKey: messagesQueryKey(apiUrl, sessionId, directory)
       })
       queryClient.invalidateQueries({
-        queryKey: ['opencode', 'session', opcodeUrl, sessionId, directory]
+        queryKey: ['subpolar', 'session', apiUrl, sessionId, directory]
       })
     }
   })
 }
 
 interface UseRefreshMessageOptions {
-  opcodeUrl: string | null
+  apiUrl: string | null
   sessionId: string
   directory?: string
 }
 
-export function useRefreshMessage({ opcodeUrl, sessionId, directory }: UseRefreshMessageOptions) {
+export function useRefreshMessage({ apiUrl, sessionId, directory }: UseRefreshMessageOptions) {
   const queryClient = useQueryClient()
-  const removeMessage = useRemoveMessage({ opcodeUrl, sessionId, directory })
+  const removeMessage = useRemoveMessage({ apiUrl, sessionId, directory })
 
   return useMutation({
     mutationFn: async ({ 
@@ -84,11 +84,11 @@ export function useRefreshMessage({ opcodeUrl, sessionId, directory }: UseRefres
       model?: string
       agent?: string
     }) => {
-      if (!opcodeUrl) throw new Error('OpenCode URL not available')
+      if (!apiUrl) throw new Error('Subpolar URL not available')
       
       await removeMessage.mutateAsync({ messageID: assistantMessageID })
       
-      const client = createOpenCodeClient(opcodeUrl, directory)
+      const client = createSubpolarClient(apiUrl, directory)
       
       const optimisticUserID = `optimistic_user_${Date.now()}_${Math.random()}`
       const userMessageInfo = {
@@ -112,7 +112,7 @@ export function useRefreshMessage({ opcodeUrl, sessionId, directory }: UseRefres
       }
 
       queryClient.setQueryData<MessageWithParts[]>(
-        messagesQueryKey(opcodeUrl, sessionId, directory),
+        messagesQueryKey(apiUrl, sessionId, directory),
         (old) => [...(old || []), optimisticMessageWithParts]
       )
       
@@ -143,16 +143,16 @@ export function useRefreshMessage({ opcodeUrl, sessionId, directory }: UseRefres
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: messagesQueryKey(opcodeUrl, sessionId, directory)
+        queryKey: messagesQueryKey(apiUrl, sessionId, directory)
       })
       queryClient.invalidateQueries({
-        queryKey: ['opencode', 'session', opcodeUrl, sessionId, directory]
+        queryKey: ['subpolar', 'session', apiUrl, sessionId, directory]
       })
     },
     onError: (_, variables) => {
       void variables
       queryClient.setQueryData<MessageWithParts[]>(
-        messagesQueryKey(opcodeUrl, sessionId, directory),
+        messagesQueryKey(apiUrl, sessionId, directory),
         (old) => {
           const messages = old || []
           const optimisticIndex = messages.findIndex((m) => m.info.id.startsWith('optimistic_user_'))

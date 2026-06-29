@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useMessages } from './useOpenCode'
+import { useMessages } from './usePiHarness'
 import { useQuery } from '@tanstack/react-query'
 import { fetchWrapper } from '@/api/fetchWrapper'
 
@@ -32,20 +32,20 @@ interface ProvidersResponse {
   providers: Provider[]
 }
 
-async function fetchProviders(opcodeUrl: string): Promise<ProvidersResponse> {
-  return fetchWrapper<ProvidersResponse>(`${opcodeUrl}/config/providers`)
+async function fetchProviders(apiUrl: string): Promise<ProvidersResponse> {
+  return fetchWrapper<ProvidersResponse>(`${apiUrl}/config/providers`)
 }
 
-export const useContextUsage = (opcodeUrl: string | null | undefined, sessionID: string | undefined, directory?: string): ContextUsage => {
-  const { data: messages, isLoading: messagesLoading } = useMessages(opcodeUrl, sessionID, directory)
+export const useContextUsage = (apiUrl: string | null | undefined, sessionID: string | undefined, directory?: string): ContextUsage => {
+  const { data: messages, isLoading: messagesLoading } = useMessages(apiUrl, sessionID, directory)
 
   const { data: providersData } = useQuery({
-    queryKey: ['providers', opcodeUrl],
+    queryKey: ['providers', apiUrl],
     queryFn: () => {
-      if (!opcodeUrl) throw new Error('opcodeUrl is required')
-      return fetchProviders(opcodeUrl)
+      if (!apiUrl) throw new Error('apiUrl is required')
+      return fetchProviders(apiUrl)
     },
-    enabled: !!opcodeUrl,
+    enabled: !!apiUrl,
     staleTime: 5 * 60 * 1000,
   })
 

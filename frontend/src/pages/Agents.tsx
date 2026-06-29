@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgentDialog } from '@/components/settings/AgentDialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useAgents } from '@/hooks/useOpenCode'
+import { useAgents } from '@/hooks/usePiHarness'
 import { OPENCODE_API_ENDPOINT } from '@/config'
 import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
 import { Bot, Plus, Pencil, Trash2, ExternalLink } from 'lucide-react'
@@ -44,6 +44,8 @@ function subpolarPolicies(agent: Agent) {
   const policies = (agent.toolAccess ?? [])
     .filter(tool => tool.type === 'subpolar')
     .map(tool => ({ toolId: tool.id, effect: policyEffect(tool.permission) }))
+  const bashTool = (agent.toolAccess ?? []).find(tool => tool.type === 'builtin' && tool.id === 'other-bash')
+  if (bashTool) policies.push({ toolId: 'pi.bash', effect: policyEffect(bashTool.permission) })
   if (policies.some(policy => policy.effect !== 'deny') && !policies.some(policy => policy.toolId === 'tools.list')) {
     return [{ toolId: 'tools.list', effect: 'allow' as const }, ...policies]
   }
@@ -63,8 +65,8 @@ export function Agents() {
   const queryClient = useQueryClient()
 
   const { data: configs } = useQuery({
-    queryKey: ['opencode-configs'],
-    queryFn: () => settingsApi.getOpenCodeConfigs(),
+    queryKey: ['subpolar-configs'],
+    queryFn: () => settingsApi.getPiConfigs(),
   })
 
   const { data: generalChatProject } = useQuery({
@@ -75,7 +77,7 @@ export function Agents() {
   const generalChatDirectory = generalChatProject?.fullPath
   const { data: runtimeAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, generalChatDirectory)
 
-  const { data: opencodeSkills } = useQuery({
+  const { data: subpolarSkills } = useQuery({
     queryKey: ['managed-skills'],
     queryFn: () => settingsApi.listManagedSkills(),
     staleTime: 5 * 60 * 1000,
@@ -115,14 +117,14 @@ export function Agents() {
     mutationFn: async ({ agents, changedAgent }: { agents: Record<string, Agent>; changedAgent?: { name: string; agent: Agent } }) => {
       if (!defaultConfig) throw new Error('No default config found')
       const updatedContent = { ...parsedConfig, agent: agents }
-      await settingsApi.updateOpenCodeConfig('default', { content: JSON.stringify(updatedContent, null, 2) })
+      await settingsApi.updatePiConfig('default', { content: JSON.stringify(updatedContent, null, 2) })
       if (changedAgent) {
         await settingsApi.replaceAgentToolPolicies(changedAgent.name, subpolarPolicies(changedAgent.agent))
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['opencode-configs'] })
-      queryClient.invalidateQueries({ queryKey: ['opencode', 'agents', OPENCODE_API_ENDPOINT, generalChatDirectory] })
+      queryClient.invalidateQueries({ queryKey: ['subpolar-configs'] })
+      queryClient.invalidateQueries({ queryKey: ['subpolar', 'agents', OPENCODE_API_ENDPOINT, generalChatDirectory] })
       queryClient.invalidateQueries({ queryKey: ['agent-tool-policies'] })
     },
   })
@@ -351,7 +353,7 @@ export function Agents() {
         onOpenChange={setIsCreateOpen}
         onSubmit={handleCreate}
         editingAgent={null}
-        availableSkills={opencodeSkills?.map((s) => s.name) || []}
+        availableSkills={subpolarSkills?.map((s) => s.name) || []}
       />
 
       <AgentDialog
@@ -371,7 +373,7 @@ export function Agents() {
           })
         }}
         editingAgent={editingAgent}
-        availableSkills={opencodeSkills?.map((s) => s.name) || []}
+        availableSkills={subpolarSkills?.map((s) => s.name) || []}
       />
     </div>
   )

@@ -2,8 +2,8 @@ export const DEFAULT_AGENTS_MD = `# subpolar - Global Agent Instructions
 
 ## Critical System Constraints
 
-- **DO NOT** use ports 5003 or 5551 - these are reserved for subpolar
-- **DO NOT** kill or stop processes on ports 5003 or 5551
+- **DO NOT** use port 5003 - it is reserved for subpolar
+- **DO NOT** kill or stop processes on port 5003
 - **DO NOT** modify files in the \`.config/opencode\` directory unless explicitly requested
 
 ## Dev Server Ports

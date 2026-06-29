@@ -2,12 +2,12 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
-import { OpenCodeClient } from '@/api/opencode'
+import { SubpolarClient } from '@/api/subpolar'
 import { listProjects } from '@/api/projects'
 import { updateStoredSession } from '@/api/sessions'
 import type { PermissionRequest, PermissionResponse, QuestionRequest, SSEEvent, SSHHostKeyRequest, MessageWithParts } from '@/api/types'
 import { showToast } from '@/lib/toast'
-import { openCodeEventStream, type EventStreamHealthState } from '@/lib/opencode-event-stream'
+import { eventStream, type EventStreamHealthState } from '@/lib/opencode-event-stream'
 import { OPENCODE_API_ENDPOINT } from '@/config'
 import { addToSessionKeyedState, removeFromSessionKeyedState } from '@/lib/sessionKeyedState'
 
@@ -65,7 +65,7 @@ function optimisticallyErrorToolPart(
   
   for (const query of queries) {
     const key = query.queryKey
-    if (key[0] === 'opencode' && key[1] === 'messages' && key.length >= 5) {
+    if (key[0] === 'subpolar' && key[1] === 'messages' && key.length >= 5) {
       const querySessionID = key[3] as string
       if (querySessionID !== sessionID) continue
       
@@ -133,6 +133,7 @@ interface EventContextValue {
     respond: (permissionID: string, sessionID: string, response: PermissionResponse) => Promise<void>
     dismiss: (permissionID: string, sessionID?: string) => void
     getForCallID: (callID: string, sessionID: string) => PermissionRequest | null
+    getForSession: (sessionID: string) => PermissionRequest | null
     hasForSession: (sessionID: string) => boolean
     showDialog: boolean
     setShowDialog: (show: boolean) => void
@@ -152,7 +153,7 @@ interface EventContextValue {
   }
   sseHealth: EventStreamHealthState
   getRepoIdForSession: (sessionID: string) => number | null
-  getClient: (sessionID: string) => OpenCodeClient | null
+  getClient: (sessionID: string) => SubpolarClient | null
 }
 
 const EventContext = createContext<EventContextValue | null>(null)
@@ -162,7 +163,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
 
   const [sshHostKeyRequest, setSSHHostKeyRequest] = useState<SSHHostKeyRequest | null>(null)
-  const [sseHealth, setSseHealth] = useState<EventStreamHealthState>(() => openCodeEventStream.getHealth())
+  const [sseHealth, setSseHealth] = useState<EventStreamHealthState>(() => eventStream.getHealth())
 
   const respondToSSHHostKey = useCallback(async (requestId: string, approved: boolean) => {
     try {
@@ -178,11 +179,11 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
   const [questionsBySession, setQuestionsBySession] = useState<QuestionsBySession>({})
   const [showPermissionDialog, setShowPermissionDialog] = useState(true)
 
-  const clientsRef = useRef<Map<string, OpenCodeClient>>(new Map())
+  const clientsRef = useRef<Map<string, SubpolarClient>>(new Map())
   const sessionDirectoriesRef = useRef<Map<string, string>>(new Map())
   const prevPermissionCountRef = useRef(0)
   const initialFetchDoneRef = useRef(false)
-  const subscriptionRef = useRef<ReturnType<typeof openCodeEventStream.subscribeGlobalMonitor> | null>(null)
+  const subscriptionRef = useRef<ReturnType<typeof eventStream.subscribeGlobalMonitor> | null>(null)
   const reposRef = useRef<typeof repos>(null)
   const MAX_CACHED_CLIENTS = 50
 
@@ -218,7 +219,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
 
     for (const query of queries) {
       const key = query.queryKey
-      if (key[0] === 'opencode' && key[1] === 'session' && key.length >= 5) {
+      if (key[0] === 'subpolar' && key[1] === 'session' && key.length >= 5) {
         const sessionData = query.state.data as { id: string } | undefined
         if (sessionData?.id === sessionID) {
           const directory = key[4] as string
@@ -229,7 +230,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
 
     for (const query of queries) {
       const key = query.queryKey
-      if (key[0] === 'opencode' && key[1] === 'sessions' && key.length >= 4) {
+      if (key[0] === 'subpolar' && key[1] === 'sessions' && key.length >= 4) {
         const sessionsData = query.state.data
         if (!sessionsData) continue
 
@@ -270,7 +271,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     return repo?.id ?? null
   }, [repos, findSessionDirectory])
 
-  const getClient = useCallback((sessionID: string): OpenCodeClient | null => {
+  const getClient = useCallback((sessionID: string): SubpolarClient | null => {
     const result = findSessionInCache(sessionID)
     if (!result) return null
 
@@ -281,7 +282,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
         const firstKey = clientsRef.current.keys().next().value
         if (firstKey) clientsRef.current.delete(firstKey)
       }
-      client = new OpenCodeClient(result.url, result.directory)
+      client = new SubpolarClient(result.url, result.directory)
       clientsRef.current.set(clientKey, client)
     }
     return client
@@ -383,6 +384,10 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     }) ?? null
   }, [permissionsBySession])
 
+  const getPermissionForSession = useCallback((sessionID: string): PermissionRequest | null => {
+    return permissionsBySession[sessionID]?.[0] ?? null
+  }, [permissionsBySession])
+
   const getQuestionForCallID = useCallback((callID: string, sessionID: string): QuestionRequest | null => {
     const questions = questionsBySession[sessionID] ?? []
     return questions.find(q => q.tool?.callID === callID) ?? null
@@ -426,7 +431,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     
     for (const directory of uniqueDirectories) {
       try {
-        const client = new OpenCodeClient(OPENCODE_API_ENDPOINT, directory)
+        const client = new SubpolarClient(OPENCODE_API_ENDPOINT, directory)
         const pendingPermissions = await client.listPendingPermissions()
         reconcilePermissionsForDirectory(directory, pendingPermissions ?? [])
         const pendingQuestions = await client.listPendingQuestions()
@@ -440,14 +445,14 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
   }, [reconcilePermissionsForDirectory, reconcileQuestionsForDirectory])
 
   const syncPermissionsForSession = useCallback(async (directory: string, sessionID: string) => {
-    const client = new OpenCodeClient(OPENCODE_API_ENDPOINT, directory)
+    const client = new SubpolarClient(OPENCODE_API_ENDPOINT, directory)
     const pendingPermissions = await client.listPendingPermissions()
     rememberSessionDirectory(sessionID, directory)
     reconcilePermissionsForDirectory(directory, pendingPermissions ?? [])
   }, [rememberSessionDirectory, reconcilePermissionsForDirectory])
 
   const syncQuestionsForSession = useCallback(async (directory: string, sessionID: string) => {
-    const client = new OpenCodeClient(OPENCODE_API_ENDPOINT, directory)
+    const client = new SubpolarClient(OPENCODE_API_ENDPOINT, directory)
     const pendingQuestions = await client.listPendingQuestions()
     rememberSessionDirectory(sessionID, directory)
     reconcileQuestionsForDirectory(directory, pendingQuestions ?? [])
@@ -494,14 +499,14 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
               sessionID
             )
             queryClient.invalidateQueries({ 
-              queryKey: ['opencode', 'messages'],
+              queryKey: ['subpolar', 'messages'],
               predicate: (query) => query.queryKey.includes(sessionID)
             })
           }
           break
         case 'lsp.updated':
           queryClient.invalidateQueries({
-            queryKey: ['opencode', 'lsp']
+            queryKey: ['subpolar', 'lsp']
           })
           break
         case 'session.created':
@@ -529,7 +534,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     }
 
     const initialDirectories = [...new Set((reposRef.current ?? []).map(r => r.fullPath))]
-    const subscription = openCodeEventStream.subscribeGlobalMonitor({
+    const subscription = eventStream.subscribeGlobalMonitor({
       directories: initialDirectories,
       onEvent: handleSSEMessage,
       onStatusChange: handleStatusChange,
@@ -570,6 +575,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
       respond: respondToPermission,
       dismiss: removePermission,
       getForCallID: getPermissionForCallID,
+      getForSession: getPermissionForSession,
       hasForSession: hasPermissionsForSession,
       showDialog: showPermissionDialog,
       setShowDialog: setShowPermissionDialog,
@@ -598,6 +604,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     respondToPermission,
     removePermission,
     getPermissionForCallID,
+    getPermissionForSession,
     hasPermissionsForSession,
     showPermissionDialog,
     navigateToCurrentPermission,

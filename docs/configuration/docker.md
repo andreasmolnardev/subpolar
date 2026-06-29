@@ -35,7 +35,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: opencode-manager
+    container_name: subpolar
     ports:
       - "5003:5003"
       - "5100:5100"
@@ -46,9 +46,7 @@ services:
       - NODE_ENV=${NODE_ENV:-production}
       - HOST=0.0.0.0
       - PORT=5003
-      - OPENCODE_SERVER_PORT=5551
-      - OPENCODE_HOST=127.0.0.1
-      - DATABASE_PATH=/app/data/opencode.db
+      - DATABASE_PATH=/app/data/subpolar.db
       - WORKSPACE_PATH=/workspace
       - PROCESS_START_WAIT_MS=2000
       - PROCESS_VERIFY_WAIT_MS=1000
@@ -76,8 +74,8 @@ services:
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-}
     volumes:
-      - opencode-workspace:/workspace
-      - opencode-data:/app/data
+      - subpolar-workspace:/workspace
+      - subpolar-data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5003/api/health"]
@@ -87,9 +85,9 @@ services:
       start_period: 40s
 
 volumes:
-  opencode-workspace:
+  subpolar-workspace:
     driver: local
-  opencode-data:
+  subpolar-data:
     driver: local
 ```
 
@@ -124,9 +122,7 @@ VAPID_SUBJECT=mailto:you@example.com
 The container entrypoint (`scripts/docker-entrypoint.sh`) automatically:
 
 1. **Verifies Bun** is installed (installed at build time, fallback install if missing)
-2. **Verifies OpenCode** is installed (installed at build time, fallback install if missing)
-3. **Upgrades OpenCode** if below minimum version (1.0.137)
-4. **Validates AUTH_SECRET** is set (required for startup)
+2. **Validates AUTH_SECRET** is set (required for startup)
 
 ## Port Configuration
 
@@ -192,7 +188,7 @@ Repository storage:
 
 ```yaml
 volumes:
-  - opencode-workspace:/workspace
+  - subpolar-workspace:/workspace
 ```
 
 All cloned repositories are stored here. Uses a named volume for data persistence across container recreations.
@@ -203,7 +199,7 @@ Database and configuration:
 
 ```yaml
 volumes:
-  - opencode-data:/app/data
+  - subpolar-data:/app/data
 ```
 
 Contains:
@@ -212,40 +208,6 @@ Contains:
 - Session data
 
 Uses a named volume for data persistence.
-
-### Import Existing OpenCode Chats From Your Host
-
-If you already use standalone OpenCode on your machine and want Dockerized Subpolar to show those chats on first setup, bind your host OpenCode config/state into the container and bind your repo root to the same absolute path that standalone OpenCode used.
-
-Add to `.env`:
-
-```bash
-OCM_REPOS_HOST_PATH=/Users/you/Development
-OCM_OPENCODE_CONFIG_HOST_PATH=/Users/you/.config/opencode
-OCM_OPENCODE_STATE_HOST_PATH=/Users/you/.local/share/opencode
-```
-
-Then add a compose override:
-
-```yaml
-services:
-  app:
-    environment:
-      - OPENCODE_IMPORT_CONFIG_PATH=/import/opencode-config/opencode.json
-      - OPENCODE_IMPORT_STATE_PATH=/import/opencode-state
-    volumes:
-      - ${OCM_REPOS_HOST_PATH}:${OCM_REPOS_HOST_PATH}:ro
-      - ${OCM_OPENCODE_CONFIG_HOST_PATH}:/import/opencode-config:ro
-      - ${OCM_OPENCODE_STATE_HOST_PATH}:/import/opencode-state:ro
-```
-
-Why the repo mount uses the host path as the container path:
-
-- standalone OpenCode stores chats against absolute directory paths
-- mounting `${OCM_REPOS_HOST_PATH}` to the same path inside the container preserves those paths exactly
-- Subpolar can then discover that folder and create its normal workspace links under `/workspace/repos`
-
-With a fresh Docker volume, first startup imports the host OpenCode config and state, and after you add `${OCM_REPOS_HOST_PATH}` in the Manager UI, previously existing chats appear under the discovered repositories.
 
 ## Health Checks
 
@@ -263,7 +225,7 @@ healthcheck:
 Check health status:
 
 ```bash
-docker inspect --format='{{.State.Health.Status}}' opencode-manager
+docker inspect --format='{{.State.Health.Status}}' subpolar
 ```
 
 ## Resource Limits
@@ -292,12 +254,12 @@ Create an isolated network:
 
 ```yaml
 services:
-  opencode-manager:
+  subpolar:
     networks:
-      - opencode-net
+      - subpolar-net
 
 networks:
-  opencode-net:
+  subpolar-net:
     driver: bridge
 ```
 
@@ -307,7 +269,7 @@ Use host networking (Linux only):
 
 ```yaml
 services:
-  opencode-manager:
+  subpolar:
     network_mode: host
 ```
 
@@ -352,21 +314,21 @@ docker-compose up -d
 
 ```bash
 # Access shell
-docker exec -it opencode-manager sh
+docker exec -it subpolar sh
 
 # View running processes
-docker exec opencode-manager ps aux
+docker exec subpolar ps aux
 
 # Check disk usage
-docker exec opencode-manager df -h
+docker exec subpolar df -h
 
 # View environment
-docker exec opencode-manager env
+docker exec subpolar env
 ```
 
 ## Global Agent Instructions
 
-The container creates a default `AGENTS.md` file at `/workspace/.config/opencode/AGENTS.md`.
+The container creates a default `AGENTS.md` file at `/workspace/.config/subpolar/AGENTS.md`.
 
 ### Default Content
 
@@ -377,54 +339,17 @@ Instructions for AI agents working in the container:
 
 ### Editing
 
-**Via UI:** Settings > OpenCode > Global Agent Instructions
+**Via UI:** Settings > Subpolar > Global Agent Instructions
 
 **Via File:**
 ```bash
-docker exec -it opencode-manager vi /workspace/.config/opencode/AGENTS.md
+docker exec -it subpolar vi /workspace/.config/subpolar/AGENTS.md
 ```
 
 ### Precedence
 
 Global instructions merge with repository-specific `AGENTS.md` files. Repository instructions take precedence.
 
-## Exposing the OpenCode Server (Advanced)
+## Pi Runtime
 
-By default, the OpenCode server binds to `127.0.0.1` inside the container and is **not reachable from outside the container**. This is the correct and safe default for nearly all users.
-
-### When to Expose Externally
-
-You only need to expose the OpenCode server on an external interface if you have a specific use case that requires other services or machines to connect directly to it.
-
-### How to Expose Safely
-
-To expose the OpenCode server on the host network:
-
-1. **Set `OPENCODE_HOST=0.0.0.0`** in your environment
-2. **Add port `5551:5551`** to the compose ports
-3. **Set `OPENCODE_SERVER_PASSWORD`** — this is **required**; the managed OpenCode server will refuse to start without it
-
-Example compose override:
-
-```yaml
-services:
-  app:
-    ports:
-      - "5551:5551"
-    environment:
-      - OPENCODE_HOST=0.0.0.0
-      - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD:?Set OPENCODE_SERVER_PASSWORD before exposing OpenCode on port 5551}
-```
-
-### Password Configuration
-
-The password can be configured in two ways:
-
-1. **Environment variable:** Set `OPENCODE_SERVER_PASSWORD` in your `.env` file or compose environment
-2. **Via UI:** Use Settings → OpenCode → Server Auth to set a password at runtime
-
-**DB-stored passwords take precedence over the environment variable.** If you set a password via the UI, it will override the env var.
-
-### Startup Guard
-
-If you set `OPENCODE_HOST=0.0.0.0` (or any non-localhost host) without configuring a password (either via env var or UI), the managed OpenCode server will refuse to start with an error message explaining how to fix it. The Subpolar UI/API may remain available so you can configure a password and restart the managed server.
+Subpolar uses the Pi SDK for agent sessions. There is no separate Pi server port to configure or expose.

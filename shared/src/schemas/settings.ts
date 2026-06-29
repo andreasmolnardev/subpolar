@@ -139,6 +139,16 @@ export const IntegrationSettingsSchema = z.array(IntegrationConfigSchema);
 export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;
 export type IntegrationSettings = z.infer<typeof IntegrationSettingsSchema>;
 
+export const DefaultModelsSchema = z.object({
+  routing: z.string().optional(),
+  compaction: z.string().optional(),
+  sessionNaming: z.string().optional(),
+  summary: z.string().optional(),
+  toolSummary: z.string().optional(),
+});
+
+export type DefaultModels = z.infer<typeof DefaultModelsSchema>;
+
 export const ServerEnvVarSchema = z.object({
   key: z.string().min(1),
   value: z.string(),
@@ -154,8 +164,6 @@ export const DEFAULT_SERVER_ENV_VARS = [
 ] as const satisfies readonly ServerEnvVar[];
 
 export const BLOCKED_SERVER_ENV_KEYS = [
-  'OPENCODE_SERVER_PASSWORD',
-  'OPENCODE_SERVER_USERNAME',
   'OPENCODE_CONFIG',
   'XDG_DATA_HOME',
   'XDG_STATE_HOME',
@@ -171,6 +179,7 @@ export const UserPreferencesSchema = z.object({
   theme: z.string().min(1),
   mode: z.enum(["plan", "build"]),
   defaultModel: z.string().optional(),
+  defaultModels: DefaultModelsSchema.optional(),
   defaultAgent: z.string().optional(),
   autoScroll: z.boolean(),
   expandDiffs: z.boolean(),
@@ -232,6 +241,7 @@ export const DEFAULT_USER_PREFERENCES = {
   expandToolCalls: false,
   showReasoning: false,
   simpleChatMode: false,
+  defaultModels: {} as DefaultModels,
   hiddenSidebarAgents: ['auto', 'compaction', 'summary', 'title'] as string[],
   hiddenChatInputAgents: ['compaction', 'summary', 'title'] as string[],
   leaderKey: DEFAULT_LEADER_KEY,
@@ -349,13 +359,13 @@ export const ProviderConfigSchema = z.object({
 export type ProviderSource = z.infer<typeof ProviderSourceSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 
-export const OpenCodePluginOptionsSchema = z.record(z.string(), z.unknown());
-export const OpenCodePluginSpecSchema = z.union([
+export const PiPluginOptionsSchema = z.record(z.string(), z.unknown());
+export const PiPluginSpecSchema = z.union([
   z.string(),
-  z.tuple([z.string(), OpenCodePluginOptionsSchema]),
+  z.tuple([z.string(), PiPluginOptionsSchema]),
 ]);
 
-export const OpenCodeConfigSchema = z.object({
+export const PiConfigSchema = z.object({
   $schema: z.string().optional(),
   theme: z.string().optional(),
   model: z.string().optional(),
@@ -372,36 +382,45 @@ export const OpenCodeConfigSchema = z.object({
   instructions: z.array(z.string()).optional(),
   disabled_providers: z.array(z.string()).optional(),
   share: z.enum(["manual", "auto", "disabled"]).optional(),
-  plugin: z.array(OpenCodePluginSpecSchema).optional(),
+  plugin: z.array(PiPluginSpecSchema).optional(),
   skills: z.object({
     paths: z.array(z.string()).optional(),
     urls: z.array(z.string()).optional(),
   }).optional(),
 }).strip();
 
-export type OpenCodeConfigContent = z.infer<typeof OpenCodeConfigSchema>;
+export type PiConfigContent = z.infer<typeof PiConfigSchema>;
 
-export const OpenCodeConfigMetadataSchema = z.object({
+export const PiConfigMetadataSchema = z.object({
   id: z.number(),
   name: z.string().min(1).max(255),
-  content: OpenCodeConfigSchema,
+  content: PiConfigSchema,
   isDefault: z.boolean(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
 
-export const CreateOpenCodeConfigRequestSchema = z.object({
+export const CreatePiConfigRequestSchema = z.object({
   name: z.string().min(1).max(255),
-  content: z.union([OpenCodeConfigSchema, z.string()]),
+  content: z.union([PiConfigSchema, z.string()]),
   isDefault: z.boolean().optional(),
 });
 
-export const UpdateOpenCodeConfigRequestSchema = z.object({
-  content: z.union([OpenCodeConfigSchema, z.string()]),
+export const UpdatePiConfigRequestSchema = z.object({
+  content: z.union([PiConfigSchema, z.string()]),
   isDefault: z.boolean().optional(),
 });
 
-export const OpenCodeConfigResponseSchema = z.object({
-  configs: z.array(OpenCodeConfigMetadataSchema),
-  defaultConfig: OpenCodeConfigMetadataSchema.nullable(),
+export const PiConfigResponseSchema = z.object({
+  configs: z.array(PiConfigMetadataSchema),
+  defaultConfig: PiConfigMetadataSchema.nullable(),
 });
+
+export const OpenCodePluginOptionsSchema = PiPluginOptionsSchema;
+export const OpenCodePluginSpecSchema = PiPluginSpecSchema;
+export const OpenCodeConfigSchema = PiConfigSchema;
+export type OpenCodeConfigContent = PiConfigContent;
+export const OpenCodeConfigMetadataSchema = PiConfigMetadataSchema;
+export const CreateOpenCodeConfigRequestSchema = CreatePiConfigRequestSchema;
+export const UpdateOpenCodeConfigRequestSchema = UpdatePiConfigRequestSchema;
+export const OpenCodeConfigResponseSchema = PiConfigResponseSchema;

@@ -38,19 +38,25 @@ export function getPermissionDetail(input: PermissionLike): PermissionDetail {
   const permission = typeof input.permission === 'string' ? input.permission : ''
   const metadata = (input.metadata && typeof input.metadata === 'object' ? input.metadata : {}) as Record<string, unknown>
   const str = (v: unknown): string | undefined => (typeof v === 'string' && v.length > 0 ? v : undefined)
+  const objectInput = metadata.input && typeof metadata.input === 'object' && !Array.isArray(metadata.input)
+    ? metadata.input as Record<string, unknown>
+    : undefined
+  const inputString = (key: string): string | undefined => objectInput ? str(objectInput[key]) : undefined
+  const tool = str(metadata.toolId) ?? str(metadata.toolName)
+  const jsonInput = objectInput ? JSON.stringify(objectInput, null, 2) : undefined
 
   switch (permission) {
     case 'bash': {
-      const command = str(metadata.command)
-      if (command) return { primary: command }
+      const command = str(metadata.command) ?? inputString('command')
+      if (command) return { primary: tool ? `${tool}: ${command}` : command, secondary: jsonInput }
       break
     }
     case 'edit':
     case 'write': {
-      const filePath = str(metadata.filePath)
+      const filePath = str(metadata.filePath) ?? inputString('filePath') ?? inputString('path')
       if (filePath) {
         const diff = str(metadata.diff)
-        return { primary: filePath, secondary: diff ? diff.slice(0, 500) + (diff.length > 500 ? '\n...' : '') : undefined }
+        return { primary: tool ? `${tool}: ${filePath}` : filePath, secondary: diff ? diff.slice(0, 500) + (diff.length > 500 ? '\n...' : '') : jsonInput }
       }
       break
     }
@@ -72,6 +78,10 @@ export function getPermissionDetail(input: PermissionLike): PermissionDetail {
       }
       break
     }
+  }
+
+  if (tool) {
+    return { primary: `Tool: ${tool}`, secondary: jsonInput }
   }
 
   return { primary: fallbackPattern(input) }

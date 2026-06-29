@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Plus } from 'lucide-react'
 import { OPENCODE_API_ENDPOINT } from '@/config'
-import { useCreateSession } from '@/hooks/useOpenCode'
+import { useCreateSession } from '@/hooks/usePiHarness'
 import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -50,7 +50,7 @@ export function History() {
     ])
   }, [historyProjects, storedSessions])
 
-  const opcodeUrl = OPENCODE_API_ENDPOINT
+  const apiUrl = OPENCODE_API_ENDPOINT
   const primaryDirectory = generalChat?.fullPath ?? directories[0]
 
   const handleSelectSession = useCallback((sessionId: string, directory: string | null, storedProjectId: number | null) => {
@@ -58,7 +58,7 @@ export function History() {
     navigate(`/projects/${projectId ?? GENERAL_CHAT_PROJECT_ID}/sessions/${sessionId}`)
   }, [navigate, projectIdsByDirectory])
 
-  const createSession = useCreateSession(opcodeUrl, primaryDirectory, (newSession) => {
+  const createSession = useCreateSession(apiUrl, primaryDirectory, (newSession) => {
     navigate(`/projects/${GENERAL_CHAT_PROJECT_ID}/sessions/${newSession.id}`)
   })
 
@@ -81,7 +81,7 @@ export function History() {
         <Header.Actions>
           <Button
             onClick={handleCreateSession}
-            disabled={!opcodeUrl || !primaryDirectory || createSession.isPending}
+            disabled={!apiUrl || !primaryDirectory || createSession.isPending}
             size="sm"
             className="bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 hover:scale-105"
           >

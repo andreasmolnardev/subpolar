@@ -19,6 +19,31 @@ async function ensureCollection(pb: PocketBase, name: string, fields: Field[], i
 }
 
 export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
+  await ensureCollection(pb, 'todo_lists', [
+    text('user_id'),
+    text('name'),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE INDEX idx_todo_lists_user_updated ON todo_lists (user_id, updated_at)'])
+
+  await ensureCollection(pb, 'todo_items', [
+    text('user_id'),
+    text('list_id'),
+    text('text'),
+    bool('completed'),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE INDEX idx_todo_items_list_updated ON todo_items (list_id, updated_at)', 'CREATE INDEX idx_todo_items_user_completed ON todo_items (user_id, completed)'])
+
+  await ensureCollection(pb, 'notes', [
+    text('user_id'),
+    text('title'),
+    json('tags'),
+    text('text', false),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE INDEX idx_notes_user_updated ON notes (user_id, updated_at)'])
+
   await ensureCollection(pb, 'integrations', [
     text('name'),
     select('type', ['mcp', 'caldav', 'imap_smtp']),
@@ -70,6 +95,13 @@ export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
     number('updated_at'),
   ], ['CREATE UNIQUE INDEX idx_agent_tool_policies_agent_tool ON agent_tool_policies (agent_id, tool_id)'])
 
+  await ensureCollection(pb, 'project_settings', [
+    text('project_id'),
+    json('agent_names'),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE UNIQUE INDEX idx_project_settings_project ON project_settings (project_id)'])
+
   await ensureCollection(pb, 'tool_approvals', [
     text('agent_id'),
     text('session_id', false),
@@ -92,4 +124,45 @@ export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
     text('approval_id', false),
     number('created_at'),
   ], ['CREATE INDEX idx_tool_call_audit_created ON tool_call_audit (created_at)', 'CREATE INDEX idx_tool_call_audit_agent_created ON tool_call_audit (agent_id, created_at)'])
+
+  await ensureCollection(pb, 'messages', [
+    text('session_id'),
+    text('role'),
+    text('content', false),
+    json('metadata'),
+    number('created_at'),
+  ], ['CREATE INDEX idx_messages_session_created ON messages (session_id, created_at)'])
+
+  await ensureCollection(pb, 'runs', [
+    text('run_id'),
+    text('session_id'),
+    text('agent_id'),
+    text('runtime'),
+    select('status', ['queued', 'running', 'completed', 'failed', 'cancelled']),
+    text('error', false),
+    json('metadata'),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE UNIQUE INDEX idx_runs_run_id ON runs (run_id)', 'CREATE INDEX idx_runs_session_created ON runs (session_id, created_at)'])
+
+  await ensureCollection(pb, 'runtime_events', [
+    text('run_id'),
+    text('session_id'),
+    text('type'),
+    json('payload'),
+    number('created_at'),
+  ], ['CREATE INDEX idx_runtime_events_run_created ON runtime_events (run_id, created_at)'])
+
+  await ensureCollection(pb, 'tool_calls', [
+    text('tool_call_id'),
+    text('run_id'),
+    text('session_id'),
+    text('tool_name'),
+    select('status', ['requested', 'completed', 'failed']),
+    json('input'),
+    json('output'),
+    text('error', false),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE UNIQUE INDEX idx_tool_calls_tool_call_id ON tool_calls (tool_call_id)', 'CREATE INDEX idx_tool_calls_run_created ON tool_calls (run_id, created_at)'])
 }

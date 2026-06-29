@@ -30,7 +30,7 @@ describe('SessionDetail pending-actions polling', () => {
     mocks.syncPendingActions.mockResolvedValue(null)
 
     const testQueryOptions = {
-      queryKey: ['opencode', 'pending-actions', 'http://localhost:5003', 'session-1', '/repo'] as const,
+      queryKey: ['subpolar', 'pending-actions', 'http://localhost:5003', 'session-1', '/repo'] as const,
       queryFn: async () => {
         await mocks.syncPendingActions()
         return null
@@ -63,7 +63,7 @@ describe('SessionDetail pending-actions polling', () => {
     mocks.syncPendingActions.mockResolvedValue(null)
 
     const testQueryOptions = {
-      queryKey: ['opencode', 'pending-actions', 'http://localhost:5003', 'session-1', '/repo'] as const,
+      queryKey: ['subpolar', 'pending-actions', 'http://localhost:5003', 'session-1', '/repo'] as const,
       queryFn: async () => {
         await mocks.syncPendingActions()
         return null

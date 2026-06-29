@@ -22,7 +22,7 @@ Usage: $0 [--tools | --full] [--no-pull] [--logs]
 Rebuild modes (pick one):
   (default)   Cached build. Reuses pnpm install + tool install layers.
               Only changed source (and the frontend build) rerun. ~1-2 min.
-  --tools     Cached build, but force a fresh uv/opencode install.
+  --tools     Cached build, but force a fresh tool install.
               Keeps the expensive pnpm install cached. ~17 min.
   --full      Full --no-cache rebuild of everything. ~25 min.
 
@@ -75,7 +75,7 @@ case "$MODE" in
     $DOCKER_COMPOSE build || exit 1
     ;;
   tools)
-    echo -e "${YELLOW}Rebuilding image (cached + fresh uv/opencode)...${NC}"
+    echo -e "${YELLOW}Rebuilding image (cached + fresh tools)...${NC}"
     TOOLS_CACHEBUST="$(date +%s)" $DOCKER_COMPOSE build || exit 1
     ;;
   full)

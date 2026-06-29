@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { listProjects, deleteProject } from '@/api/projects'
+import { deleteProject, hasProjectId, listProjects } from '@/api/projects'
 import { DeleteDialog } from '@/components/ui/delete-dialog'
 import { FolderOpen } from 'lucide-react'
 import { ProjectCard } from './ProjectCard'
@@ -22,7 +22,7 @@ export function ProjectList() {
   })
 
   const regularProjects = useMemo(
-    () => projects?.filter((p) => p.id !== GENERAL_CHAT_PROJECT_ID) ?? null,
+    () => projects?.filter((p) => hasProjectId(p) && p.id !== GENERAL_CHAT_PROJECT_ID) ?? null,
     [projects],
   )
 

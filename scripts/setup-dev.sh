@@ -29,15 +29,6 @@ fi
 
 echo "✅ Git is installed"
 
-# Check if OpenCode TUI is installed
-if ! opencode --version &> /dev/null; then
-  echo "❌ OpenCode TUI is not installed. Please install it with:"
-  echo "   curl -fsSL https://opencode.ai/install | bash"
-  exit 1
-fi
-
-echo "✅ OpenCode TUI is installed"
-
 # Create workspace directory if it doesn't exist
 WORKSPACE_PATH="./workspace"
 if [ ! -d "$WORKSPACE_PATH" ]; then

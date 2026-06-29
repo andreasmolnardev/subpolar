@@ -181,7 +181,7 @@ describe('MessageThread', () => {
 
     render(
       <MessageThread
-        opcodeUrl="http://localhost:5551"
+        apiUrl="http://localhost:5551"
         sessionID="test-session"
         messages={messages as any}
         onChildSessionClick={onChildSessionClick}
@@ -208,7 +208,7 @@ describe('MessageThread', () => {
 
     const { container } = render(
       <MessageThread
-        opcodeUrl="http://localhost:5551"
+        apiUrl="http://localhost:5551"
         sessionID="test-session"
         messages={messages as any}
         onChildSessionClick={onChildSessionClick}
@@ -242,7 +242,7 @@ describe('MessageThread', () => {
 
     render(
       <MessageThread
-        opcodeUrl="http://localhost:5551"
+        apiUrl="http://localhost:5551"
         sessionID="test-session"
         messages={messages as any}
       />
@@ -271,7 +271,7 @@ describe('MessageThread', () => {
 
     render(
       <MessageThread
-        opcodeUrl="http://localhost:5551"
+        apiUrl="http://localhost:5551"
         sessionID="test-session"
         messages={messages as any}
       />
@@ -301,7 +301,7 @@ describe('MessageThread', () => {
 
     render(
       <MessageThread
-        opcodeUrl="http://localhost:5551"
+        apiUrl="http://localhost:5551"
         sessionID="test-session"
         messages={messages as any}
       />
@@ -331,7 +331,7 @@ describe('MessageThread', () => {
 
     render(
       <MessageThread
-        opcodeUrl="http://localhost:5551"
+        apiUrl="http://localhost:5551"
         sessionID="test-session"
         messages={messages as any}
       />
@@ -356,7 +356,7 @@ describe('MessageThread', () => {
 
     render(
       <MessageThread
-        opcodeUrl="http://localhost:5551"
+        apiUrl="http://localhost:5551"
         sessionID="test-session"
         messages={messages as any}
       />
@@ -382,7 +382,7 @@ describe('MessageThread', () => {
 
     render(
       <MessageThread
-        opcodeUrl="http://localhost:5551"
+        apiUrl="http://localhost:5551"
         sessionID="test-session"
         messages={messages as any}
       />
@@ -405,7 +405,7 @@ describe('MessageThread', () => {
 
     render(
       <MessageThread
-        opcodeUrl="http://localhost:5551"
+        apiUrl="http://localhost:5551"
         sessionID="test-session"
         messages={messages as any}
       />
@@ -428,7 +428,7 @@ describe('MessageThread', () => {
 
     const { unmount } = render(
       <MessageThread
-        opcodeUrl="http://localhost:5551"
+        apiUrl="http://localhost:5551"
         sessionID="test-session"
         messages={messages as any}
       />
@@ -464,7 +464,7 @@ describe('MessageThread', () => {
 
     render(
       <MessageThread
-        opcodeUrl="http://localhost:5551"
+        apiUrl="http://localhost:5551"
         sessionID="test-session"
         messages={messages as any}
       />

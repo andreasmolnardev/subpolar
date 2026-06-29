@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useSessionAgent, resolveDefaultSessionAgent } from './useSessionAgent'
-import { useMessages, useConfig, useAgents } from './useOpenCode'
+import { useMessages, useConfig, useAgents } from './usePiHarness'
 import { useSessionAgentStore } from '../stores/sessionAgentStore'
 
 const sessionAgentStoreMock = vi.hoisted(() => {
@@ -26,7 +26,7 @@ const sessionAgentStoreMock = vi.hoisted(() => {
   return { state, store }
 })
 
-vi.mock('./useOpenCode', () => ({
+vi.mock('./usePiHarness', () => ({
   useMessages: vi.fn(),
   useConfig: vi.fn(),
   useAgents: vi.fn(),
@@ -145,6 +145,7 @@ describe('useSessionAgent', () => {
           role: 'user',
           agent: 'assistant',
           model: { providerID: 'provider', modelID: 'model' },
+          permission: 'allow_all',
           variant: 'variant-1',
         },
       },
@@ -171,7 +172,43 @@ describe('useSessionAgent', () => {
     await waitFor(() => {
       expect(result.current.agent).toBe('assistant')
       expect(result.current.model).toEqual({ providerID: 'provider', modelID: 'model' })
+      expect(result.current.permission).toBe('allow_all')
       expect(result.current.variant).toBe('variant-1')
+    })
+  })
+
+  it('returns latest message model and permission with default agent when no agent was stored', async () => {
+    vi.mocked(useMessages).mockReturnValue({
+      data: [
+        {
+          info: {
+            role: 'user',
+            model: { providerID: 'provider', modelID: 'model' },
+            permission: 'ask',
+          },
+        },
+      ],
+      isLoading: false,
+    } as ReturnType<typeof useMessages>)
+    vi.mocked(useConfig).mockReturnValue({
+      data: { default_agent: 'code' },
+    } as ReturnType<typeof useConfig>)
+    vi.mocked(useAgents).mockReturnValue({
+      data: [
+        { name: 'code', mode: 'primary' },
+        { name: 'assistant', mode: 'primary' },
+      ],
+      isSuccess: true,
+    } as ReturnType<typeof useAgents>)
+
+    const { result } = renderHook(() =>
+      useSessionAgent('http://localhost:5551', 'session-1', '/assistant')
+    )
+
+    await waitFor(() => {
+      expect(result.current.agent).toBe('code')
+      expect(result.current.model).toEqual({ providerID: 'provider', modelID: 'model' })
+      expect(result.current.permission).toBe('ask')
     })
   })
 

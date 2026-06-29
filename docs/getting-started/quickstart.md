@@ -70,7 +70,7 @@ Choose the onboarding flow that matches your setup:
 4. Enter a parent folder such as `/Users/you/Development`
 5. Click **Discover Repositories**
 
-If you already used standalone OpenCode in those repositories, existing chats appear as soon as the discovered repo path matches the original OpenCode path.
+Existing repositories will appear as soon as the discovered path matches.
 
 !!! note "Private Repositories"
     For private repos, configure a GitHub Personal Access Token in Settings > Git > Credentials first.

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useLoadSkill } from '../useOpenCode'
+import { useLoadSkill } from '../usePiHarness'
 import type { MessageWithParts } from '../../api/types'
 
 import { showToast } from '../../lib/toast'
@@ -10,8 +10,8 @@ const mocks = vi.hoisted(() => ({
   sendCommand: vi.fn(),
 }))
 
-vi.mock('../../api/opencode', () => ({
-  OpenCodeClient: vi.fn().mockImplementation(() => ({
+vi.mock('../../api/subpolar', () => ({
+  SubpolarClient: vi.fn().mockImplementation(() => ({
     sendCommand: mocks.sendCommand,
   })),
 }))
@@ -141,7 +141,7 @@ describe('useLoadSkill', () => {
         mutations: { retry: false },
       },
     })
-    const messagesKey = ['opencode', 'messages', 'http://localhost:5551', 'test-session-id', '/test/dir']
+    const messagesKey = ['subpolar', 'messages', 'http://localhost:5551', 'test-session-id', '/test/dir']
     queryClient.setQueryData(messagesKey, [])
 
     mocks.sendCommand.mockReturnValue(new Promise(() => {}))
@@ -191,7 +191,7 @@ describe('useLoadSkill', () => {
         mutations: { retry: false },
       },
     })
-    const messagesKey = ['opencode', 'messages', 'http://localhost:5551', 'test-session-id', '/test/dir']
+    const messagesKey = ['subpolar', 'messages', 'http://localhost:5551', 'test-session-id', '/test/dir']
     queryClient.setQueryData(messagesKey, [])
 
     const testError = new Error('Command failed')
@@ -237,7 +237,7 @@ describe('useLoadSkill', () => {
       expect(result.current.isSuccess).toBe(true)
     })
 
-    const messages = queryClient.getQueryData<MessageWithParts[]>(['opencode', 'messages', 'http://localhost:5551', 'test-session-id', '/test/dir'])
+    const messages = queryClient.getQueryData<MessageWithParts[]>(['subpolar', 'messages', 'http://localhost:5551', 'test-session-id', '/test/dir'])
     expect(messages?.some(m => m.info.id === 'asm_skill_1')).toBe(true)
   })
 })

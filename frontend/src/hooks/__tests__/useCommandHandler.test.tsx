@@ -8,8 +8,8 @@ const mocks = vi.hoisted(() => ({
   setStatus: vi.fn(),
 }))
 
-vi.mock('@/api/opencode', () => ({
-  createOpenCodeClient: vi.fn().mockImplementation(() => ({
+vi.mock('@/api/subpolar', () => ({
+  createSubpolarClient: vi.fn().mockImplementation(() => ({
     sendCommand: mocks.sendCommand,
     summarizeSession: mocks.summarizeSession,
   })),
@@ -24,7 +24,7 @@ vi.mock('@/lib/toast', () => ({
   },
 }))
 
-vi.mock('@/hooks/useOpenCode', () => ({
+vi.mock('@/hooks/usePiHarness', () => ({
   useCreateSession: vi.fn(() => ({
     mutateAsync: vi.fn(),
   })),
@@ -47,7 +47,7 @@ vi.mock('@/stores/sessionStatusStore', () => ({
 
 describe('useCommandHandler', () => {
   const baseProps = {
-    opcodeUrl: 'http://localhost:5551',
+    apiUrl: 'http://localhost:5551',
     sessionID: 'test-session-id',
     directory: '/test/dir',
     currentAgent: 'test-agent',

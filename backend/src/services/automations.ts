@@ -35,8 +35,8 @@ import {
   buildUpdatedAutomationPersistenceInput,
   computeNextRunAtForJob,
 } from './automation-config'
-import { resolveOpenCodeModel } from './opencode-models'
-import type { OpenCodeClient } from './opencode/client'
+import { resolvePiInternalModel } from './pi-internal-models'
+import type { PiInternalClient } from '../runtime/pi/internal-client-types'
 import { sseAggregator, type SSEEvent } from './sse-aggregator'
 import { getErrorMessage } from '../utils/error-utils'
 import { logger } from '../utils/logger'
@@ -122,7 +122,7 @@ type SkillInfo = {
   content: string
 }
 
-async function fetchSkillContent(slugs: string[], repoPath: string, openCodeClient: OpenCodeClient): Promise<string[]> {
+async function fetchSkillContent(slugs: string[], repoPath: string, openCodeClient: PiInternalClient): Promise<string[]> {
   try {
     const response = await openCodeClient.forward({
       method: 'GET',
@@ -130,7 +130,7 @@ async function fetchSkillContent(slugs: string[], repoPath: string, openCodeClie
       directory: repoPath,
     })
     if (!response.ok) {
-      logger.warn(`Failed to fetch skills from OpenCode (${response.status}), falling back to name-only injection`)
+      logger.warn(`Failed to fetch skills from PiInternal (${response.status}), falling back to name-only injection`)
       return []
     }
     const skills = await response.json() as SkillInfo[]
@@ -139,7 +139,7 @@ async function fetchSkillContent(slugs: string[], repoPath: string, openCodeClie
       .map((slug) => {
         const skill = skills.find((s) => s.name === slug || s.name.endsWith(`/${slug}`) || s.name.endsWith(`-${slug}`))
         if (!skill) {
-          logger.warn(`Skill "${slug}" not found in OpenCode skill list`)
+          logger.warn(`Skill "${slug}" not found in PiInternal skill list`)
           return null
         }
         return [
@@ -159,7 +159,7 @@ async function fetchSkillContent(slugs: string[], repoPath: string, openCodeClie
 
     return skillBlocks
   } catch (error) {
-    logger.warn('Error fetching skills from OpenCode, falling back to name-only injection:', error)
+    logger.warn('Error fetching skills from PiInternal, falling back to name-only injection:', error)
     return []
   }
 }
@@ -168,7 +168,7 @@ async function buildPromptWithSkills(
   prompt: string,
   skillMetadata: AutomationJob['skillMetadata'],
   repoPath: string,
-  openCodeClient: OpenCodeClient,
+  openCodeClient: PiInternalClient,
 ): Promise<string> {
   if (!skillMetadata || !skillMetadata.skillSlugs || skillMetadata.skillSlugs.length === 0) return prompt
 
@@ -359,7 +359,7 @@ export class AutomationService {
 
   constructor(
     private readonly db: Database,
-    private readonly openCodeClient: OpenCodeClient,
+    private readonly openCodeClient: PiInternalClient,
   ) {}
 
   setJobChangeHandler(handler: ((job: AutomationJob | null, jobId: number) => void) | null): void {
@@ -501,7 +501,7 @@ export class AutomationService {
     })
 
     try {
-      const model = await resolveOpenCodeModel(this.openCodeClient, repo.fullPath, {
+      const model = await resolvePiInternalModel(this.openCodeClient, repo.fullPath, {
         preferredModel: job.model,
       })
       const sessionTitle = buildSessionTitle(job)

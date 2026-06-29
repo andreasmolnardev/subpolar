@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, useCallback, useEffect } from 'react'
-import { Pencil } from 'lucide-react'
+import { Pencil, Send } from 'lucide-react'
 import { MessagePart } from './MessagePart'
 import { UserMessageActionButtons } from './UserMessageActionButtons'
 import { EditableUserMessage, ClickableUserMessage } from './EditableUserMessage'
@@ -10,7 +10,7 @@ import { useSessionTodos } from '@/stores/sessionTodosStore'
 import { useSettings } from '@/hooks/useSettings'
 import type { components } from '@/api/opencode-types'
 import type { Todo } from '@/components/message/SessionTodoDisplay'
-import type { OpenCodeError } from '@/lib/opencode-errors'
+import type { RuntimeError } from '@/lib/opencode-errors'
 
 function getMessageTextContent(parts: Part[]): string {
   return parts
@@ -21,7 +21,7 @@ function getMessageTextContent(parts: Part[]): string {
 }
 
 interface MessageThreadProps {
-  opcodeUrl: string
+  apiUrl: string
   sessionID: string
   directory?: string
   messages?: MessageWithParts[]
@@ -29,6 +29,17 @@ interface MessageThreadProps {
   onChildSessionClick?: (sessionId: string) => void
   onUndoMessage?: (restoredPrompt: string) => void
   model?: string
+}
+
+function SendingIndicator() {
+  return (
+    <div className="flex flex-col items-start">
+      <div className="flex items-center gap-2 px-1 py-1 text-sm text-muted-foreground">
+        <Send className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="reasoning-text-trail font-medium">Sending...</span>
+      </div>
+    </div>
+  )
 }
 
 const isMessageStreaming = (msg: Message): boolean => {
@@ -173,7 +184,7 @@ interface MessageRowProps {
   onUndoMessage?: (restoredPrompt: string) => void
   editingUserMessageId: string | null
   editingForAssistantId: string | null
-  opcodeUrl: string
+  apiUrl: string
   sessionID: string
   directory?: string
   onFileClick?: (filePath: string, lineNumber?: number) => void
@@ -194,7 +205,7 @@ const MessageRow = memo(function MessageRow({
   onUndoMessage,
   editingUserMessageId,
   editingForAssistantId,
-  opcodeUrl,
+  apiUrl,
   sessionID,
   directory,
   onFileClick,
@@ -301,7 +312,7 @@ const MessageRow = memo(function MessageRow({
           
           {msg.role === 'user' && canUndoUserMessage && (
             <UserMessageActionButtons
-              opcodeUrl={opcodeUrl}
+              apiUrl={apiUrl}
               sessionId={sessionID}
               directory={directory}
               userMessageId={msg.id}
@@ -346,7 +357,7 @@ const MessageRow = memo(function MessageRow({
             <div className="space-y-2">
               {msg.role === 'user' && isEditingThisMessage && editingForAssistantId ? (
                 <EditableUserMessage
-                  opcodeUrl={opcodeUrl}
+                  apiUrl={apiUrl}
                   sessionId={sessionID}
                   directory={directory}
                   content={messageTextContent}
@@ -384,7 +395,7 @@ const MessageRow = memo(function MessageRow({
                 ))
               ) : null}
               {hasError && (
-                <MessageError error={msg.error as OpenCodeError} />
+                <MessageError error={msg.error as RuntimeError} />
               )}
             </div>
           </div>
@@ -415,7 +426,7 @@ const MessageRow = memo(function MessageRow({
 })
 
 export const MessageThread = memo(function MessageThread({ 
-  opcodeUrl, 
+  apiUrl, 
   sessionID, 
   directory, 
   messages, 
@@ -456,6 +467,7 @@ export const MessageThread = memo(function MessageThread({
   }, [messages])
 
   const isSessionBusy = !!pendingAssistantId || isSessionStatusActive(sessionStatus)
+  const isWaitingForAssistantResponse = isSessionStatusActive(sessionStatus) && !pendingAssistantId
   const setSessionTodos = useSessionTodos((state) => state.setTodos)
 
   useEffect(() => {
@@ -529,7 +541,7 @@ export const MessageThread = memo(function MessageThread({
           onUndoMessage={onUndoMessage}
           editingUserMessageId={editingUserMessageId}
           editingForAssistantId={editingForAssistantId}
-          opcodeUrl={opcodeUrl}
+          apiUrl={apiUrl}
           sessionID={sessionID}
           directory={directory}
           onFileClick={onFileClick}
@@ -541,6 +553,7 @@ export const MessageThread = memo(function MessageThread({
           showReasoning={showReasoning}
         />
       ))}
+      {isWaitingForAssistantResponse && <SendingIndicator />}
     </div>
   )
 })

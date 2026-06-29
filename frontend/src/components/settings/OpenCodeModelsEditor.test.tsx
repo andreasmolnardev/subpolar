@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { OpenCodeModelsEditor } from './OpenCodeModelsEditor'
-import type { ConfigProvider, ConfigModel } from './OpenCodeModelsEditor'
+import { ModelsEditor } from './ModelsEditor'
+import type { ConfigProvider, ConfigModel } from './ModelsEditor'
 
 const mockProviders: Record<string, ConfigProvider> = {
   openai: {
@@ -35,11 +35,11 @@ const findTrashButton = (): HTMLButtonElement | null => {
   return null
 }
 
-describe('OpenCodeModelsEditor', () => {
+describe('ModelsEditor', () => {
   describe('rendering', () => {
     it('should render empty state when no providers configured', () => {
       const onChange = vi.fn()
-      render(<OpenCodeModelsEditor providers={{}} onChange={onChange} />)
+      render(<ModelsEditor providers={{}} onChange={onChange} />)
 
       expect(screen.getByText(/No models configured/)).toBeInTheDocument()
       expect(screen.getByText(/Add your first model to get started/)).toBeInTheDocument()
@@ -47,7 +47,7 @@ describe('OpenCodeModelsEditor', () => {
 
     it('should render provider groups with model counts', () => {
       const onChange = vi.fn()
-      render(<OpenCodeModelsEditor providers={mockProviders} onChange={onChange} />)
+      render(<ModelsEditor providers={mockProviders} onChange={onChange} />)
 
       expect(screen.getByText('OpenAI')).toBeInTheDocument()
       expect(screen.getByText('Anthropic')).toBeInTheDocument()
@@ -57,7 +57,7 @@ describe('OpenCodeModelsEditor', () => {
 
     it('should render model entries with display names and IDs', () => {
       const onChange = vi.fn()
-      render(<OpenCodeModelsEditor providers={mockProviders} onChange={onChange} />)
+      render(<ModelsEditor providers={mockProviders} onChange={onChange} />)
 
       expect(screen.getByText('GPT-4o')).toBeInTheDocument()
       expect(screen.getByText('gpt-4o')).toBeInTheDocument()
@@ -67,7 +67,7 @@ describe('OpenCodeModelsEditor', () => {
 
     it('should render model limits when present', () => {
       const onChange = vi.fn()
-      render(<OpenCodeModelsEditor providers={mockProviders} onChange={onChange} />)
+      render(<ModelsEditor providers={mockProviders} onChange={onChange} />)
 
       expect(screen.getByText(/Context 128000/)).toBeInTheDocument()
       expect(screen.getByText(/Output 4096/)).toBeInTheDocument()
@@ -77,7 +77,7 @@ describe('OpenCodeModelsEditor', () => {
   describe('delete model', () => {
     it('should call onChange with updated providers when model is deleted', () => {
       const onChange = vi.fn()
-      render(<OpenCodeModelsEditor providers={mockProviders} onChange={onChange} />)
+      render(<ModelsEditor providers={mockProviders} onChange={onChange} />)
 
       const deleteButton = findTrashButton()
       expect(deleteButton).not.toBeNull()
@@ -108,7 +108,7 @@ describe('OpenCodeModelsEditor', () => {
         },
       }
 
-      render(<OpenCodeModelsEditor providers={providersWithExtras} onChange={onChange} />)
+      render(<ModelsEditor providers={providersWithExtras} onChange={onChange} />)
 
       const deleteButton = findTrashButton()
       if (deleteButton) {
@@ -124,7 +124,7 @@ describe('OpenCodeModelsEditor', () => {
   })
 })
 
-describe('OpenCodeModelDialog', () => {
+describe('ModelDialog', () => {
   const defaultProps = {
     open: true,
     onOpenChange: vi.fn(),
@@ -139,8 +139,8 @@ describe('OpenCodeModelDialog', () => {
 
   describe('form validation', () => {
     it('should require model id when submitting empty form', async () => {
-      const { OpenCodeModelDialog } = await import('./OpenCodeModelDialog')
-      render(<OpenCodeModelDialog {...defaultProps} />)
+      const { ModelDialog } = await import('./ModelDialog')
+      render(<ModelDialog {...defaultProps} />)
 
       const createButton = screen.getByRole('button', { name: /create/i })
       fireEvent.click(createButton)
@@ -151,8 +151,8 @@ describe('OpenCodeModelDialog', () => {
     })
 
     it('should disable create button when required fields are empty', async () => {
-      const { OpenCodeModelDialog } = await import('./OpenCodeModelDialog')
-      render(<OpenCodeModelDialog {...defaultProps} />)
+      const { ModelDialog } = await import('./ModelDialog')
+      render(<ModelDialog {...defaultProps} />)
 
       await waitFor(() => {
         const createButton = screen.getByRole('button', { name: /create/i })
@@ -161,8 +161,8 @@ describe('OpenCodeModelDialog', () => {
     })
 
     it('should validate model id format', async () => {
-      const { OpenCodeModelDialog } = await import('./OpenCodeModelDialog')
-      render(<OpenCodeModelDialog {...defaultProps} />)
+      const { ModelDialog } = await import('./ModelDialog')
+      render(<ModelDialog {...defaultProps} />)
 
       const modelIdInput = document.querySelector('input[name="modelId"]') as HTMLInputElement
       expect(modelIdInput).not.toBeNull()
@@ -174,19 +174,19 @@ describe('OpenCodeModelDialog', () => {
     })
 
     it('should preserve create form values when provider props refresh', async () => {
-      const { OpenCodeModelDialog } = await import('./OpenCodeModelDialog')
+      const { ModelDialog } = await import('./ModelDialog')
       const props = {
         ...defaultProps,
         availableProviders: ['openai'],
         existingProviders: { openai: { name: 'OpenAI' } },
       }
-      const { rerender } = render(<OpenCodeModelDialog {...props} />)
+      const { rerender } = render(<ModelDialog {...props} />)
 
       const modelIdInput = document.querySelector('input[name="modelId"]') as HTMLInputElement
       fireEvent.change(modelIdInput, { target: { value: 'gpt-5' } })
 
       rerender(
-        <OpenCodeModelDialog
+        <ModelDialog
           {...props}
           availableProviders={['openai']}
           existingProviders={{ openai: { name: 'OpenAI' } }}
@@ -200,8 +200,8 @@ describe('OpenCodeModelDialog', () => {
   describe('form submission', () => {
     it('should call onSubmit with correct provider id, model id, and model data', async () => {
       const onSubmit = vi.fn()
-      const { OpenCodeModelDialog } = await import('./OpenCodeModelDialog')
-      render(<OpenCodeModelDialog {...defaultProps} onSubmit={onSubmit} />)
+      const { ModelDialog } = await import('./ModelDialog')
+      render(<ModelDialog {...defaultProps} onSubmit={onSubmit} />)
 
       const modelIdInput = document.querySelector('input[name="modelId"]') as HTMLInputElement
       const displayNameInput = document.querySelector('input[name="displayName"]') as HTMLInputElement
@@ -230,8 +230,8 @@ describe('OpenCodeModelDialog', () => {
 
     it('should include limit data when provided', async () => {
       const onSubmit = vi.fn()
-      const { OpenCodeModelDialog } = await import('./OpenCodeModelDialog')
-      render(<OpenCodeModelDialog {...defaultProps} onSubmit={onSubmit} />)
+      const { ModelDialog } = await import('./ModelDialog')
+      render(<ModelDialog {...defaultProps} onSubmit={onSubmit} />)
 
       const modelIdInput = document.querySelector('input[name="modelId"]') as HTMLInputElement
       const displayNameInput = document.querySelector('input[name="displayName"]') as HTMLInputElement
@@ -282,9 +282,9 @@ describe('OpenCodeModelDialog', () => {
       }
 
       const onSubmit = vi.fn()
-      const { OpenCodeModelDialog } = await import('./OpenCodeModelDialog')
+      const { ModelDialog } = await import('./ModelDialog')
       render(
-        <OpenCodeModelDialog
+        <ModelDialog
           {...defaultProps}
           onSubmit={onSubmit}
           editingModel={editingModel}
@@ -305,9 +305,9 @@ describe('OpenCodeModelDialog', () => {
         } as ConfigModel,
       }
 
-      const { OpenCodeModelDialog } = await import('./OpenCodeModelDialog')
+      const { ModelDialog } = await import('./ModelDialog')
       render(
-        <OpenCodeModelDialog
+        <ModelDialog
           {...defaultProps}
           editingModel={editingModel}
           open={true}
@@ -330,9 +330,9 @@ describe('OpenCodeModelDialog', () => {
       }
 
       const onSubmit = vi.fn()
-      const { OpenCodeModelDialog } = await import('./OpenCodeModelDialog')
+      const { ModelDialog } = await import('./ModelDialog')
       render(
-        <OpenCodeModelDialog
+        <ModelDialog
           {...defaultProps}
           onSubmit={onSubmit}
           editingModel={editingModel}

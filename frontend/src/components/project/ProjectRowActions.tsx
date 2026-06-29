@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { Project } from '@/api/projects'
+import { hasProjectId, type Project } from '@/api/projects'
 
 interface ProjectRowActionsProps {
   project: Project
@@ -25,6 +25,7 @@ export function ProjectRowActions({
   onSwitchConfig,
 }: ProjectRowActionsProps) {
   const navigate = useNavigate()
+  const canUseProjectId = hasProjectId(project)
 
   return (
     <DropdownMenu onOpenChange={onActionsOpenChange}>
@@ -47,12 +48,14 @@ export function ProjectRowActions({
       >
         <DropdownMenuItem
           onClick={() => navigate(`/projects/${project.id}`)}
+          disabled={!canUseProjectId}
         >
           <ExternalLink className="w-4 h-4 mr-2" />
           Open
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => navigate(`/projects/${project.id}?dialog=files`)}
+          disabled={!canUseProjectId}
         >
           <FolderOpen className="w-4 h-4 mr-2" />
           File Browser
@@ -64,8 +67,10 @@ export function ProjectRowActions({
           Switch Config
         </DropdownMenuItem>
         <DropdownMenuItem
-          onClick={() => onDelete(project.id)}
-          disabled={isDeleting}
+          onClick={() => {
+            if (canUseProjectId) onDelete(project.id)
+          }}
+          disabled={isDeleting || !canUseProjectId}
           className="text-destructive"
         >
           {isDeleting ? (

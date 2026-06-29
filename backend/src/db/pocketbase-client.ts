@@ -16,6 +16,7 @@ export async function getPocketBaseClient(): Promise<PocketBase> {
   const password = ENV.POCKETBASE.PASSWORD || 'adminpassword'
 
   const client = new PocketBase(baseUrl)
+  client.autoCancellation(false)
 
   try {
     await authenticatePocketBaseAdmin(client, email, password)
@@ -43,7 +44,7 @@ async function authenticatePocketBaseAdmin(client: PocketBase, email: string, pa
       throw superuserError
     }
 
-    const auth = await response.json() as { token?: string; admin?: unknown }
+    const auth = await response.json() as { token?: string; admin?: Parameters<typeof client.authStore.save>[1] }
     if (!auth.token) {
       throw superuserError
     }

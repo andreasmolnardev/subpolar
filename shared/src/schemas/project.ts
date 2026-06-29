@@ -7,7 +7,9 @@ export const ProjectSchema = z.object({
   name: z.string(),
   directory: z.string(),
   fullPath: z.string(),
-  openCodeConfigName: z.string().optional(),
+  piConfigName: z.string().optional(),
+  agentNames: z.array(z.string()).optional(),
+  hasAgentOverride: z.boolean().optional(),
   status: ProjectStatusSchema,
   createdAt: z.number(),
   updatedAt: z.number(),
@@ -18,13 +20,15 @@ export const ProjectSchema = z.object({
 export const CreateProjectRequestSchema = z.object({
   name: z.string().min(1).max(256),
   directory: z.string().max(1024).optional(),
-  openCodeConfigName: z.string().optional(),
+  piConfigName: z.string().optional(),
+  agentNames: z.array(z.string()).optional(),
 })
 
 export const UpdateProjectRequestSchema = z.object({
   name: z.string().min(1).max(256).optional(),
   directory: z.string().max(1024).optional(),
-  openCodeConfigName: z.string().optional(),
+  piConfigName: z.string().optional(),
+  agentNames: z.array(z.string()).optional(),
 })
 
 export const GeneralChatStatusSchema = z.object({
@@ -44,5 +48,5 @@ export const GeneralChatStatusSchema = z.object({
 
 export const GeneralChatInitRequestSchema = z.object({
   overwriteAgentsMd: z.boolean().optional(),
-  overwriteOpenCodeConfig: z.boolean().optional(),
+  overwritePiConfig: z.boolean().optional(),
 })

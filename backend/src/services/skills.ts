@@ -5,12 +5,11 @@ import type { SkillFileInfo, SkillScope, CreateSkillRequest, UpdateSkillRequest 
 import { SKILL_NAME_REGEX } from '@subpolar/shared'
 import { getWorkspacePath } from '@subpolar/shared/config/env'
 import { ensureDirectoryExists, fileExists, readFileContent, writeFileContent, deletePath, listDirectory } from './file-operations'
-import type { OpenCodeClient } from './opencode/client'
 import { logger } from '../utils/logger'
 import type { Project } from '@subpolar/shared/types'
 import { listProjects, getProjectById } from '../db/projects'
 
-interface OpenCodeSkillInfo {
+interface PiSkillInfo {
   name: string
   description: string
   location: string
@@ -106,22 +105,25 @@ function buildSkillFileContent(name: string, description: string, body: string):
   return `---\nname: ${name}\ndescription: ${description}\n---\n${body}`
 }
 
-async function fetchOpenCodeSkills(openCodeClient: OpenCodeClient, directory: string): Promise<OpenCodeSkillInfo[]> {
-  try {
-    const response = await openCodeClient.forward({
-      method: 'GET',
-      path: '/skill',
-      directory,
-    })
-    if (!response.ok) {
-      logger.warn(`Failed to fetch skills from OpenCode (${response.status})`)
-      return []
-    }
-    return await response.json() as OpenCodeSkillInfo[]
-  } catch (error) {
-    logger.warn('Error fetching skills from OpenCode:', error)
-    return []
+function parseSkillContent(location: string, content: string): PiSkillInfo {
+  const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
+  const frontmatter = match?.[1] ?? ''
+  const body = match?.[2] ?? content
+  const name = frontmatter.match(/^name:\s*(.+)$/m)?.[1]?.trim() || path.basename(path.dirname(location))
+  const description = frontmatter.match(/^description:\s*(.+)$/m)?.[1]?.trim() || ''
+  return { name, description, location, content: body }
+}
+
+async function readSkillsFromPath(skillsPath: string): Promise<PiSkillInfo[]> {
+  if (!await fileExists(skillsPath)) return []
+  const entries = await listDirectory(skillsPath)
+  const skills: PiSkillInfo[] = []
+  for (const entry of entries.filter((item) => item.isDirectory)) {
+    const skillPath = path.join(entry.path, 'SKILL.md')
+    if (!await fileExists(skillPath)) continue
+    skills.push(parseSkillContent(skillPath, await readFileContent(skillPath)))
   }
+  return skills
 }
 
 function classifySkillLocation(
@@ -149,7 +151,7 @@ function classifySkillLocation(
 }
 
 function toSkillFileInfo(
-  skill: OpenCodeSkillInfo,
+  skill: PiSkillInfo,
   classification: { scope: SkillScope; project?: Project },
 ): SkillFileInfo {
   return {
@@ -165,7 +167,6 @@ function toSkillFileInfo(
 
 export async function listManagedSkills(
   db: Database,
-  openCodeClient: OpenCodeClient,
   repoId?: number,
   directory?: string,
 ): Promise<SkillFileInfo[]> {
@@ -176,7 +177,10 @@ export async function listManagedSkills(
   const result: SkillFileInfo[] = []
 
   if (directory) {
-    const skills = await fetchOpenCodeSkills(openCodeClient, directory)
+    const skills = [
+      ...await readSkillsFromPath(globalPrefix),
+      ...await readSkillsFromPath(path.join(directory, '.opencode', 'skills')),
+    ]
     for (const skill of skills) {
       if (seenLocations.has(skill.location)) continue
       const classification = classifySkillLocation(skill.location, globalPrefix, allProjects, directory)
@@ -198,7 +202,10 @@ export async function listManagedSkills(
       : [getWorkspacePath()]
 
     for (const dir of directories) {
-      const skills = await fetchOpenCodeSkills(openCodeClient, dir)
+      const skills = [
+        ...await readSkillsFromPath(globalPrefix),
+        ...await readSkillsFromPath(path.join(dir, '.opencode', 'skills')),
+      ]
       for (const skill of skills) {
         if (seenLocations.has(skill.location)) continue
         const classification = classifySkillLocation(skill.location, globalPrefix, allProjects)
@@ -214,13 +221,12 @@ export async function listManagedSkills(
 
 export async function getSkill(
   db: Database,
-  openCodeClient: OpenCodeClient,
   name: string,
   scope: SkillScope,
   repoId?: number,
 ): Promise<SkillFileInfo> {
   validateSkillName(name)
-  const skills = await listManagedSkills(db, openCodeClient, repoId)
+  const skills = await listManagedSkills(db, repoId)
   const match = skills.find(s =>
     s.name === name &&
     s.scope === scope &&
@@ -264,7 +270,6 @@ export async function createSkill(
 
 export async function updateSkill(
   db: Database,
-  openCodeClient: OpenCodeClient,
   name: string,
   scope: SkillScope,
   input: UpdateSkillRequest,
@@ -277,7 +282,7 @@ export async function updateSkill(
     throw new Error(`Skill "${name}" not found in ${scope} scope`)
   }
 
-  const existing = await getSkill(db, openCodeClient, name, scope, repoId)
+  const existing = await getSkill(db, name, scope, repoId)
 
   const description = input.description ?? existing.description
   const body = input.body ?? existing.body
