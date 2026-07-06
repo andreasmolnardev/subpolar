@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useAgents } from '@/hooks/usePiHarness'
 import { OPENCODE_API_ENDPOINT } from '@/config'
 import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
+import type { AgentSkillAccess } from '@subpolar/shared'
 import { Bot, Plus, Pencil, Trash2, ExternalLink } from 'lucide-react'
 
 interface Agent {
@@ -29,6 +30,7 @@ interface Agent {
   }
   icon?: string
   skills?: string[]
+  skillAccess?: AgentSkillAccess[]
   allowedCommands?: string[]
   toolAccess?: Array<{ type: 'builtin' | 'skill' | 'cli' | 'subpolar'; id: string; permission: 'allow' | 'ask' | 'deny'; command?: string }>
   disable?: boolean
@@ -78,8 +80,9 @@ export function Agents() {
   const { data: runtimeAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, generalChatDirectory)
 
   const { data: subpolarSkills } = useQuery({
-    queryKey: ['managed-skills'],
-    queryFn: () => settingsApi.listManagedSkills(),
+    queryKey: ['managed-skills', generalChatDirectory],
+    queryFn: () => settingsApi.listManagedSkills(undefined, generalChatDirectory),
+    enabled: !!generalChatDirectory,
     staleTime: 5 * 60 * 1000,
   })
 
@@ -279,16 +282,16 @@ export function Agents() {
                       </div>
                     </div>
 
-                    {agent.skills && agent.skills.length > 0 && (
+                    {(agent.skillAccess?.length || agent.skills?.length) && (
                       <div>
                         <h3 className="text-sm font-medium text-muted-foreground mb-1">Skills</h3>
                         <div className="flex flex-wrap gap-2">
-                          {agent.skills.map((skill) => (
+                          {(agent.skillAccess ?? agent.skills?.map((id) => ({ id, discovery: 'description' as const })) ?? []).map((skill) => (
                             <span
-                              key={skill}
+                              key={skill.id}
                               className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400"
                             >
-                              {skill}
+                              {skill.id}: {skill.discovery}
                             </span>
                           ))}
                         </div>
@@ -353,7 +356,7 @@ export function Agents() {
         onOpenChange={setIsCreateOpen}
         onSubmit={handleCreate}
         editingAgent={null}
-        availableSkills={subpolarSkills?.map((s) => s.name) || []}
+        availableSkills={subpolarSkills || []}
       />
 
       <AgentDialog
@@ -373,7 +376,7 @@ export function Agents() {
           })
         }}
         editingAgent={editingAgent}
-        availableSkills={subpolarSkills?.map((s) => s.name) || []}
+        availableSkills={subpolarSkills || []}
       />
     </div>
   )

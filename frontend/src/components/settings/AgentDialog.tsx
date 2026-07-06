@@ -12,12 +12,20 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
+import type { AgentSkillAccess, SkillDiscoveryMode, SkillFileInfo } from '@subpolar/shared'
+import { buildAgentPromptPreview } from '@/lib/agentPromptPreview'
 
 const toolAccessSchema = z.object({
-  type: z.enum(['builtin', 'skill', 'cli', 'subpolar']),
+  type: z.enum(['builtin', 'cli', 'subpolar']),
   id: z.string().min(1),
   permission: z.enum(['allow', 'ask', 'deny']),
   command: z.string().optional(),
+})
+
+const agentSkillAccessSchema = z.object({
+  id: z.string().min(1),
+  discovery: z.enum(['full', 'description', 'name', 'search']),
+  source: z.enum(['manual', 'tool-default', 'project-auto']).optional(),
 })
 
 const agentFormSchema = z.object({
@@ -30,6 +38,7 @@ const agentFormSchema = z.object({
   disable: z.boolean(),
   icon: z.string().optional(),
   skills: z.array(z.string()).optional(),
+  skillAccess: z.array(agentSkillAccessSchema).optional(),
   allowedCommands: z.array(z.string()).optional(),
   toolAccess: z.array(toolAccessSchema).optional(),
 })
@@ -53,8 +62,9 @@ interface Agent {
   }
   icon?: string
   skills?: string[]
+  skillAccess?: AgentSkillAccess[]
   allowedCommands?: string[]
-  toolAccess?: Array<z.infer<typeof toolAccessSchema>>
+  toolAccess?: Array<z.infer<typeof toolAccessSchema> | { type: 'skill'; id: string; permission: 'allow' | 'ask' | 'deny'; command?: string }>
   disable?: boolean
   [key: string]: unknown
 }
@@ -64,6 +74,9 @@ const BUILTIN_TOOL_LABELS: Record<string, string> = {
   webfetch: 'Web Fetch',
   'other-bash': 'Other Bash Commands',
 }
+
+const EMPTY_TOOL_ACCESS: ToolAccess[] = []
+const EMPTY_SKILL_ACCESS: AgentSkillAccess[] = []
 
 function permissionFrom(value: unknown, fallback: 'allow' | 'ask' | 'deny' = 'deny'): 'allow' | 'ask' | 'deny' {
   return value === 'allow' || value === 'ask' || value === 'deny' ? value : fallback
@@ -75,14 +88,13 @@ function policyPermission(effect: AgentToolPolicy['effect']): 'allow' | 'ask' | 
 }
 
 function buildToolAccess(agent?: Agent, policies: AgentToolPolicy[] = []): ToolAccess[] {
-  const configured = agent?.toolAccess?.length ? agent.toolAccess.filter(tool => tool.type !== 'subpolar') : undefined
+  const configured = agent?.toolAccess?.length ? agent.toolAccess.filter(tool => tool.type !== 'subpolar' && tool.type !== 'skill') as ToolAccess[] : undefined
   const bashPermission = agent?.permission?.bash
   const piBashPolicy = policies.find(policy => policy.tool_id === 'pi.bash')
   const fallback = [
     { type: 'builtin' as const, id: 'edit', permission: permissionFrom(agent?.permission?.edit, 'allow') },
     { type: 'builtin' as const, id: 'webfetch', permission: permissionFrom(agent?.permission?.webfetch, 'allow') },
     { type: 'builtin' as const, id: 'other-bash', permission: piBashPolicy ? policyPermission(piBashPolicy.effect) : typeof bashPermission === 'string' ? permissionFrom(bashPermission, 'ask') : 'deny' },
-    ...(agent?.skills || []).map((skill): ToolAccess => ({ type: 'skill', id: skill, permission: 'allow' })),
     ...(agent?.allowedCommands || []).map((command): ToolAccess => ({ type: 'cli', id: command, command, permission: 'allow' })),
   ]
   const base = configured ?? fallback
@@ -97,16 +109,22 @@ function buildToolAccess(agent?: Agent, policies: AgentToolPolicy[] = []): ToolA
   ]
 }
 
+function buildSkillAccess(agent?: Agent): AgentSkillAccess[] {
+  if (agent?.skillAccess?.length) return agent.skillAccess
+  return (agent?.skills ?? []).map(id => ({ id, discovery: 'description', source: 'manual' as const }))
+}
+
 interface AgentDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (name: string, agent: Agent) => void | Promise<void>
   editingAgent?: { name: string; agent: Agent } | null
-  availableSkills?: string[]
+  availableSkills?: SkillFileInfo[]
 }
 
 export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availableSkills = [] }: AgentDialogProps) {
   const [selectedToolIndex, setSelectedToolIndex] = useState(0)
+  const [selectedSkillIndex, setSelectedSkillIndex] = useState(0)
 
   const { data: subpolarToolsResponse } = useQuery({
     queryKey: ['subpolar-tools'],
@@ -123,6 +141,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
 
   const subpolarTools = useMemo(() => subpolarToolsResponse?.tools ?? [], [subpolarToolsResponse?.tools])
   const policies = useMemo(() => policyResponse?.policies ?? [], [policyResponse?.policies])
+  const availableSkillNames = useMemo(() => availableSkills.map(skill => skill.name), [availableSkills])
 
   const getDefaultValues = useCallback((agent?: { name: string; agent: Agent } | null): AgentFormValues => {
     return {
@@ -135,6 +154,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
       disable: agent?.agent.disable ?? false,
       icon: agent?.agent.icon || '',
       skills: agent?.agent.skills || [],
+      skillAccess: buildSkillAccess(agent?.agent),
       allowedCommands: agent?.agent.allowedCommands || [],
       toolAccess: buildToolAccess(agent?.agent, policies),
     }
@@ -150,11 +170,16 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
     if (open) {
       form.reset(getDefaultValues(editingAgent))
       setSelectedToolIndex(0)
+      setSelectedSkillIndex(0)
     }
   }, [open, editingAgent, form, getDefaultValues])
 
-  const toolAccess = form.watch('toolAccess') || []
+  const toolAccess = form.watch('toolAccess') ?? EMPTY_TOOL_ACCESS
+  const skillAccess = form.watch('skillAccess') ?? EMPTY_SKILL_ACCESS
+  const promptValue = form.watch('prompt')
   const selectedTool = toolAccess[selectedToolIndex]
+  const selectedSkill = skillAccess[selectedSkillIndex]
+  const promptPreview = useMemo(() => buildAgentPromptPreview({ prompt: promptValue, toolAccess, skillAccess, skills: availableSkills }), [promptValue, toolAccess, skillAccess, availableSkills])
 
   const addToolAccess = () => {
     const defaultTool = subpolarTools[0]?.tool_id ?? 'calendar.get'
@@ -174,6 +199,33 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
     form.setValue('toolAccess', next, { shouldDirty: true, shouldValidate: true })
   }
 
+  const addSkillAccess = (source: AgentSkillAccess['source'] = 'manual') => {
+    const id = availableSkillNames.find(name => !skillAccess.some(skill => skill.id === name)) ?? 'research'
+    const next = [...skillAccess, { id, discovery: 'description' as const, source }]
+    form.setValue('skillAccess', next, { shouldDirty: true, shouldValidate: true })
+    setSelectedSkillIndex(next.length - 1)
+  }
+
+  const removeSkillAccess = (index: number) => {
+    const next = skillAccess.filter((_, itemIndex) => itemIndex !== index)
+    form.setValue('skillAccess', next, { shouldDirty: true, shouldValidate: true })
+    setSelectedSkillIndex(Math.max(0, Math.min(index, next.length - 1)))
+  }
+
+  const updateSelectedSkill = (patch: Partial<AgentSkillAccess>) => {
+    const next = skillAccess.map((skill, index) => index === selectedSkillIndex ? { ...skill, ...patch } : skill)
+    form.setValue('skillAccess', next, { shouldDirty: true, shouldValidate: true })
+  }
+
+  useEffect(() => {
+    const webfetch = toolAccess.find(tool => tool.type === 'builtin' && tool.id === 'webfetch')
+    const hasResearch = skillAccess.some(skill => skill.id === 'research')
+    const hasResearchSkill = availableSkillNames.includes('research')
+    if (webfetch && webfetch.permission !== 'deny' && hasResearchSkill && !hasResearch) {
+      form.setValue('skillAccess', [...skillAccess, { id: 'research', discovery: 'description', source: 'tool-default' }], { shouldDirty: true, shouldValidate: true })
+    }
+  }, [availableSkillNames, form, skillAccess, toolAccess])
+
   const handleSubmit = async (values: AgentFormValues) => {
     const agent: Agent = {
       prompt: values.prompt,
@@ -192,6 +244,11 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
 
     if (values.skills && values.skills.length > 0) {
       agent.skills = values.skills
+    }
+
+    if (values.skillAccess && values.skillAccess.length > 0) {
+      agent.skillAccess = values.skillAccess
+      agent.skills = Array.from(new Set(values.skillAccess.map(skill => skill.id)))
     }
 
     if (values.allowedCommands && values.allowedCommands.length > 0) {
@@ -214,7 +271,6 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
         webfetch: webfetchPermission,
         bash: otherBashPermission,
       }
-      agent.skills = Array.from(new Set(values.toolAccess.filter(tool => tool.type === 'skill').map(tool => tool.id)))
       agent.allowedCommands = Array.from(new Set(values.toolAccess.filter(tool => tool.type === 'cli').map(tool => tool.command || tool.id)))
       const cliTools = values.toolAccess.filter(tool => tool.type === 'cli')
       if (cliTools.length > 0 || otherBashPermission !== 'deny') {
@@ -242,13 +298,14 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent mobileFullscreen className="sm:max-w-2xl sm:max-h-[85vh] gap-0 flex flex-col p-0 md:p-6">
+      <DialogContent mobileFullscreen className="xl:max-w-6xl sm:max-h-[85vh] gap-0 flex flex-col p-0 md:p-6">
         <DialogHeader className="p-4 sm:p-6 border-b flex flex-row items-center justify-between space-y-0">
           <DialogTitle>{editingAgent ? 'Edit Agent' : 'Create Agent'}</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-2 sm:p-4">
           <Form {...form}>
+            <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
             <div className="space-y-4">
               <div className="grid grid-cols-[minmax(3.25rem,auto)_1fr] gap-3 items-start">
                 <FormField
@@ -400,7 +457,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <div className="text-sm font-medium">Agent Tools</div>
-                    <p className="text-xs text-muted-foreground">Configure skills, direct CLI utilities, and Subpolar backend-routed tool calls.</p>
+                    <p className="text-xs text-muted-foreground">Configure direct CLI utilities and Subpolar backend-routed tool calls.</p>
                   </div>
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-1">
@@ -429,30 +486,22 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                   <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Tool Type</label>
-                      <Select value={selectedTool.type} onValueChange={(value) => updateSelectedTool({ type: value as 'builtin' | 'skill' | 'cli' | 'subpolar' })}>
+                      <Select value={selectedTool.type} onValueChange={(value) => updateSelectedTool({ type: value as 'builtin' | 'cli' | 'subpolar' })}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="builtin">Built-in Tool</SelectItem>
-                          <SelectItem value="skill">Skill</SelectItem>
                           <SelectItem value="cli">CLI Utility</SelectItem>
                           <SelectItem value="subpolar">Subpolar Tool</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">{selectedTool.type === 'builtin' ? 'Tool' : selectedTool.type === 'skill' ? 'Skill' : selectedTool.type === 'cli' ? 'Command' : 'Tool ID'}</label>
+                      <label className="text-sm font-medium">{selectedTool.type === 'builtin' ? 'Tool' : selectedTool.type === 'cli' ? 'Command' : 'Tool ID'}</label>
                       {selectedTool.type === 'builtin' ? (
                         <Select value={selectedTool.id} onValueChange={(value) => updateSelectedTool({ id: value })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {Object.entries(BUILTIN_TOOL_LABELS).map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      ) : selectedTool.type === 'skill' && availableSkills.length > 0 ? (
-                        <Select value={selectedTool.id} onValueChange={(value) => updateSelectedTool({ id: value })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {availableSkills.map(skill => <SelectItem key={skill} value={skill}>{skill}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       ) : selectedTool.type === 'subpolar' && subpolarTools.length > 0 ? (
@@ -491,6 +540,68 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                 )}
               </div>
 
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-medium">Skills</div>
+                    <p className="text-xs text-muted-foreground">Configure instruction access separately from tool capability.</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {skillAccess.map((skill, index) => (
+                    <button
+                      key={`${skill.id}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedSkillIndex(index)}
+                      className={`min-w-36 rounded-md border p-3 text-left text-sm transition-colors ${selectedSkillIndex === index ? 'border-primary bg-primary/10' : 'bg-card hover:bg-muted'}`}
+                    >
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">{skill.source ?? 'manual'}</div>
+                      <div className="truncate font-medium">{skill.id}</div>
+                      <div className="text-xs text-muted-foreground">{skill.discovery}</div>
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => addSkillAccess()} className="min-w-24 rounded-md border border-dashed p-3 text-sm text-muted-foreground hover:bg-muted flex items-center justify-center">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {selectedSkill ? (
+                  <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Skill</label>
+                      {availableSkillNames.length > 0 ? (
+                        <Select value={selectedSkill.id} onValueChange={(value) => updateSelectedSkill({ id: value })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {availableSkillNames.map(skill => <SelectItem key={skill} value={skill}>{skill}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input value={selectedSkill.id} onChange={(event) => updateSelectedSkill({ id: event.target.value })} />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Discovery</label>
+                      <Select value={selectedSkill.discovery} onValueChange={(value) => updateSelectedSkill({ discovery: value as SkillDiscoveryMode })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="full">Full</SelectItem>
+                          <SelectItem value="description">Description</SelectItem>
+                          <SelectItem value="name">Name</SelectItem>
+                          <SelectItem value="search">Search</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeSkillAccess(selectedSkillIndex)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    {selectedSkill.discovery === 'search' && <p className="text-xs text-amber-600 sm:col-span-3">Requires skill search tool availability at runtime.</p>}
+                  </div>
+                ) : (
+                  <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">Add a skill to configure instruction discovery.</div>
+                )}
+              </div>
+
               <FormField
                 control={form.control}
                 name="disable"
@@ -511,6 +622,11 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                   </FormItem>
                 )}
               />
+            </div>
+            <div className="rounded-lg border bg-muted/30 p-3 lg:sticky lg:top-0 lg:max-h-[70vh] overflow-auto">
+              <div className="mb-2 text-sm font-medium">Prompt Preview</div>
+              <pre className="whitespace-pre-wrap break-words text-xs font-mono text-muted-foreground">{promptPreview}</pre>
+            </div>
             </div>
           </Form>
         </div>

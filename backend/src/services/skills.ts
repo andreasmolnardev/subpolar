@@ -1,5 +1,6 @@
 import os from 'os'
 import path from 'path'
+import fs from 'fs/promises'
 import type { Database } from '../db/schema'
 import type { SkillFileInfo, SkillScope, CreateSkillRequest, UpdateSkillRequest } from '@subpolar/shared'
 import { SKILL_NAME_REGEX } from '@subpolar/shared'
@@ -14,7 +15,10 @@ interface PiSkillInfo {
   description: string
   location: string
   content: string
+  source?: 'global' | 'project' | 'auto'
 }
+
+const SKILL_SCAN_IGNORES = new Set(['node_modules', '.git', 'dist', 'build', '.next', '.vite', 'coverage'])
 
 function getGlobalSkillsPath(): string {
   return path.join(getWorkspacePath(), '.config', 'opencode', 'skills')
@@ -105,24 +109,43 @@ function buildSkillFileContent(name: string, description: string, body: string):
   return `---\nname: ${name}\ndescription: ${description}\n---\n${body}`
 }
 
-function parseSkillContent(location: string, content: string): PiSkillInfo {
+function parseSkillContent(location: string, content: string, source?: 'global' | 'project' | 'auto'): PiSkillInfo {
   const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
   const frontmatter = match?.[1] ?? ''
   const body = match?.[2] ?? content
   const name = frontmatter.match(/^name:\s*(.+)$/m)?.[1]?.trim() || path.basename(path.dirname(location))
   const description = frontmatter.match(/^description:\s*(.+)$/m)?.[1]?.trim() || ''
-  return { name, description, location, content: body }
+  return { name, description, location, content: body, source }
 }
 
-async function readSkillsFromPath(skillsPath: string): Promise<PiSkillInfo[]> {
+async function readSkillsFromPath(skillsPath: string, source: 'global' | 'project' | 'auto' = 'project'): Promise<PiSkillInfo[]> {
   if (!await fileExists(skillsPath)) return []
   const entries = await listDirectory(skillsPath)
   const skills: PiSkillInfo[] = []
   for (const entry of entries.filter((item) => item.isDirectory)) {
     const skillPath = path.join(entry.path, 'SKILL.md')
     if (!await fileExists(skillPath)) continue
-    skills.push(parseSkillContent(skillPath, await readFileContent(skillPath)))
+    skills.push(parseSkillContent(skillPath, await readFileContent(skillPath), source))
   }
+  return skills
+}
+
+async function readSkillsRecursive(root: string, source: 'project' | 'auto'): Promise<PiSkillInfo[]> {
+  const rootExists = await fileExists(root)
+  if (!rootExists) return []
+  const skills: PiSkillInfo[] = []
+  const visit = async (dir: string) => {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])
+    if (entries.some(entry => entry.isFile() && entry.name === 'SKILL.md')) {
+      const skillPath = path.join(dir, 'SKILL.md')
+      skills.push(parseSkillContent(skillPath, await readFileContent(skillPath), source))
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || SKILL_SCAN_IGNORES.has(entry.name)) continue
+      await visit(path.join(dir, entry.name))
+    }
+  }
+  await visit(root)
   return skills
 }
 
@@ -137,13 +160,13 @@ function classifySkillLocation(
   }
   if (customDirectory) {
     const projectPrefix = path.join(customDirectory, '.opencode', 'skills')
-    if (location.startsWith(projectPrefix + path.sep)) {
+    if (location.startsWith(projectPrefix + path.sep) || location.startsWith(customDirectory + path.sep)) {
       return { scope: 'project' }
     }
   }
   for (const project of projects) {
     const projectPrefix = getProjectSkillsPath(project)
-    if (location.startsWith(projectPrefix + path.sep)) {
+    if (location.startsWith(projectPrefix + path.sep) || location.startsWith(project.fullPath + path.sep)) {
       return { scope: 'project', project }
     }
   }
@@ -162,7 +185,19 @@ function toSkillFileInfo(
     location: skill.location,
     repoId: classification.project?.id,
     repoName: classification.project?.name,
+    source: skill.source ?? classification.scope,
+    discoveryEligible: true,
   }
+}
+
+function addUniqueSkill(result: SkillFileInfo[], seenLocations: Set<string>, seenNames: Set<string>, skill: PiSkillInfo, classification: { scope: SkillScope; project?: Project }): void {
+  const canonical = path.resolve(skill.location)
+  if (seenLocations.has(canonical)) return
+  const scopeKey = `${classification.scope}:${classification.project?.id ?? 'global'}:${skill.name}`
+  if (seenNames.has(scopeKey)) return
+  seenLocations.add(canonical)
+  seenNames.add(scopeKey)
+  result.push(toSkillFileInfo(skill, classification))
 }
 
 export async function listManagedSkills(
@@ -174,19 +209,18 @@ export async function listManagedSkills(
   const allProjects = await listProjects(db, 'default')
 
   const seenLocations = new Set<string>()
+  const seenNames = new Set<string>()
   const result: SkillFileInfo[] = []
 
   if (directory) {
     const skills = [
-      ...await readSkillsFromPath(globalPrefix),
-      ...await readSkillsFromPath(path.join(directory, '.opencode', 'skills')),
+      ...await readSkillsFromPath(globalPrefix, 'global'),
+      ...await readSkillsRecursive(path.join(directory, '.opencode', 'skills'), 'project'),
+      ...await readSkillsRecursive(directory, 'auto'),
     ]
     for (const skill of skills) {
-      if (seenLocations.has(skill.location)) continue
       const classification = classifySkillLocation(skill.location, globalPrefix, allProjects, directory)
-      if (!classification) continue
-      seenLocations.add(skill.location)
-      result.push(toSkillFileInfo(skill, classification))
+      if (classification) addUniqueSkill(result, seenLocations, seenNames, skill, classification)
     }
   } else {
     const targetProjects = repoId
@@ -203,15 +237,13 @@ export async function listManagedSkills(
 
     for (const dir of directories) {
       const skills = [
-        ...await readSkillsFromPath(globalPrefix),
-        ...await readSkillsFromPath(path.join(dir, '.opencode', 'skills')),
+        ...await readSkillsFromPath(globalPrefix, 'global'),
+        ...await readSkillsRecursive(path.join(dir, '.opencode', 'skills'), 'project'),
+        ...await readSkillsRecursive(dir, 'auto'),
       ]
       for (const skill of skills) {
-        if (seenLocations.has(skill.location)) continue
         const classification = classifySkillLocation(skill.location, globalPrefix, allProjects)
-        if (!classification) continue
-        seenLocations.add(skill.location)
-        result.push(toSkillFileInfo(skill, classification))
+        if (classification) addUniqueSkill(result, seenLocations, seenNames, skill, classification)
       }
     }
   }

@@ -155,7 +155,7 @@ function SidebarAgentItem({
             : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
         )}
       >
-        <span className="truncate">{label}</span>
+        <span className="min-w-0 whitespace-normal break-words">{label}</span>
       </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -267,7 +267,7 @@ export function DesktopSidebar() {
   const visibleProjectAgents = useMemo(() => {
     const base = projectAgents.filter((agent) => !hiddenSidebarAgents.has(agent.name.toLowerCase()));
     const overrideNames = selectedSidebarProject?.hasAgentOverride ? new Set(selectedSidebarProject.agentNames ?? []) : null;
-    return (overrideNames ? base.filter((agent) => overrideNames.has(agent.name)) : base).slice(0, 5);
+    return overrideNames ? base.filter((agent) => overrideNames.has(agent.name)) : base;
   }, [hiddenSidebarAgents, projectAgents, selectedSidebarProject?.agentNames, selectedSidebarProject?.hasAgentOverride]);
 
   const selectedProjectSessions = useMemo(() => {
@@ -584,7 +584,7 @@ onValueChange={(value) => {
         onOpenChange={setIsCreateAgentDialogOpen}
         onSubmit={handleCreateAgent}
         editingAgent={null}
-        availableSkills={subpolarSkills?.map((s) => s.name) || []}
+        availableSkills={subpolarSkills || []}
       />
       <AgentDialog
         open={editingAgent !== null}
@@ -593,7 +593,7 @@ onValueChange={(value) => {
         }}
         onSubmit={handleSaveAgent}
         editingAgent={editingAgent}
-        availableSkills={subpolarSkills?.map((s) => s.name) || []}
+        availableSkills={subpolarSkills || []}
       />
       <ProjectDialog
         open={isCreateProjectDialogOpen}

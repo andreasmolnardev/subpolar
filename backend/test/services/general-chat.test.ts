@@ -363,6 +363,13 @@ describe('ensureGeneralChat', () => {
       const content = await readFile(path.join(ws.assistantDir, '.opencode/agents', `${name}.md`), 'utf8')
       expect(content).toContain('mode:')
     }
+
+    const researchContent = await readFile(path.join(ws.assistantDir, '.opencode/agents/research.md'), 'utf8')
+    expect(researchContent).toContain('Use this whenever possible')
+    expect(researchContent).toContain('## Output Style')
+    expect(researchContent).toContain('Use Markdown for final answers')
+    expect(researchContent).toContain('Cite sources with Markdown links')
+    expect(researchContent).toContain('Quote relevant source passages')
   })
 
   it('creates managed skill files', async () => {

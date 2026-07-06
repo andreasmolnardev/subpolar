@@ -10,6 +10,7 @@ import { getAuthPath, getPiModelsPath } from '@subpolar/shared/config/env'
 import fs from 'fs/promises'
 import path from 'path'
 import type { RuntimeAdapter, RuntimeEvent, RuntimeRunInput } from './types'
+import { buildAgentPrompt } from '../services/agent-prompt'
 
 type SessionManagerMessage = Parameters<SessionManager['appendMessage']>[0]
 
@@ -229,8 +230,10 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
   private async getSystemPrompt(systemPrompt: string | undefined, cwd: string): Promise<string | undefined> {
     const agentsMdPath = path.join(cwd, 'AGENTS.md')
     const agentsMd = await fs.readFile(agentsMdPath, 'utf8').catch(() => '')
-    if (!agentsMd.trim()) return systemPrompt
-    return [systemPrompt, agentsMd].filter(Boolean).join('\n\n')
+    return buildAgentPrompt({
+      agentPrompt: systemPrompt,
+      projectInstructions: agentsMd,
+    }).prompt
   }
 
   private async getProjectSkillPaths(cwd: string): Promise<string[]> {
