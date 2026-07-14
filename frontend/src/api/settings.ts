@@ -342,9 +342,11 @@ export type AgentToolPolicyEffect = 'allow' | 'deny' | 'approval'
 export interface SubpolarTool {
   tool_id: string
   namespace: string
+  adapter?: 'internal' | 'mcp' | 'openapi' | 'http' | 'custom'
   description: string
   risk: 'read' | 'write' | 'delete' | 'external'
   requires_approval: boolean
+  metadata?: Record<string, unknown>
 }
 
 export interface AgentToolPolicy {

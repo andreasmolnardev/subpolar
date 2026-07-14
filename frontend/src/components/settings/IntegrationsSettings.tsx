@@ -27,7 +27,7 @@ function createIntegration(type: IntegrationType): IntegrationConfig {
   }
 
   if (type === 'mcp') {
-    return { ...base, type, serverUrl: '', apiKey: '' }
+    return { ...base, type, transport: 'streamable-http', serverUrl: '', command: [], cwd: '', environment: {}, headers: {}, timeout: 15000 }
   }
 
   if (type === 'caldav') {
@@ -61,6 +61,43 @@ interface IntegrationDialogProps {
   onSave: (integration: IntegrationConfig) => Promise<void>
 }
 
+interface McpKeyValueFieldsProps {
+  label: string
+  description: string
+  values: Record<string, string>
+  disabled: boolean
+  onChange: (values: Record<string, string>) => void
+}
+
+function McpKeyValueFields({ label, description, values, disabled, onChange }: McpKeyValueFieldsProps) {
+  const entries = Object.entries(values)
+  const update = (previousKey: string, key: string, value: string) => {
+    const next = { ...values }
+    delete next[previousKey]
+    if (key.trim()) next[key.trim()] = value
+    onChange(next)
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <Label>{label}</Label>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => onChange({ ...values, [`NEW_${entries.length + 1}`]: '' })} disabled={disabled}>Add</Button>
+      </div>
+      {entries.map(([key, value]) => (
+        <div key={key} className="flex gap-2">
+          <Input className="font-mono" value={key} onChange={(event) => update(key, event.target.value, value)} disabled={disabled} placeholder="NAME" />
+          <Input className="font-mono" type="password" value={value} onChange={(event) => update(key, key, event.target.value)} disabled={disabled} placeholder="Value" />
+          <Button type="button" variant="outline" size="icon" onClick={() => update(key, '', '')} disabled={disabled}>×</Button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }: IntegrationDialogProps) {
   const [formData, setFormData] = useState<IntegrationConfig>(createIntegration('mcp'))
   const [calDavCalendars, setCalDavCalendars] = useState<Array<{ name: string; url: string; description?: string }>>([])
@@ -74,7 +111,7 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
     setIsTestingCalDav(false)
   }, [open, integration])
 
-  const updateField = (field: string, value: string | number | boolean) => {
+  const updateField = (field: string, value: string | number | boolean | string[] | Record<string, string> | undefined) => {
     setFormData((current) => ({ ...current, [field]: value } as IntegrationConfig))
   }
 
@@ -86,6 +123,17 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
     if (!formData.name.trim()) {
       showToast.error('Name is required')
       return
+    }
+
+    if (formData.type === 'mcp') {
+      if (formData.transport === 'stdio' && !(formData.command?.length)) {
+        showToast.error('A command is required for a local MCP server')
+        return
+      }
+      if (formData.transport === 'streamable-http' && !formData.serverUrl?.trim()) {
+        showToast.error('A server URL is required for a remote MCP server')
+        return
+      }
     }
 
     await onSave(formData)
@@ -181,12 +229,34 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
             {formData.type === 'mcp' && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="mcp-server-url">Server URL</Label>
-                  <Input id="mcp-server-url" placeholder="https://mcp.example.com" value={formData.serverUrl} onChange={(event) => updateField('serverUrl', event.target.value)} disabled={isSaving} />
+                  <Label htmlFor="mcp-transport">Transport</Label>
+                  <Select value={formData.transport} onValueChange={(value) => updateField('transport', value)} disabled={isSaving}>
+                    <SelectTrigger id="mcp-transport"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="streamable-http">Remote Streamable HTTP</SelectItem>
+                      <SelectItem value="stdio">Local command (stdio)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+                {formData.transport === 'stdio' ? <>
+                  <div className="space-y-2">
+                    <Label htmlFor="mcp-command">Command and arguments</Label>
+                    <Input id="mcp-command" className="font-mono" placeholder="npx -y @modelcontextprotocol/server-filesystem /tmp" value={(formData.command ?? []).join(' ')} onChange={(event) => updateField('command', event.target.value.split(' ').filter(Boolean))} disabled={isSaving} />
+                    <p className="text-xs text-muted-foreground">Runs directly as argv; shell syntax is not interpreted.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="mcp-cwd">Working directory</Label>
+                    <Input id="mcp-cwd" placeholder="Optional" value={formData.cwd ?? ''} onChange={(event) => updateField('cwd', event.target.value)} disabled={isSaving} />
+                  </div>
+                </> : <div className="space-y-2">
+                  <Label htmlFor="mcp-server-url">Server URL</Label>
+                  <Input id="mcp-server-url" className="font-mono" placeholder="https://mcp.example.com/mcp" value={formData.serverUrl ?? ''} onChange={(event) => updateField('serverUrl', event.target.value)} disabled={isSaving} />
+                </div>}
+                <McpKeyValueFields label="Environment variables" description="Available only to the local MCP process." values={formData.environment ?? {}} onChange={(environment) => updateField('environment', environment)} disabled={isSaving || formData.transport !== 'stdio'} />
+                <McpKeyValueFields label="HTTP headers" description="Sent with every remote MCP request. Values are write-only." values={formData.headers ?? {}} onChange={(headers) => updateField('headers', headers)} disabled={isSaving || formData.transport !== 'streamable-http'} />
                 <div className="space-y-2">
-                  <Label htmlFor="mcp-api-key">API Key</Label>
-                  <Input id="mcp-api-key" type="password" value={formData.apiKey} onChange={(event) => updateField('apiKey', event.target.value)} disabled={isSaving} />
+                  <Label htmlFor="mcp-timeout">Request timeout (ms)</Label>
+                  <Input id="mcp-timeout" type="number" min={1000} max={120000} value={formData.timeout ?? 15000} onChange={(event) => updateField('timeout', Number(event.target.value) || 15000)} disabled={isSaving} />
                 </div>
               </>
             )}

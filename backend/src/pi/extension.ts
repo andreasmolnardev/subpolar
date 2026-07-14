@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs'
 import { createBashToolDefinition } from '@earendil-works/pi-coding-agent'
+import { getPiRunContext } from './run-context'
 
 type PiToolAuthorizationRequest = {
   agentId: string
@@ -124,7 +125,29 @@ const subpolarToolsParameters = {
   additionalProperties: false,
 }
 
+const subpolarMcpParameters = {
+  type: 'object',
+  properties: {
+    action: { type: 'string', enum: ['search', 'load', 'run'], description: 'Search MCP tools, load one exact schema, or run one exact tool.' },
+    serverId: { type: 'string', description: 'MCP server id, required for load and run.' },
+    toolId: { type: 'string', description: 'Stable MCP tool id, required for load and run.' },
+    query: { type: 'string', description: 'Optional server/tool/description search query.' },
+    input: { type: 'object', description: 'JSON object input, required for run.', additionalProperties: true },
+  },
+  required: ['action'],
+  additionalProperties: false,
+}
+
 function requiredEnv(name: string): string {
+  const context = getPiRunContext()
+  const contextValue = context && ({
+    SUBPOLAR_BASE_URL: context.baseUrl,
+    SUBPOLAR_INTERNAL_TOKEN: context.internalToken,
+    SUBPOLAR_AGENT_ID: context.agentId,
+    SUBPOLAR_SESSION_ID: context.sessionId,
+    SUBPOLAR_RUN_ID: context.runId,
+  } as Record<string, string>)[name]
+  if (contextValue) return contextValue
   const value = process.env[name]
   if (!value) throw new Error(`${name} is required`)
   return value
@@ -177,6 +200,8 @@ export async function authorizeToolCall(toolCall: PiToolCall): Promise<void | { 
 }
 
 function getSkills(): SkillInfo[] {
+  const context = getPiRunContext()
+  if (context) return context.skills
   const raw = process.env.SUBPOLAR_PI_SKILLS
   if (!raw) return []
   try {
@@ -225,12 +250,22 @@ async function callSubpolarBackend(path: string, body: Record<string, unknown>):
 
 async function callSubpolarTools(params: unknown): Promise<ExtensionToolResult> {
   const input = params && typeof params === 'object' ? params as { action?: unknown; toolId?: unknown; input?: unknown } : {}
-  const agentId = process.env.SUBPOLAR_AGENT_ID
+  const agentId = requiredEnv('SUBPOLAR_AGENT_ID')
   if (input.action === 'list') return callSubpolarBackend('/tools/list', { agentId })
   if (typeof input.toolId !== 'string' || input.toolId.length === 0) return textResult('toolId is required for describe and call actions', { ok: false })
   if (input.action === 'describe') return callSubpolarBackend('/tools/describe', { agentId, toolId: input.toolId })
-  if (input.action === 'call') return callSubpolarBackend('/tools/call', { agentId, toolId: input.toolId, input: input.input ?? {}, sessionId: process.env.SUBPOLAR_SESSION_ID })
+  if (input.action === 'call') return callSubpolarBackend('/tools/call', { agentId, toolId: input.toolId, input: input.input ?? {}, sessionId: requiredEnv('SUBPOLAR_SESSION_ID') })
   return textResult('action must be one of: list, describe, call', { ok: false })
+}
+
+async function callSubpolarMcp(params: unknown): Promise<ExtensionToolResult> {
+  const input = params && typeof params === 'object' ? params as { action?: unknown; serverId?: unknown; toolId?: unknown; query?: unknown; input?: unknown } : {}
+  const agentId = requiredEnv('SUBPOLAR_AGENT_ID')
+  if (input.action === 'search') return callSubpolarBackend('/mcp/search', { agentId, sessionId: requiredEnv('SUBPOLAR_SESSION_ID'), query: input.query })
+  if (typeof input.serverId !== 'string' || typeof input.toolId !== 'string') return textResult('serverId and toolId are required for load and run actions', { ok: false })
+  if (input.action === 'load') return callSubpolarBackend('/mcp/load', { agentId, sessionId: requiredEnv('SUBPOLAR_SESSION_ID'), serverId: input.serverId, toolId: input.toolId })
+  if (input.action === 'run') return callSubpolarBackend('/mcp/run', { agentId, sessionId: requiredEnv('SUBPOLAR_SESSION_ID'), serverId: input.serverId, toolId: input.toolId, input: input.input ?? {} })
+  return textResult('action must be one of: search, load, run', { ok: false })
 }
 
 function discoverSkills(params: SkillDiscoverParams): ExtensionToolResult {
@@ -301,6 +336,18 @@ function registerSubpolarTools(pi: ExtensionApi): void {
   })
 }
 
+function registerMcpTool(pi: ExtensionApi): void {
+  if (!pi.registerTool) return
+  pi.registerTool({
+    name: 'subpolar-mcp', label: 'Subpolar MCP',
+    description: 'Search, inspect, and run permissioned Model Context Protocol tools managed by Subpolar.',
+    promptSnippet: 'Use subpolar-mcp to access MCP servers. Search and load unfamiliar tools before running them.',
+    promptGuidelines: ['Use search before load or run.', 'Use load before running an unfamiliar MCP tool.', 'Run only exact stable tool ids with JSON object input.'],
+    parameters: subpolarMcpParameters,
+    async execute(_toolCallId, params) { return callSubpolarMcp(params) },
+  })
+}
+
 function registerBashTool(pi: ExtensionApi): void {
   if (!pi.registerTool) return
 
@@ -322,6 +369,7 @@ export default function subpolarPiExtension(pi: ExtensionApi) {
   if (!register) return
   registerSkillTools(pi)
   registerSubpolarTools(pi)
+  registerMcpTool(pi)
   registerBashTool(pi)
   register.call(pi, 'project_trust', () => ({ trusted: 'no' }))
   register.call(pi, 'tool_call', (event) => authorizeToolCall(event as PiToolCall))

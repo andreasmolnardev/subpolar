@@ -112,8 +112,15 @@ const IntegrationBaseSchema = z.object({
 export const IntegrationConfigSchema = z.discriminatedUnion('type', [
   IntegrationBaseSchema.extend({
     type: z.literal('mcp'),
-    serverUrl: z.string(),
-    apiKey: z.string(),
+    transport: z.enum(['stdio', 'streamable-http']),
+    command: z.array(z.string()).optional(),
+    cwd: z.string().optional(),
+    environment: z.record(z.string(), z.string()).optional(),
+    serverUrl: z.string().optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    timeout: z.number().int().min(1000).max(120000).optional(),
+    environmentKeys: z.array(z.string()).optional(),
+    headerNames: z.array(z.string()).optional(),
   }),
   IntegrationBaseSchema.extend({
     type: z.literal('caldav'),

@@ -49,6 +49,7 @@ import { installAssistantWorkspace } from './services/general-chat'
 import { logger } from './utils/logger'
 import { seedTools } from './db/subpolar-tools'
 import { SUBPOLAR_POLICY_SEEDS, SUBPOLAR_TOOL_SEEDS } from './services/subpolar-tool-seeds'
+import { discoverConfiguredMcpTools } from './services/mcp'
 import { createRuntimeRegistry, type RuntimeRegistry } from './runtime/registry'
 import { PiNativeClient } from './runtime/pi/client'
 import { 
@@ -112,6 +113,7 @@ async function initializeApp() {
   db = await initializeDatabase()
   await ensureGeneralChatProject(db!).catch((err) => logger.warn('Failed to ensure general chat project:', err))
   await seedTools(db!, SUBPOLAR_TOOL_SEEDS, SUBPOLAR_POLICY_SEEDS).catch((err) => logger.warn('Failed to seed Subpolar tools:', err))
+  await discoverConfiguredMcpTools(db!, true)
   requireAuth = createAuthMiddleware()
 }
 
@@ -181,6 +183,7 @@ try {
 
 } catch (error) {
   logger.error('Failed to initialize workspace:', error)
+  throw error
 }
 
 app.route('/api/auth', createAuthRoutes(db!))

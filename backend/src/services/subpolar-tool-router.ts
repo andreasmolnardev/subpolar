@@ -6,6 +6,7 @@ import { getEnabledIntegrationForTool } from '../db/integrations'
 import type { IntegrationType } from '@subpolar/shared/types'
 import { getUpcomingCalDavEvents, type CalDavEventQuery } from './caldav'
 import { webScrape, webSearch } from './web-research'
+import { callMcpTool } from './mcp'
 
 type PolicyResult =
   | { decision: 'allow' }
@@ -54,13 +55,15 @@ async function checkPolicy(db: Database, agent: AgentDefinition, tool: ToolDefin
   return { decision: 'deny', code: 'PERMISSION_DENIED', message: `Agent is not allowed to use ${tool.tool_id}` }
 }
 
-async function callIntegrationTool(db: Database, tool: ToolDefinition, input: unknown): Promise<unknown> {
+async function callIntegrationTool(db: Database, tool: ToolDefinition, input: unknown, sessionId?: string): Promise<unknown> {
   const inputObject = input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : {}
 
   if (tool.target === 'web') {
     if (tool.operation === 'search') return webSearch(inputObject)
     if (tool.operation === 'scrape') return webScrape(inputObject)
   }
+
+  if (tool.adapter === 'mcp') return callMcpTool(db, tool.target, tool.operation, input, sessionId)
 
   const integrationType = typeof tool.metadata.integrationType === 'string' ? tool.metadata.integrationType as IntegrationType : undefined
   if (!integrationType) {
@@ -80,10 +83,6 @@ async function callIntegrationTool(db: Database, tool: ToolDefinition, input: un
 
   if (tool.target === 'imap_smtp') {
     return { toolId: tool.tool_id, integrationId: integration.id, provider: 'imap_smtp', operation: tool.operation, status: 'configured', input }
-  }
-
-  if (tool.adapter === 'mcp') {
-    return { toolId: tool.tool_id, integrationId: integration.id, provider: 'mcp', server: tool.target, operation: tool.operation, status: 'configured', input }
   }
 
   return { toolId: tool.tool_id, integrationId: integration.id, operation: tool.operation, status: 'configured', input }
@@ -148,7 +147,7 @@ export async function callTool(db: Database, agentId: string, toolId: string, in
   }
 
   try {
-    const result = await callIntegrationTool(db, tool, input)
+    const result = await callIntegrationTool(db, tool, input, sessionId)
     await writeToolAudit(db, { agent_id: resolvedAgentId, session_id: sessionId, tool_id: toolId, input, status: 'success', result_summary: `${tool.target} adapter accepted call` })
     return { ok: true as const, toolId, result }
   } catch (error) {

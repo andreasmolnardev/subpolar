@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
 import type { AgentSkillAccess, SkillDiscoveryMode, SkillFileInfo } from '@subpolar/shared'
 import { buildAgentPromptPreview } from '@/lib/agentPromptPreview'
@@ -140,6 +140,8 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
   })
 
   const subpolarTools = useMemo(() => subpolarToolsResponse?.tools ?? [], [subpolarToolsResponse?.tools])
+  const mcpTools = useMemo(() => subpolarTools.filter(tool => tool.adapter === 'mcp' || tool.namespace === 'mcp'), [subpolarTools])
+  const nativeSubpolarTools = useMemo(() => subpolarTools.filter(tool => tool.adapter !== 'mcp' && tool.namespace !== 'mcp'), [subpolarTools])
   const policies = useMemo(() => policyResponse?.policies ?? [], [policyResponse?.policies])
   const availableSkillNames = useMemo(() => availableSkills.map(skill => skill.name), [availableSkills])
 
@@ -507,8 +509,22 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                       ) : selectedTool.type === 'subpolar' && subpolarTools.length > 0 ? (
                         <Select value={selectedTool.id} onValueChange={(value) => updateSelectedTool({ id: value })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {subpolarTools.map((tool: SubpolarTool) => <SelectItem key={tool.tool_id} value={tool.tool_id}>{tool.tool_id}</SelectItem>)}
+                          <SelectContent className="max-h-80">
+                            {nativeSubpolarTools.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>Subpolar tools</SelectLabel>
+                                {nativeSubpolarTools.map((tool: SubpolarTool) => <SelectItem key={tool.tool_id} value={tool.tool_id}>{tool.tool_id}</SelectItem>)}
+                              </SelectGroup>
+                            )}
+                            {mcpTools.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>MCP server tools</SelectLabel>
+                                {mcpTools.map((tool: SubpolarTool) => {
+                                  const serverName = typeof tool.metadata?.serverName === 'string' ? tool.metadata.serverName : 'Configured MCP server'
+                                  return <SelectItem key={tool.tool_id} value={tool.tool_id}>{serverName} · {tool.tool_id}</SelectItem>
+                                })}
+                              </SelectGroup>
+                            )}
                           </SelectContent>
                         </Select>
                       ) : (

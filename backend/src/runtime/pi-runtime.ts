@@ -11,6 +11,8 @@ import fs from 'fs/promises'
 import path from 'path'
 import type { RuntimeAdapter, RuntimeEvent, RuntimeRunInput } from './types'
 import { buildAgentPrompt } from '../services/agent-prompt'
+import { closeMcpSession } from '../services/mcp'
+import { runWithPiContext, type PiRunContext } from '../pi/run-context'
 
 type SessionManagerMessage = Parameters<SessionManager['appendMessage']>[0]
 
@@ -25,6 +27,7 @@ type PiRuntimeAdapterOptions = {
 type ActivePiProcess = {
   abort: () => Promise<void>
   dispose: () => void
+  sessionId: string
 }
 
 type RuntimeSkill = { name: string; description: string; filePath: string; baseDir: string }
@@ -114,14 +117,15 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
   async *run(input: RuntimeRunInput): AsyncIterable<RuntimeEvent> {
     const queue = new RuntimeEventQueue()
     const sessionResult = await this.createSession(input, queue)
-    const { session } = sessionResult
+    const { session, context } = sessionResult
 
     this.activeProcesses.set(input.runId, {
       abort: () => session.abort(),
       dispose: () => session.dispose(),
+      sessionId: input.sessionId,
     })
 
-    const run = session.prompt(this.createPromptMessage(input))
+    const run = runWithPiContext(context, () => session.prompt(this.createPromptMessage(input)))
       .then(() => queue.push({ type: 'run.completed' }))
       .catch((error: unknown) => queue.push({
         type: 'run.failed',
@@ -130,6 +134,7 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
       .finally(() => {
         queue.close()
         this.activeProcesses.delete(input.runId)
+        closeMcpSession(input.sessionId)
         session.dispose()
       })
 
@@ -146,11 +151,11 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
     if (!active) return
     await active.abort()
     active.dispose()
+    closeMcpSession(active.sessionId)
     this.activeProcesses.delete(runId)
   }
 
   private async createSession(input: RuntimeRunInput, queue: RuntimeEventQueue) {
-    this.setRuntimeEnvironment(input)
     const cwd = input.cwd ?? process.cwd()
     const projectSkillPaths = await this.getProjectSkillPaths(cwd)
     const systemPrompt = await this.getSystemPrompt(input.systemPrompt, cwd)
@@ -168,7 +173,7 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
     })
 
     await loader.reload()
-    this.setSkillEnvironment(await this.getRuntimeSkills(cwd, loader.getSkills().skills))
+    const skills = await this.getRuntimeSkills(cwd, loader.getSkills().skills)
     const sessionManager = SessionManager.inMemory(cwd)
     this.seedSessionHistory(sessionManager, input)
 
@@ -187,7 +192,17 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
       if (mapped) queue.push(mapped)
     })
 
-    return result
+    return {
+      ...result,
+      context: {
+        baseUrl: this.options.baseUrl,
+        internalToken: this.options.internalToken,
+        agentId: input.agentId,
+        sessionId: input.sessionId,
+        runId: input.runId,
+        skills,
+      } satisfies PiRunContext,
+    }
   }
 
   private getModelArg(model: Record<string, unknown> | undefined): string | undefined {
@@ -208,23 +223,6 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
     const value = model?.thinkingLevel
     if (value === 'off' || value === 'minimal' || value === 'low' || value === 'medium' || value === 'high' || value === 'xhigh') return value
     return undefined
-  }
-
-  private setRuntimeEnvironment(input: RuntimeRunInput): void {
-    process.env.SUBPOLAR_BASE_URL = this.options.baseUrl
-    process.env.SUBPOLAR_INTERNAL_TOKEN = this.options.internalToken
-    process.env.SUBPOLAR_AGENT_ID = input.agentId
-    process.env.SUBPOLAR_SESSION_ID = input.sessionId
-    process.env.SUBPOLAR_RUN_ID = input.runId
-  }
-
-  private setSkillEnvironment(skills: Array<{ name: string; description: string; filePath: string; baseDir: string }>): void {
-    process.env.SUBPOLAR_PI_SKILLS = JSON.stringify(skills.map(skill => ({
-      name: skill.name,
-      description: skill.description,
-      filePath: skill.filePath,
-      baseDir: skill.baseDir,
-    })))
   }
 
   private async getSystemPrompt(systemPrompt: string | undefined, cwd: string): Promise<string | undefined> {
