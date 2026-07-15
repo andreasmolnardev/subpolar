@@ -4,6 +4,7 @@ import type { Database } from '../db/schema'
 import { createInternalTokenMiddleware } from '../auth/internal-token-middleware'
 import { ToolGateway } from '../tools/gateway'
 import { discoverMcpTools } from '../services/mcp'
+import { discoverOpenApiTools } from '../services/openapi'
 import { listEnabledIntegrationsByType } from '../db/integrations'
 
 function resolveAgentId(agentId: string | undefined): string | null {
@@ -70,6 +71,32 @@ export function createSubpolarCliRoutes(db: Database): Hono {
     const body = await c.req.json().catch(() => ({})) as { agentId?: string; serverId?: string; toolId?: string; input?: unknown; sessionId?: string }
     const agentId = resolveAgentId(body.agentId)
     if (!agentId || !body.serverId || !body.toolId || !body.toolId.startsWith(`mcp.${encodeURIComponent(body.serverId)}.`)) return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'A matching agentId, serverId, and MCP toolId are required' } }, 400)
+    const result = await toolGateway.call({ agentId, toolId: body.toolId, toolInput: body.input ?? {}, sessionId: body.sessionId })
+    return c.json(result, result.ok ? 200 : 400)
+  })
+
+  app.post('/openapi/search', async (c) => {
+    const body = await c.req.json().catch(() => ({})) as { agentId?: string; query?: unknown }
+    const agentId = resolveAgentId(body.agentId)
+    if (!agentId) return c.json({ ok: false, error: { code: 'MISSING_AGENT_ID', message: 'Missing agent id' } }, 400)
+    const query = typeof body.query === 'string' ? body.query.toLowerCase() : ''
+    const tools = (await toolGateway.list(agentId)).filter(tool => tool.id.startsWith('openapi.') && (!query || `${tool.id} ${tool.description}`.toLowerCase().includes(query)))
+    return c.json({ ok: true, tools })
+  })
+
+  app.post('/openapi/load', async (c) => {
+    const body = await c.req.json().catch(() => ({})) as { agentId?: string; serverId?: string; toolId?: string }
+    const agentId = resolveAgentId(body.agentId)
+    if (!agentId || !body.serverId || !body.toolId) return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'agentId, serverId, and toolId are required' } }, 400)
+    await discoverOpenApiTools(db, body.serverId)
+    const tool = await toolGateway.describe(agentId, body.toolId)
+    return tool ? c.json({ ok: true, tool }) : c.json({ ok: false, error: { code: 'UNKNOWN_TOOL', message: 'OpenAPI tool is unavailable for this agent' } }, 404)
+  })
+
+  app.post('/openapi/run', async (c) => {
+    const body = await c.req.json().catch(() => ({})) as { agentId?: string; serverId?: string; toolId?: string; input?: unknown; sessionId?: string }
+    const agentId = resolveAgentId(body.agentId)
+    if (!agentId || !body.serverId || !body.toolId || !body.toolId.startsWith('openapi.')) return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'A matching agentId, serverId, and OpenAPI toolId are required' } }, 400)
     const result = await toolGateway.call({ agentId, toolId: body.toolId, toolInput: body.input ?? {}, sessionId: body.sessionId })
     return c.json(result, result.ok ? 200 : 400)
   })

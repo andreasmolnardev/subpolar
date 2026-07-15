@@ -20,6 +20,7 @@ import {
 } from '../db/integrations'
 import { listEnabledTools, listPoliciesForAgent, replacePoliciesForAgent } from '../db/subpolar-tools'
 import { closeMcpSession, discoverConfiguredMcpTools, discoverMcpTools, saveMcpSecrets } from '../services/mcp'
+import { discoverOpenApiDocument, discoverOpenApiTools, normalizeProviderName, saveOpenApiSecrets } from '../services/openapi'
 
 const AgentToolPoliciesUpdateSchema = z.object({
   policies: z.array(z.object({
@@ -51,6 +52,7 @@ const DiscoverCalDavCalendarsSchema = z.object({
 
 const IntegrationConfigRequestSchema = z.discriminatedUnion('type', [
   z.object({ name: z.string().min(1), type: z.literal('mcp'), enabled: z.boolean(), transport: z.enum(['stdio', 'streamable-http']), command: z.array(z.string().min(1)).optional(), cwd: z.string().optional(), environment: z.record(z.string(), z.string()).optional(), serverUrl: z.union([z.string().url(), z.literal('')]).optional(), headers: z.record(z.string(), z.string()).optional(), timeout: z.number().int().min(1000).max(120000).optional(), environmentKeys: z.array(z.string()).optional(), headerNames: z.array(z.string()).optional() }),
+  z.object({ name: z.string().min(1), type: z.literal('openapi'), enabled: z.boolean(), providerName: z.string().min(1), document: z.string().min(2), serverUrl: z.union([z.string().url(), z.literal('')]).optional(), timeout: z.number().int().min(1000).max(120000).optional(), authType: z.enum(['spec', 'none', 'apiKey', 'bearer', 'basic', 'headers']).optional(), authKeyName: z.string().optional(), authPlacement: z.enum(['header', 'query', 'cookie']).optional(), authValue: z.string().optional(), authUsername: z.string().optional(), authPassword: z.string().optional(), headers: z.record(z.string(), z.string()).optional(), headerNames: z.array(z.string()).optional() }),
   z.object({ name: z.string().min(1), type: z.literal('caldav'), enabled: z.boolean(), serverUrl: z.string(), username: z.string(), password: z.string(), calendarUrl: z.string() }),
   z.object({ name: z.string().min(1), type: z.literal('mail'), enabled: z.boolean(), imapHost: z.string(), imapPort: z.number().int().min(1).max(65535), smtpHost: z.string(), smtpPort: z.number().int().min(1).max(65535), username: z.string(), password: z.string(), fromAddress: z.string() }),
 ])
@@ -93,7 +95,12 @@ function integrationToSettingsConfig(integration: Awaited<ReturnType<typeof list
           headerNames,
         }
       })()
-    : integration.config
+    : integration.type === 'openapi'
+      ? (() => {
+          const { document, ...config } = integration.config
+          return { ...config, document: typeof document === 'string' ? document : '', headerNames: integration.metadata.headerNames ?? [], hasAuth: integration.metadata.hasAuth === true, toolCount: Number(integration.metadata.toolCount ?? 0), discoveryError: typeof integration.metadata.error === 'string' ? integration.metadata.error : undefined }
+        })()
+      : integration.config
   return {
     id: integration.id,
     name: integration.name,
@@ -103,7 +110,7 @@ function integrationToSettingsConfig(integration: Awaited<ReturnType<typeof list
   }
 }
 
-type IntegrationSaveData = Parameters<typeof createIntegration>[1] & { secrets?: { environment?: Record<string, string>; headers?: Record<string, string> } }
+type IntegrationSaveData = Parameters<typeof createIntegration>[1] & { secrets?: { environment?: Record<string, string>; headers?: Record<string, string>; authValue?: string; authUsername?: string; authPassword?: string } }
 
 function settingsConfigToIntegrationData(config: z.infer<typeof IntegrationConfigRequestSchema>): IntegrationSaveData {
   if (config.type === 'mcp') {
@@ -116,6 +123,12 @@ function settingsConfigToIntegrationData(config: z.infer<typeof IntegrationConfi
       metadata: { environmentKeys: mcp.environmentKeys ?? Object.keys(mcp.environment ?? {}), headerNames: mcp.headerNames ?? Object.keys(mcp.headers ?? {}) },
       secrets: { environment: mcp.environment, headers: mcp.headers },
     }
+  }
+  if (config.type === 'openapi') {
+    const openapi = config
+    const providerName = normalizeProviderName(openapi.providerName)
+    discoverOpenApiDocument({ providerName, document: openapi.document, serverUrl: openapi.serverUrl || undefined, timeout: openapi.timeout, authType: openapi.authType, authKeyName: openapi.authKeyName, authPlacement: openapi.authPlacement })
+    return { name: openapi.name, type: 'openapi', enabled: openapi.enabled, config: { providerName, document: openapi.document, serverUrl: openapi.serverUrl || undefined, timeout: openapi.timeout, authType: openapi.authType ?? 'spec', authKeyName: openapi.authKeyName, authPlacement: openapi.authPlacement }, metadata: { headerNames: openapi.headerNames ?? Object.keys(openapi.headers ?? {}), hasAuth: Boolean(openapi.authValue || openapi.authUsername || openapi.authPassword) }, secrets: { authValue: openapi.authValue, authUsername: openapi.authUsername, authPassword: openapi.authPassword, headers: openapi.headers } }
   }
   const { name, type, enabled, ...integrationConfig } = config
   return { name, type: normalizeIntegrationType(type), enabled, config: integrationConfig, metadata: {} }
@@ -131,6 +144,23 @@ export function createSettingsRoutes(db: Database) {
   const settingsService = new SettingsService(db)
 
   app.get('/subpolar-tools', async (c) => c.json({ tools: await listEnabledTools(db) }))
+
+  app.post('/openapi/discover', async (c) => {
+    try {
+      const parsed = IntegrationConfigRequestSchema.parse(await c.req.json())
+      if (parsed.type !== 'openapi') return c.json({ error: 'OpenAPI integration data is required' }, 400)
+      const providerName = normalizeProviderName(parsed.providerName)
+      const tools = discoverOpenApiDocument({ providerName, document: parsed.document, serverUrl: parsed.serverUrl || undefined, timeout: parsed.timeout, authType: parsed.authType, authKeyName: parsed.authKeyName, authPlacement: parsed.authPlacement })
+      return c.json({ providerName, tools: tools.map(tool => ({ toolId: tool.toolId, method: tool.method, path: tool.path, description: tool.description })) })
+    } catch (error) { return c.json({ error: error instanceof Error ? error.message : 'OpenAPI discovery failed' }, 400) }
+  })
+
+  app.post('/openapi/:id/refresh', async (c) => {
+    try {
+      const tools = await discoverOpenApiTools(db, c.req.param('id'))
+      return c.json({ toolCount: tools.length })
+    } catch (error) { return c.json({ error: error instanceof Error ? error.message : 'OpenAPI discovery failed' }, 400) }
+  })
 
   app.get('/mcp', async (c) => {
     const servers = (await listIntegrations(db)).filter(integration => integration.type === 'mcp')
@@ -255,8 +285,10 @@ export function createSettingsRoutes(db: Database) {
       const validated = IntegrationConfigRequestSchema.parse(await c.req.json())
       const data = settingsConfigToIntegrationData(validated)
       const integration = await createIntegration(db, data)
-      if (data.secrets) await saveMcpSecrets(db, integration.id, data.secrets)
+      if (integration.type === 'mcp' && data.secrets) await saveMcpSecrets(db, integration.id, data.secrets)
       if (integration.type === 'mcp' && integration.enabled) await discoverConfiguredMcpTools(db)
+      if (integration.type === 'openapi' && data.secrets) await saveOpenApiSecrets(db, integration.id, data.secrets)
+      if (integration.type === 'openapi' && integration.enabled) await discoverOpenApiTools(db, integration.id)
       return c.json(integrationToSettingsConfig(integration))
     } catch (error) {
       if (error instanceof z.ZodError) return c.json({ error: 'Invalid integration data', details: error.issues }, 400)
@@ -270,8 +302,10 @@ export function createSettingsRoutes(db: Database) {
       const validated = IntegrationConfigRequestSchema.parse(await c.req.json())
       const data = settingsConfigToIntegrationData(validated)
       const integration = await updateIntegration(db, c.req.param('id'), data)
-      if (data.secrets && (Object.keys(data.secrets.environment ?? {}).length > 0 || Object.keys(data.secrets.headers ?? {}).length > 0)) await saveMcpSecrets(db, integration.id, data.secrets)
+      if (integration.type === 'mcp' && data.secrets && (Object.keys(data.secrets.environment ?? {}).length > 0 || Object.keys(data.secrets.headers ?? {}).length > 0)) await saveMcpSecrets(db, integration.id, data.secrets)
       if (integration.type === 'mcp' && integration.enabled) await discoverConfiguredMcpTools(db)
+      if (integration.type === 'openapi' && data.secrets) await saveOpenApiSecrets(db, integration.id, data.secrets)
+      if (integration.type === 'openapi' && integration.enabled) await discoverOpenApiTools(db, integration.id)
       return c.json(integrationToSettingsConfig(integration))
     } catch (error) {
       if (error instanceof z.ZodError) return c.json({ error: 'Invalid integration data', details: error.issues }, 400)
@@ -281,7 +315,15 @@ export function createSettingsRoutes(db: Database) {
   })
 
   app.delete('/integrations/:id', async (c) => {
-    await deleteIntegration(db, c.req.param('id'))
+    const id = c.req.param('id')
+    const integration = (await listIntegrations(db)).find(item => item.id === id)
+    if (integration?.type === 'openapi') {
+      const tools = await db.collection('tool_registry').getFullList({ filter: `namespace = "openapi" && target = "${id.replaceAll('"', '\\"')}"` })
+      for (const tool of tools) await db.collection('tool_registry').delete(String(tool.id))
+      const secret = await db.collection('openapi_secrets').getFirstListItem(`server_id = "${id.replaceAll('"', '\\"')}"`).catch(() => null)
+      if (secret) await db.collection('openapi_secrets').delete(String((secret as unknown as { id: string }).id))
+    }
+    await deleteIntegration(db, id)
     return c.json({ success: true })
   })
 

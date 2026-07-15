@@ -106,7 +106,7 @@ export const ToolAuditRecordSchema = z.object({
   created_at: z.number(),
 })
 
-export const IntegrationTypeSchema = z.enum(['mcp', 'caldav', 'imap_smtp'])
+export const IntegrationTypeSchema = z.enum(['mcp', 'openapi', 'caldav', 'imap_smtp'])
 
 export const IntegrationSchema = z.object({
   id: z.string(),

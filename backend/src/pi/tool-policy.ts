@@ -14,6 +14,7 @@ const PI_TOOL_IDS = {
   find: 'pi.find',
   ls: 'pi.ls',
   'subpolar-mcp': 'subpolar-mcp',
+  'subpolar-openapi': 'subpolar-openapi',
 } as const
 
 export type PiToolName = keyof typeof PI_TOOL_IDS
@@ -35,6 +36,7 @@ export type PiToolAuthorizationResult =
 
 export function mapPiToolName(toolName: string): string | null {
   if (toolName === 'subpolar-mcp') return 'subpolar-mcp'
+  if (toolName === 'subpolar-openapi') return 'subpolar-openapi'
   return Object.prototype.hasOwnProperty.call(PI_TOOL_IDS, toolName) ? PI_TOOL_IDS[toolName as PiToolName] : null
 }
 
@@ -54,7 +56,7 @@ async function waitForApproval(db: Database, approvalId: string): Promise<boolea
 }
 
 export async function authorizePiToolCall(db: Database, input: PiToolAuthorizationInput): Promise<PiToolAuthorizationResult> {
-  if (input.toolName === 'subpolar-mcp') return { ok: true, decision: 'allow' }
+  if (input.toolName === 'subpolar-mcp' || input.toolName === 'subpolar-openapi') return { ok: true, decision: 'allow' }
   const toolId = mapPiToolName(input.toolName)
   if (!toolId) return { ok: false, decision: 'deny', message: `Unknown Pi tool: ${input.toolName}` }
   const run = await getRun(db, input.runId)

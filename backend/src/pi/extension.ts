@@ -65,7 +65,7 @@ type ExtensionApi = {
   }) => void
 }
 
-const INTERNAL_TOOL_NAMES = new Set(['skill-discover', 'skill-load', 'subpolar-tools'])
+const INTERNAL_TOOL_NAMES = new Set(['skill-discover', 'skill-load', 'subpolar-tools', 'subpolar-mcp', 'subpolar-openapi'])
 const skillDiscoverParameters = {
   type: 'object',
   properties: {
@@ -132,6 +132,19 @@ const subpolarMcpParameters = {
     serverId: { type: 'string', description: 'MCP server id, required for load and run.' },
     toolId: { type: 'string', description: 'Stable MCP tool id, required for load and run.' },
     query: { type: 'string', description: 'Optional server/tool/description search query.' },
+    input: { type: 'object', description: 'JSON object input, required for run.', additionalProperties: true },
+  },
+  required: ['action'],
+  additionalProperties: false,
+}
+
+const subpolarOpenApiParameters = {
+  type: 'object',
+  properties: {
+    action: { type: 'string', enum: ['search', 'load', 'run'], description: 'Search OpenAPI tools, load one exact schema, or run one exact operation.' },
+    serverId: { type: 'string', description: 'OpenAPI provider id, required for load and run.' },
+    toolId: { type: 'string', description: 'Stable OpenAPI tool id, required for load and run.' },
+    query: { type: 'string', description: 'Optional provider/tool/description search query.' },
     input: { type: 'object', description: 'JSON object input, required for run.', additionalProperties: true },
   },
   required: ['action'],
@@ -268,6 +281,16 @@ async function callSubpolarMcp(params: unknown): Promise<ExtensionToolResult> {
   return textResult('action must be one of: search, load, run', { ok: false })
 }
 
+async function callSubpolarOpenApi(params: unknown): Promise<ExtensionToolResult> {
+  const input = params && typeof params === 'object' ? params as { action?: unknown; serverId?: unknown; toolId?: unknown; query?: unknown; input?: unknown } : {}
+  const agentId = requiredEnv('SUBPOLAR_AGENT_ID')
+  if (input.action === 'search') return callSubpolarBackend('/openapi/search', { agentId, sessionId: requiredEnv('SUBPOLAR_SESSION_ID'), query: input.query })
+  if (typeof input.serverId !== 'string' || typeof input.toolId !== 'string') return textResult('serverId and toolId are required for load and run actions', { ok: false })
+  if (input.action === 'load') return callSubpolarBackend('/openapi/load', { agentId, sessionId: requiredEnv('SUBPOLAR_SESSION_ID'), serverId: input.serverId, toolId: input.toolId })
+  if (input.action === 'run') return callSubpolarBackend('/openapi/run', { agentId, sessionId: requiredEnv('SUBPOLAR_SESSION_ID'), serverId: input.serverId, toolId: input.toolId, input: input.input ?? {} })
+  return textResult('action must be one of: search, load, run', { ok: false })
+}
+
 function discoverSkills(params: SkillDiscoverParams): ExtensionToolResult {
   const query = params.query?.trim().toLowerCase()
   const limit = Number.isFinite(params.limit) && params.limit && params.limit > 0 ? Math.floor(params.limit) : undefined
@@ -348,6 +371,18 @@ function registerMcpTool(pi: ExtensionApi): void {
   })
 }
 
+function registerOpenApiTool(pi: ExtensionApi): void {
+  if (!pi.registerTool) return
+  pi.registerTool({
+    name: 'subpolar-openapi', label: 'Subpolar OpenAPI',
+    description: 'Search, inspect, and run permissioned OpenAPI operations managed by Subpolar.',
+    promptSnippet: 'Use subpolar-openapi to access configured API providers. Search and load unfamiliar operations before running them.',
+    promptGuidelines: ['Use search before load or run.', 'Use load before running an unfamiliar OpenAPI operation.', 'Run only exact stable tool ids with JSON object input.'],
+    parameters: subpolarOpenApiParameters,
+    async execute(_toolCallId, params) { return callSubpolarOpenApi(params) },
+  })
+}
+
 function registerBashTool(pi: ExtensionApi): void {
   if (!pi.registerTool) return
 
@@ -370,6 +405,7 @@ export default function subpolarPiExtension(pi: ExtensionApi) {
   registerSkillTools(pi)
   registerSubpolarTools(pi)
   registerMcpTool(pi)
+  registerOpenApiTool(pi)
   registerBashTool(pi)
   register.call(pi, 'project_trust', () => ({ trusted: 'no' }))
   register.call(pi, 'tool_call', (event) => authorizeToolCall(event as PiToolCall))
