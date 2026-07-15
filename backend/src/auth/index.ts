@@ -1,7 +1,6 @@
 import PocketBase from 'pocketbase'
 import { logger } from '../utils/logger'
 import { ENV } from '@subpolar/shared/config/env'
-
 export async function signUpUser(pb: PocketBase, email: string, password: string, name: string) {
   return pb.collection('users').create({
     email,
