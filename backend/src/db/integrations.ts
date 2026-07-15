@@ -19,7 +19,7 @@ export function normalizeIntegrationType(type: string): IntegrationType {
   return type === 'mail' ? 'imap_smtp' : type as IntegrationType
 }
 
-export function toSettingsIntegrationType(type: IntegrationType): 'mcp' | 'caldav' | 'mail' {
+export function toSettingsIntegrationType(type: IntegrationType): 'mcp' | 'openapi' | 'caldav' | 'mail' {
   return type === 'imap_smtp' ? 'mail' : type
 }
 

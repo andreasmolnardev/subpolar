@@ -7,6 +7,7 @@ import type { IntegrationType } from '@subpolar/shared/types'
 import { getUpcomingCalDavEvents, type CalDavEventQuery } from './caldav'
 import { webScrape, webSearch } from './web-research'
 import { callMcpTool } from './mcp'
+import { callOpenApiTool } from './openapi'
 
 type PolicyResult =
   | { decision: 'allow' }
@@ -64,6 +65,7 @@ async function callIntegrationTool(db: Database, tool: ToolDefinition, input: un
   }
 
   if (tool.adapter === 'mcp') return callMcpTool(db, tool.target, tool.operation, input, sessionId)
+  if (tool.adapter === 'openapi') return callOpenApiTool(db, tool.target, tool.operation, input)
 
   const integrationType = typeof tool.metadata.integrationType === 'string' ? tool.metadata.integrationType as IntegrationType : undefined
   if (!integrationType) {

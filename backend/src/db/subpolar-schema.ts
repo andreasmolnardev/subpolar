@@ -46,7 +46,7 @@ export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
 
   await ensureCollection(pb, 'integrations', [
     text('name'),
-    select('type', ['mcp', 'caldav', 'imap_smtp']),
+    select('type', ['mcp', 'openapi', 'caldav', 'imap_smtp']),
     bool('enabled'),
     json('config'),
     text('secret_ref', false),
@@ -61,6 +61,13 @@ export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
     number('created_at'),
     number('updated_at'),
   ], ['CREATE UNIQUE INDEX idx_mcp_secrets_server ON mcp_secrets (server_id)'])
+
+  await ensureCollection(pb, 'openapi_secrets', [
+    text('server_id'),
+    text('ciphertext'),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE UNIQUE INDEX idx_openapi_secrets_server ON openapi_secrets (server_id)'])
 
   await ensureCollection(pb, 'agents', [
     text('name'),
