@@ -141,7 +141,8 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
 
   const subpolarTools = useMemo(() => subpolarToolsResponse?.tools ?? [], [subpolarToolsResponse?.tools])
   const mcpTools = useMemo(() => subpolarTools.filter(tool => tool.adapter === 'mcp' || tool.namespace === 'mcp'), [subpolarTools])
-  const nativeSubpolarTools = useMemo(() => subpolarTools.filter(tool => tool.adapter !== 'mcp' && tool.namespace !== 'mcp'), [subpolarTools])
+  const openApiTools = useMemo(() => subpolarTools.filter(tool => tool.adapter === 'openapi' || tool.namespace === 'openapi'), [subpolarTools])
+  const nativeSubpolarTools = useMemo(() => subpolarTools.filter(tool => tool.adapter !== 'mcp' && tool.namespace !== 'mcp' && tool.adapter !== 'openapi' && tool.namespace !== 'openapi'), [subpolarTools])
   const policies = useMemo(() => policyResponse?.policies ?? [], [policyResponse?.policies])
   const availableSkillNames = useMemo(() => availableSkills.map(skill => skill.name), [availableSkills])
 
@@ -523,6 +524,12 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                                   const serverName = typeof tool.metadata?.serverName === 'string' ? tool.metadata.serverName : 'Configured MCP server'
                                   return <SelectItem key={tool.tool_id} value={tool.tool_id}>{serverName} · {tool.tool_id}</SelectItem>
                                 })}
+                              </SelectGroup>
+                            )}
+                            {openApiTools.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>OpenAPI provider tools</SelectLabel>
+                                {openApiTools.map((tool: SubpolarTool) => <SelectItem key={tool.tool_id} value={tool.tool_id}>{typeof tool.metadata?.providerName === 'string' ? tool.metadata.providerName : 'OpenAPI'} · {tool.tool_id}</SelectItem>)}
                               </SelectGroup>
                             )}
                           </SelectContent>

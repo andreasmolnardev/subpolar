@@ -272,6 +272,10 @@ export const settingsApi = {
     return fetchWrapper(`${API_BASE_URL}/api/settings/subpolar-tools`)
   },
 
+  discoverOpenApi: async (integration: IntegrationConfig & { type: 'openapi' }): Promise<{ providerName: string; tools: Array<{ toolId: string; method: string; path: string; description: string }> }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/openapi/discover`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(integration) })
+  },
+
   listAgentToolPolicies: async (agentId: string): Promise<{ policies: AgentToolPolicy[] }> => {
     return fetchWrapper(`${API_BASE_URL}/api/settings/agents/${encodeURIComponent(agentId)}/tool-policies`)
   },
