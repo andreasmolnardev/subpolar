@@ -24,7 +24,7 @@ export function buildAgentPrompt(input: AgentPromptBuilderInput): AgentPromptBui
   if (input.agentPrompt?.trim()) sections.push(`## Agent Instructions\n${input.agentPrompt.trim()}`)
   sections.push(`## Project Instructions\n${input.projectInstructions?.trim() || 'Project instructions unavailable until project context selected'}`)
 
-  const tools = input.tools ?? []
+  const tools = (input.tools ?? []).filter(tool => tool.permission === 'allow' || tool.permission === 'ask')
   sections.push(`## Tools\n${tools.length > 0 ? tools.map(tool => `- ${tool.id}: ${tool.permission ?? 'deny'}${tool.command ? ` (${tool.command})` : ''}`).join('\n') : 'No explicit tool access configured'}`)
 
   const skillByName = new Map((input.skills ?? []).map(skill => [skill.name, skill]))

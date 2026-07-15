@@ -15,12 +15,13 @@ export function buildAgentPromptPreview(input: {
     if (access.discovery === 'description') return [`### ${skill.name}\n${skill.description || 'No description'}`]
     return [`### ${skill.name}`]
   })
+  const tools = (input.toolAccess ?? []).filter(tool => tool.permission === 'allow' || tool.permission === 'ask')
 
   return [
     '## Subpolar Instructions\nDefault Subpolar runtime instructions apply.',
     `## Agent Instructions\n${input.prompt?.trim() || 'No agent prompt yet.'}`,
     '## Project Instructions\nProject instructions unavailable until project context selected',
-    `## Tools\n${input.toolAccess?.length ? input.toolAccess.map(tool => `- ${tool.id}: ${tool.permission ?? 'deny'}`).join('\n') : 'No explicit tool access configured'}`,
+    `## Tools\n${tools.length > 0 ? tools.map(tool => `- ${tool.id}: ${tool.permission}`).join('\n') : 'No explicit tool access configured'}`,
     `## Skills\n${skillBlocks.length ? skillBlocks.join('\n\n') : 'No skills listed directly. Search-discovery skills may be available through skill search.'}`,
     '## User Prompt\n${user}',
   ].join('\n\n')
