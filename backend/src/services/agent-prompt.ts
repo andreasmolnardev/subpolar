@@ -4,7 +4,6 @@ export interface AgentPromptBuilderInput {
   baseInstructions?: string
   agentPrompt?: string
   projectInstructions?: string
-  tools?: Array<{ type?: string; id: string; permission?: string; command?: string }>
   skillAccess?: AgentSkillAccess[]
   skills?: SkillFileInfo[]
   includeUserPlaceholder?: boolean
@@ -22,10 +21,7 @@ export function buildAgentPrompt(input: AgentPromptBuilderInput): AgentPromptBui
 
   if (input.baseInstructions?.trim()) sections.push(`## Subpolar Instructions\n${input.baseInstructions.trim()}`)
   if (input.agentPrompt?.trim()) sections.push(`## Agent Instructions\n${input.agentPrompt.trim()}`)
-  sections.push(`## Project Instructions\n${input.projectInstructions?.trim() || 'Project instructions unavailable until project context selected'}`)
-
-  const tools = (input.tools ?? []).filter(tool => tool.permission === 'allow' || tool.permission === 'ask')
-  sections.push(`## Tools\n${tools.length > 0 ? tools.map(tool => `- ${tool.id}: ${tool.permission ?? 'deny'}${tool.command ? ` (${tool.command})` : ''}`).join('\n') : 'No explicit tool access configured'}`)
+  if (input.projectInstructions?.trim()) sections.push(`## Project Instructions\n${input.projectInstructions.trim()}`)
 
   const skillByName = new Map((input.skills ?? []).map(skill => [skill.name, skill]))
   const skillLines = (input.skillAccess ?? []).flatMap(access => {
@@ -39,7 +35,7 @@ export function buildAgentPrompt(input: AgentPromptBuilderInput): AgentPromptBui
       return [`### ${access.id}\nMissing skill metadata`]
     }
     if (access.discovery === 'full') return [`### ${skill.name}\n${skill.description}\n\n${skill.body}`]
-    if (access.discovery === 'description') return [`### ${skill.name}\n${skill.description || 'No description'}`]
+    if (access.discovery === 'description') return [`### ${skill.name}\n${skill.source === 'auto' ? 'Type: Auto-generated\n' : ''}${skill.description || 'No description'}`]
     return [`### ${skill.name}`]
   })
   sections.push(`## Skills\n${skillLines.length > 0 ? skillLines.join('\n\n') : 'No skills listed directly. Search-discovery skills may be available through skill search.'}`)

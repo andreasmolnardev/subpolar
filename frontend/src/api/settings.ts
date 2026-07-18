@@ -1,4 +1,4 @@
-import type { 
+import type {
   SettingsResponse, 
   UpdateSettingsRequest, 
   PiConfig,
@@ -10,6 +10,7 @@ import type {
   SkillFileInfo,
   CreateSkillRequest,
   UpdateSkillRequest,
+  AgentDefinition,
   SkillScope,
   IntegrationConfig,
   IntegrationSettings,
@@ -20,6 +21,24 @@ import { fetchWrapper, FetchError } from './fetchWrapper'
 const DEFAULT_USER_ID = 'default'
 
 export const settingsApi = {
+  listAgents: async (): Promise<AgentDefinition[]> => fetchWrapper(`${API_BASE_URL}/api/agents`),
+
+  createAgent: async (agent: Omit<AgentDefinition, 'id' | 'created_at' | 'updated_at' | 'source'>): Promise<AgentDefinition> => fetchWrapper(`${API_BASE_URL}/api/agents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(agent),
+  }),
+
+  updateAgent: async (identifier: string, agent: Partial<Omit<AgentDefinition, 'id' | 'created_at' | 'updated_at' | 'source'>>): Promise<AgentDefinition> => fetchWrapper(`${API_BASE_URL}/api/agents/${encodeURIComponent(identifier)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(agent),
+  }),
+
+  deleteAgent: async (identifier: string): Promise<{ success: boolean }> => fetchWrapper(`${API_BASE_URL}/api/agents/${encodeURIComponent(identifier)}`, {
+    method: 'DELETE',
+  }),
+
   getSettings: async (userId = DEFAULT_USER_ID): Promise<SettingsResponse> => {
     return fetchWrapper(`${API_BASE_URL}/api/settings`, {
       params: { userId },
@@ -348,6 +367,7 @@ export interface SubpolarTool {
   namespace: string
   adapter?: 'internal' | 'mcp' | 'openapi' | 'http' | 'custom'
   description: string
+  input_schema?: Record<string, unknown>
   risk: 'read' | 'write' | 'delete' | 'external'
   requires_approval: boolean
   metadata?: Record<string, unknown>

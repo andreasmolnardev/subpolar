@@ -10,12 +10,21 @@ const select = (name: string, values: string[]): Field => ({ name, type: 'select
 
 async function ensureCollection(pb: PocketBase, name: string, fields: Field[], indexes: string[] = []): Promise<void> {
   const collections = pb.collections as unknown as {
-    getOne: (name: string) => Promise<unknown>
+    getOne: (name: string) => Promise<{ id: string; fields?: Field[] }>
     create: (data: Record<string, unknown>) => Promise<unknown>
+    update: (id: string, data: Record<string, unknown>) => Promise<unknown>
   }
   const existing = await collections.getOne(name).catch(() => null)
-  if (existing) return
-  await collections.create({ name, type: 'base', fields, indexes })
+  if (!existing) {
+    await collections.create({ name, type: 'base', fields, indexes })
+    return
+  }
+
+  const existingFieldNames = new Set((existing.fields ?? []).map((field) => String(field.name)))
+  const missingFields = fields.filter((field) => !existingFieldNames.has(String(field.name)))
+  if (missingFields.length > 0) {
+    await collections.update(existing.id, { fields: [...(existing.fields ?? []), ...missingFields] })
+  }
 }
 
 export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
@@ -76,6 +85,7 @@ export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
     text('prompt'),
     json('permission'),
     json('skills'),
+    json('skill_access'),
     bool('enabled'),
     select('source', ['system', 'user']),
     number('sort_order'),

@@ -1,8 +1,6 @@
 import type PocketBase from 'pocketbase'
 import type { AgentDefinition } from '@subpolar/shared/types'
 
-export type SystemAgentSeed = Omit<AgentDefinition, 'id' | 'source' | 'created_at' | 'updated_at'> & { name: string }
-
 function toAgent(record: Record<string, unknown>): AgentDefinition {
   return {
     id: String(record.id),
@@ -12,6 +10,7 @@ function toAgent(record: Record<string, unknown>): AgentDefinition {
     prompt: String(record.prompt ?? ''),
     permission: (record.permission && typeof record.permission === 'object' ? record.permission : {}) as Record<string, unknown>,
     skills: Array.isArray(record.skills) ? record.skills.map(String) : [],
+    skillAccess: Array.isArray(record.skill_access) ? record.skill_access as AgentDefinition['skillAccess'] : [],
     enabled: record.enabled !== false,
     source: record.source === 'user' ? 'user' : 'system',
     sort_order: Number(record.sort_order ?? 0),
@@ -45,34 +44,44 @@ export async function getAgentByIdOrSlug(db: PocketBase, identifier: string): Pr
   return await getAgentById(db, identifier) ?? await getAgentBySlug(db, identifier)
 }
 
-export async function upsertSystemAgent(db: PocketBase, definition: SystemAgentSeed): Promise<AgentDefinition> {
+export async function createUserAgent(db: PocketBase, definition: Omit<AgentDefinition, 'id' | 'created_at' | 'updated_at'>): Promise<AgentDefinition> {
   const now = Date.now()
-  const escaped = definition.name.replaceAll('"', '\\"')
-  const existing = await db.collection('agents').getFirstListItem(`name = "${escaped}"`).catch(() => null)
-  const data = {
-    ...definition,
-    source: 'system',
-    updated_at: now,
-  }
-
-  if (existing) {
-    const row = existing as unknown as Record<string, unknown>
-    if (row.source === 'user') return toAgent(row)
-    const updated = await db.collection('agents').update(String(row.id), data)
-    return toAgent(updated as unknown as Record<string, unknown>)
-  }
-
   const created = await db.collection('agents').create({
-    ...data,
+    ...definition,
+    source: 'user',
     created_at: now,
+    updated_at: now,
   })
   return toAgent(created as unknown as Record<string, unknown>)
 }
 
-export async function seedSystemAgents(db: PocketBase, definitions: SystemAgentSeed[]): Promise<AgentDefinition[]> {
-  const agents: AgentDefinition[] = []
-  for (const definition of definitions) {
-    agents.push(await upsertSystemAgent(db, definition))
+export async function updateAgent(db: PocketBase, identifier: string, updates: Partial<Omit<AgentDefinition, 'id' | 'created_at' | 'updated_at'>>): Promise<AgentDefinition | null> {
+  const existing = await db.collection('agents').getOne(identifier).catch(async () => {
+    const escaped = identifier.replaceAll('"', '\\"')
+    return await db.collection('agents').getFirstListItem(`name = "${escaped}"`).catch(() => null)
+  })
+  if (!existing) return null
+
+  const updated = await db.collection('agents').update(String(existing.id), {
+    ...updates,
+    updated_at: Date.now(),
+  })
+  return toAgent(updated as unknown as Record<string, unknown>)
+}
+
+export async function deleteAgent(db: PocketBase, identifier: string): Promise<boolean> {
+  const existing = await db.collection('agents').getOne(identifier).catch(async () => {
+    const escaped = identifier.replaceAll('"', '\\"')
+    return await db.collection('agents').getFirstListItem(`name = "${escaped}"`).catch(() => null)
+  })
+  if (!existing) return false
+  await db.collection('agents').delete(String(existing.id))
+  return true
+}
+
+export async function deleteSystemAgents(db: PocketBase): Promise<void> {
+  const records = await db.collection('agents').getFullList({ filter: 'source = "system"' })
+  for (const record of records) {
+    await db.collection('agents').delete(String(record.id))
   }
-  return agents
 }

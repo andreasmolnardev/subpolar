@@ -6,6 +6,7 @@ import { ToolGateway } from '../tools/gateway'
 import { discoverMcpTools } from '../services/mcp'
 import { discoverOpenApiTools } from '../services/openapi'
 import { listEnabledIntegrationsByType } from '../db/integrations'
+import { getEnabledTool, listEnabledTools } from '../db/subpolar-tools'
 
 function resolveAgentId(agentId: string | undefined): string | null {
   return agentId ?? process.env.SUBPOLAR_AGENT_ID ?? null
@@ -54,7 +55,8 @@ export function createSubpolarCliRoutes(db: Database): Hono {
       try { await discoverMcpTools(db, server.id, body.sessionId) } catch (error) { failures.push({ serverId: server.id, error: error instanceof Error ? error.message : 'MCP discovery failed' }) }
     }
     const query = typeof body.query === 'string' ? body.query.toLowerCase() : ''
-    const tools = (await toolGateway.list(agentId)).filter(tool => tool.id.startsWith('mcp.') && (!query || `${tool.id} ${tool.description}`.toLowerCase().includes(query)))
+    const mcpToolIds = new Set((await listEnabledTools(db)).filter(tool => tool.namespace === 'mcp').map(tool => tool.tool_id))
+    const tools = (await toolGateway.list(agentId)).filter(tool => mcpToolIds.has(tool.id) && (!query || `${tool.id} ${tool.description}`.toLowerCase().includes(query)))
     return c.json({ ok: true, tools, failures })
   })
 
@@ -70,7 +72,8 @@ export function createSubpolarCliRoutes(db: Database): Hono {
   app.post('/mcp/run', async (c) => {
     const body = await c.req.json().catch(() => ({})) as { agentId?: string; serverId?: string; toolId?: string; input?: unknown; sessionId?: string }
     const agentId = resolveAgentId(body.agentId)
-    if (!agentId || !body.serverId || !body.toolId || !body.toolId.startsWith(`mcp.${encodeURIComponent(body.serverId)}.`)) return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'A matching agentId, serverId, and MCP toolId are required' } }, 400)
+    const mcpTool = body.toolId ? await getEnabledTool(db, body.toolId) : null
+    if (!agentId || !body.serverId || !body.toolId || !mcpTool || mcpTool.namespace !== 'mcp') return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'A matching agentId, serverId, and MCP toolId are required' } }, 400)
     const result = await toolGateway.call({ agentId, toolId: body.toolId, toolInput: body.input ?? {}, sessionId: body.sessionId })
     return c.json(result, result.ok ? 200 : 400)
   })
@@ -80,7 +83,8 @@ export function createSubpolarCliRoutes(db: Database): Hono {
     const agentId = resolveAgentId(body.agentId)
     if (!agentId) return c.json({ ok: false, error: { code: 'MISSING_AGENT_ID', message: 'Missing agent id' } }, 400)
     const query = typeof body.query === 'string' ? body.query.toLowerCase() : ''
-    const tools = (await toolGateway.list(agentId)).filter(tool => tool.id.startsWith('openapi.') && (!query || `${tool.id} ${tool.description}`.toLowerCase().includes(query)))
+    const openApiToolIds = new Set((await listEnabledTools(db)).filter(tool => tool.namespace === 'openapi').map(tool => tool.tool_id))
+    const tools = (await toolGateway.list(agentId)).filter(tool => openApiToolIds.has(tool.id) && (!query || `${tool.id} ${tool.description}`.toLowerCase().includes(query)))
     return c.json({ ok: true, tools })
   })
 
@@ -96,7 +100,8 @@ export function createSubpolarCliRoutes(db: Database): Hono {
   app.post('/openapi/run', async (c) => {
     const body = await c.req.json().catch(() => ({})) as { agentId?: string; serverId?: string; toolId?: string; input?: unknown; sessionId?: string }
     const agentId = resolveAgentId(body.agentId)
-    if (!agentId || !body.serverId || !body.toolId || !body.toolId.startsWith('openapi.')) return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'A matching agentId, serverId, and OpenAPI toolId are required' } }, 400)
+    const openApiTool = body.toolId ? await getEnabledTool(db, body.toolId) : null
+    if (!agentId || !body.serverId || !body.toolId || !openApiTool || openApiTool.namespace !== 'openapi') return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'A matching agentId, serverId, and OpenAPI toolId are required' } }, 400)
     const result = await toolGateway.call({ agentId, toolId: body.toolId, toolInput: body.input ?? {}, sessionId: body.sessionId })
     return c.json(result, result.ok ? 200 : 400)
   })

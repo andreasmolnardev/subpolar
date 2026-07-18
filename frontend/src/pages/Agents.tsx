@@ -8,13 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgentDialog } from '@/components/settings/AgentDialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { useAgents } from '@/hooks/usePiHarness'
-import { OPENCODE_API_ENDPOINT } from '@/config'
 import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
 import type { AgentSkillAccess } from '@subpolar/shared'
 import { Bot, Plus, Pencil, Trash2, ExternalLink } from 'lucide-react'
+import { showToast } from '@/lib/toast'
 
 interface Agent {
+  id?: string
   prompt?: string
   description?: string
   mode?: 'subagent' | 'primary' | 'all'
@@ -34,6 +34,7 @@ interface Agent {
   allowedCommands?: string[]
   toolAccess?: Array<{ type: 'builtin' | 'skill' | 'cli' | 'subpolar'; id: string; permission: 'allow' | 'ask' | 'deny'; command?: string }>
   disable?: boolean
+  sort_order?: number
   [key: string]: unknown
 }
 
@@ -54,22 +55,9 @@ function subpolarPolicies(agent: Agent) {
   return policies
 }
 
-function tryParseJson(raw: string): Record<string, unknown> | null {
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
-}
-
 export function Agents() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-
-  const { data: configs } = useQuery({
-    queryKey: ['subpolar-configs'],
-    queryFn: () => settingsApi.getPiConfigs(),
-  })
 
   const { data: generalChatProject } = useQuery({
     queryKey: ['project', GENERAL_CHAT_PROJECT_ID],
@@ -77,7 +65,10 @@ export function Agents() {
   })
 
   const generalChatDirectory = generalChatProject?.fullPath
-  const { data: runtimeAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, generalChatDirectory)
+  const { data: agentRecords = [] } = useQuery({
+    queryKey: ['agents'],
+    queryFn: () => settingsApi.listAgents(),
+  })
 
   const { data: subpolarSkills } = useQuery({
     queryKey: ['managed-skills', generalChatDirectory],
@@ -86,24 +77,12 @@ export function Agents() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const defaultConfig = configs?.defaultConfig
-  const rawContent = defaultConfig?.rawContent
-  const parsedConfig = rawContent ? tryParseJson(rawContent) : null
-  const configAgents = parsedConfig?.agent as Record<string, Agent> | undefined
   const agents = useMemo(() => {
-    const runtimeAgentEntries = runtimeAgents
-      .filter((agent) => !agent.hidden)
-      .map((agent) => [
-        agent.name,
-        {
-          ...agent,
-          model: agent.model ? `${agent.model.providerID}/${agent.model.modelID}` : undefined,
-          ...configAgents?.[agent.name],
-        },
-      ] as const)
-
-    return Object.fromEntries(runtimeAgentEntries) as Record<string, Agent>
-  }, [configAgents, runtimeAgents])
+    return Object.fromEntries(agentRecords.map((agent) => [agent.name, {
+      ...agent,
+      disable: !agent.enabled,
+    }])) as Record<string, Agent>
+  }, [agentRecords])
   const agentNames = useMemo(() => Object.keys(agents).filter((name) => !agents[name]?.disable), [agents])
 
   const [activeAgent, setActiveAgent] = useState('')
@@ -117,42 +96,59 @@ export function Agents() {
   }, [activeAgent, agentNames])
 
   const updateConfigMutation = useMutation({
-    mutationFn: async ({ agents, changedAgent }: { agents: Record<string, Agent>; changedAgent?: { name: string; agent: Agent } }) => {
-      if (!defaultConfig) throw new Error('No default config found')
-      const updatedContent = { ...parsedConfig, agent: agents }
-      await settingsApi.updatePiConfig('default', { content: JSON.stringify(updatedContent, null, 2) })
-      if (changedAgent) {
-        await settingsApi.replaceAgentToolPolicies(changedAgent.name, subpolarPolicies(changedAgent.agent))
+    mutationFn: async ({ name, agent, id }: { name: string; agent: Agent; id?: string }) => {
+      const request = {
+        name,
+        description: agent.description || '',
+        mode: agent.mode === 'all' ? 'primary' as const : agent.mode || 'subagent' as const,
+        prompt: agent.prompt || '',
+        permission: agent.permission || {},
+        skills: agent.skills || [],
+        skillAccess: agent.skillAccess || [],
+        enabled: !agent.disable,
+        sort_order: agent.sort_order || 0,
       }
+      const savedAgent = id ? await settingsApi.updateAgent(id, request) : await settingsApi.createAgent(request)
+      try {
+        await settingsApi.replaceAgentToolPolicies(savedAgent.id, subpolarPolicies(agent))
+      } catch {
+        showToast.error('Agent saved, but its tool policies could not be saved')
+      }
+      return savedAgent
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subpolar-configs'] })
-      queryClient.invalidateQueries({ queryKey: ['subpolar', 'agents', OPENCODE_API_ENDPOINT, generalChatDirectory] })
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
       queryClient.invalidateQueries({ queryKey: ['agent-tool-policies'] })
     },
   })
 
-  const handleCreate = (name: string, agent: Agent) => {
-    const updatedAgents = { ...(parsedConfig?.agent as Record<string, Agent> || {}), [name]: agent }
-    updateConfigMutation.mutate({ agents: updatedAgents, changedAgent: { name, agent } }, {
-      onSuccess: () => {
-        setIsCreateOpen(false)
-        setActiveAgent(name)
-      },
-    })
+  const handleCreate = async (name: string, agent: Agent) => {
+    try {
+      await updateConfigMutation.mutateAsync({ name, agent })
+      setIsCreateOpen(false)
+      setActiveAgent(name)
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : 'Failed to create agent')
+      throw error
+    }
   }
 
   const handleDelete = (name: string) => {
-    const updatedAgents = { ...(parsedConfig?.agent as Record<string, Agent> || {}) }
-    delete updatedAgents[name]
-    updateConfigMutation.mutate({ agents: updatedAgents }, {
-      onSuccess: () => {
-        const remaining = Object.keys(updatedAgents).filter((n) => !updatedAgents[n]?.disable)
-        if (activeAgent === name) {
-          setActiveAgent(remaining[0] || '')
-        }
-      },
-    })
+    const agent = agents[name]
+    if (!agent?.id) return
+    settingsApi.deleteAgent(agent.id).then(() => queryClient.invalidateQueries({ queryKey: ['agents'] }))
+    const remaining = Object.keys(agents).filter((n) => n !== name && !agents[n]?.disable)
+    if (activeAgent === name) setActiveAgent(remaining[0] || '')
+  }
+
+  const handleUpdate = async (name: string, agent: Agent) => {
+    try {
+      await updateConfigMutation.mutateAsync({ id: agent.id, name, agent })
+      setEditingAgent(null)
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : 'Failed to update agent')
+      throw error
+    }
   }
 
   return (
@@ -363,17 +359,7 @@ export function Agents() {
         open={!!editingAgent}
         onOpenChange={() => setEditingAgent(null)}
         onSubmit={(name, agent) => {
-          const updatedAgents = { ...(parsedConfig?.agent as Record<string, Agent> || {}) }
-          delete updatedAgents[editingAgent!.name]
-          updatedAgents[name] = agent
-          updateConfigMutation.mutate({ agents: updatedAgents, changedAgent: { name, agent } }, {
-            onSuccess: () => {
-              setEditingAgent(null)
-              if (name !== editingAgent!.name) {
-                setActiveAgent(name)
-              }
-            },
-          })
+          handleUpdate(name, { ...agent, id: editingAgent!.agent.id })
         }}
         editingAgent={editingAgent}
         availableSkills={subpolarSkills || []}

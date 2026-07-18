@@ -42,7 +42,7 @@ migrate((app) => {
         "pattern": "",
         "presentable": false,
         "primaryKey": false,
-        "required": true,
+        "required": false,
         "system": false,
         "type": "text"
       },
@@ -125,7 +125,7 @@ migrate((app) => {
         "name": "sort_order",
         "onlyInt": false,
         "presentable": false,
-        "required": true,
+        "required": false,
         "system": false,
         "type": "number"
       },

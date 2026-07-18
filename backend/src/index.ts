@@ -214,6 +214,7 @@ protectedApi.route('/productivity', createProductivityRoutes(db!))
 protectedApi.route('/sessions', createSessionRoutes(db!, runtimeRegistry))
 protectedApi.route('/runs', createRunRoutes(db!, runtimeRegistry))
 protectedApi.route('/agent', createAgentRoutes(db!))
+protectedApi.route('/agents', createAgentRoutes(db!))
 protectedApi.route('/', createRuntimeRoutes(db!))
 
 app.route('/api', protectedApi)

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AgentSkillAccessSchema } from './skills'
 
 export const AgentModeSchema = z.enum(['primary', 'subagent'])
 export const AgentSourceSchema = z.enum(['system', 'user'])
@@ -11,6 +12,7 @@ export const AgentDefinitionSchema = z.object({
   prompt: z.string(),
   permission: z.record(z.string(), z.unknown()),
   skills: z.array(z.string()),
+  skillAccess: z.array(AgentSkillAccessSchema).default([]),
   enabled: z.boolean(),
   source: AgentSourceSchema,
   sort_order: z.number(),
