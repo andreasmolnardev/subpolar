@@ -5,7 +5,13 @@ import { SettingsService } from '../services/settings'
 import { readFileContent, fileExists, writeFileContent } from '../services/file-operations'
 import { getAgentsMdPath } from '@subpolar/shared/config/env'
 import { UserPreferencesSchema } from '../types/settings'
-import { CreateSkillRequestSchema, SkillScopeSchema, UpdateSkillRequestSchema } from '@subpolar/shared'
+import {
+  CreatePiConfigRequestSchema,
+  CreateSkillRequestSchema,
+  SkillScopeSchema,
+  UpdatePiConfigRequestSchema,
+  UpdateSkillRequestSchema,
+} from '@subpolar/shared'
 import { logger } from '../utils/logger'
 import { DEFAULT_AGENTS_MD } from '../constants'
 import { discoverCalDavCalendars, getUpcomingCalDavEvents } from '../services/caldav'
@@ -238,6 +244,52 @@ export function createSettingsRoutes(db: Database) {
       await updateIntegration(db, id, { metadata: { ...current?.metadata, error: message } })
       return c.json({ error: 'MCP discovery failed' }, 502)
     }
+  })
+
+  app.get('/pi-settings', async (c) => {
+    return c.json(await settingsService.getOpenCodeConfigs(c.req.query('userId') || 'default'))
+  })
+
+  app.get('/pi-settings/default', async (c) => {
+    return c.json(await settingsService.getDefaultOpenCodeConfig(c.req.query('userId') || 'default'))
+  })
+
+  app.post('/pi-settings', async (c) => {
+    try {
+      const userId = c.req.query('userId') || 'default'
+      const request = CreatePiConfigRequestSchema.parse(await c.req.json())
+      return c.json(await settingsService.createOpenCodeConfig(request, userId))
+    } catch (error) {
+      if (error instanceof z.ZodError) return c.json({ error: 'Invalid Pi config data', details: error.issues }, 400)
+      logger.error('Failed to create Pi config:', error)
+      return c.json({ error: error instanceof Error ? error.message : 'Failed to create Pi config' }, 400)
+    }
+  })
+
+  app.put('/pi-settings/:configName', async (c) => {
+    try {
+      const userId = c.req.query('userId') || 'default'
+      const request = UpdatePiConfigRequestSchema.parse(await c.req.json())
+      const config = await settingsService.updateOpenCodeConfig(decodeURIComponent(c.req.param('configName')), request, userId)
+      if (!config) return c.json({ error: 'Pi config not found' }, 404)
+      return c.json(config)
+    } catch (error) {
+      if (error instanceof z.ZodError) return c.json({ error: 'Invalid Pi config data', details: error.issues }, 400)
+      logger.error('Failed to update Pi config:', error)
+      return c.json({ error: error instanceof Error ? error.message : 'Failed to update Pi config' }, 400)
+    }
+  })
+
+  app.delete('/pi-settings/:configName', async (c) => {
+    const deleted = await settingsService.deleteOpenCodeConfig(decodeURIComponent(c.req.param('configName')), c.req.query('userId') || 'default')
+    if (!deleted) return c.json({ error: 'Pi config not found' }, 404)
+    return c.json({ success: true })
+  })
+
+  app.post('/pi-settings/:configName/set-default', async (c) => {
+    const config = await settingsService.setDefaultOpenCodeConfig(decodeURIComponent(c.req.param('configName')), c.req.query('userId') || 'default')
+    if (!config) return c.json({ error: 'Pi config not found' }, 404)
+    return c.json(config)
   })
 
   app.get('/agents/:agentId/tool-policies', async (c) => {

@@ -1,12 +1,13 @@
 import path from 'path'
 import { createHash } from 'node:crypto'
-import type { Project, GeneralChatStatus, OpenCodeConfigInput } from '@subpolar/shared/types'
+import type { AgentDefinition, Project, GeneralChatStatus, OpenCodeConfigInput } from '@subpolar/shared/types'
 import type { AgentFileInfo } from '@subpolar/shared/schemas/repo'
 import {
   readFileContent,
   writeFileContent,
   fileExists,
   ensureDirectoryExists,
+  deletePath,
 } from './file-operations'
 import { PiConfigSchema } from '@subpolar/shared/schemas'
 import { GENERAL_CHAT_PROJECT_ID, GENERAL_CHAT_PROJECT_PATH } from '@subpolar/shared/utils'
@@ -14,7 +15,7 @@ import { getWorkspacePath, ENV } from '@subpolar/shared/config/env'
 import type { Database } from '../db/schema'
 import { ensureGeneralChatProject } from '../db/projects'
 import { getOrCreateInternalToken } from './internal-token'
-import { listEnabledAgents, seedSystemAgents, type SystemAgentSeed } from '../db/subpolar-agents'
+import { deleteSystemAgents, listAgents } from '../db/subpolar-agents'
 
 
 const GENERAL_CHAT_DIR = GENERAL_CHAT_PROJECT_PATH
@@ -520,18 +521,6 @@ function buildProductivityAgentMd(): string {
   )
 }
 
-function buildSystemAgentSeeds(): SystemAgentSeed[] {
-  return [
-    { name: AGENT_AUTO, description: 'Routes queries to the correct specialized agent', mode: 'primary', permission: buildFullPermission(), prompt: buildAutoAgentPrompt(), skills: [], enabled: true, sort_order: 10 },
-    { name: AGENT_CODE_BUILD_SANDBOX, description: 'Builds code in a temporary sandbox directory', mode: 'subagent', permission: buildSandboxPermission(), prompt: buildCodeBuildSandboxAgentPrompt(), skills: ['subpolar-context', 'opencode-context'], enabled: true, sort_order: 20 },
-    { name: AGENT_CODE_BUILD_MASTER, description: 'Full build agent with access to subpolar internals and skills', mode: 'subagent', permission: buildFullPermission(), prompt: buildCodeBuildMasterAgentPrompt(), skills: ['subpolar-context', 'opencode-context', 'repo-management', 'automation-management', 'notifications', 'manager-settings', 'code-review'], enabled: true, sort_order: 30 },
-    { name: AGENT_CODE_PLAN, description: 'Read-only planning and design agent', mode: 'subagent', permission: buildReadOnlyPermission(), prompt: buildCodePlanAgentPrompt(), skills: ['subpolar-context', 'opencode-context'], enabled: true, sort_order: 40 },
-    { name: AGENT_CODE_ANALYZE, description: 'Read-only code analysis agent for bugs, patterns, and quality', mode: 'subagent', permission: buildReadOnlyPermission(), prompt: buildCodeAnalyzeAgentPrompt(), skills: ['code-analysis'], enabled: true, sort_order: 50 },
-    { name: AGENT_RESEARCH, description: 'Deep web research agent with built-in and backend-routed web tools', mode: 'subagent', permission: buildResearchPermission(), prompt: buildResearchAgentPrompt(), skills: ['research-web', 'subpolar-tools'], enabled: true, sort_order: 60 },
-    { name: AGENT_PRODUCTIVITY, description: 'Productivity agent for calendar, mail, todo, and notes via subpolar-tools', mode: 'subagent', permission: buildProductivityPermission(), prompt: buildProductivityAgentPrompt(), skills: ['subpolar-tools', 'calendar-cli', 'mail-cli', 'todo-cli', 'notes-cli'], enabled: true, sort_order: 70 },
-  ]
-}
-
 function buildAgentContent(agentName: string): string {
   const builders: Record<string, () => string> = {
     [AGENT_AUTO]: buildAutoAgentMd,
@@ -617,6 +606,7 @@ function matchesGeneratedAgentsMd(content: string): boolean {
 }
 
 function matchesGeneratedAgentMd(agentName: string, content: string): boolean {
+  if (!(AGENT_NAMES as readonly string[]).includes(agentName)) return false
   const currentHash = hashContent(buildAgentContent(agentName))
   const contentHash = hashContent(content)
   return contentHash === currentHash
@@ -1505,10 +1495,9 @@ export function buildNotesCliSkill(): string {
 
 // --- OpenCode Config ---
 
-export function buildAssistantOpenCodeConfig(agentDefinitions = buildSystemAgentSeeds()): OpenCodeConfigInput {
+export function buildAssistantOpenCodeConfig(agentDefinitions: Pick<AgentDefinition, 'name' | 'mode'>[] = []): OpenCodeConfigInput {
   const agent = Object.fromEntries(agentDefinitions.map(definition => [definition.name, { mode: definition.mode }]))
   const config: OpenCodeConfigInput = {
-    default_agent: AGENT_AUTO,
     instructions: ['AGENTS.md'],
     permission: buildFullPermission(),
     agent: {
@@ -1542,15 +1531,12 @@ async function ensureSkillDirectories(generalChatDir: string): Promise<void> {
   }
 }
 
-async function writeAgentFiles(generalChatDir: string, agentsToWrite = buildSystemAgentSeeds()): Promise<AgentFileInfo[]> {
+async function writeAgentFiles(generalChatDir: string, agentsToWrite: AgentDefinition[]): Promise<AgentFileInfo[]> {
   const agentInfos: AgentFileInfo[] = []
 
   for (const agentDefinition of agentsToWrite) {
     const agentPath = getAgentPath(generalChatDir, agentDefinition.name)
-    const prompt = agentDefinition.name === AGENT_PRODUCTIVITY
-      ? buildProductivityAgentPrompt()
-      : agentDefinition.prompt
-    const content = buildAgentMd(agentDefinition.description, agentDefinition.mode, agentDefinition.permission as Record<string, string | Record<string, string>>, prompt)
+    const content = buildAgentMd(agentDefinition.description, agentDefinition.mode, agentDefinition.permission as Record<string, string | Record<string, string>>, agentDefinition.prompt)
     const exists = await fileExists(agentPath)
     const existingContent = exists ? await readFileContent(agentPath) : undefined
 
@@ -1569,17 +1555,13 @@ async function writeAgentFiles(generalChatDir: string, agentsToWrite = buildSyst
   return agentInfos
 }
 
-async function handleLegacyAssistantAgent(generalChatDir: string): Promise<void> {
-  const assistantAgentPath = getAgentPath(generalChatDir, 'assistant')
-  if (await fileExists(assistantAgentPath)) {
-    const existingContent = await readFileContent(assistantAgentPath)
-    if (matchesGeneratedAgentMd(AGENT_AUTO, existingContent) || matchesLegacyAssistantDefaultAgentMd(existingContent)) {
-      return
-    }
-    const autoAgentPath = getAgentPath(generalChatDir, AGENT_AUTO)
-    const autoExists = await fileExists(autoAgentPath)
-    if (!autoExists) {
-      await writeFileContent(autoAgentPath, buildAutoAgentMd())
+async function removeGeneratedAgentFiles(generalChatDir: string): Promise<void> {
+  for (const agentName of AGENT_NAMES) {
+    const agentPath = getAgentPath(generalChatDir, agentName)
+    if (!await fileExists(agentPath)) continue
+    const content = await readFileContent(agentPath)
+    if (matchesGeneratedAgentMd(agentName, content) || (agentName === AGENT_AUTO && matchesLegacyAssistantDefaultAgentMd(content))) {
+      await deletePath(agentPath)
     }
   }
 }
@@ -1590,10 +1572,13 @@ export async function ensureGeneralChat(
   options?: { overwriteAgentsMd?: boolean; overwriteOpenCodeConfig?: boolean },
 ): Promise<GeneralChatStatus> {
   const generalChatDir = getGeneralChatDirectory()
-  await seedSystemAgents(deps.db, buildSystemAgentSeeds())
-  const enabledAgents = await listEnabledAgents(deps.db)
+  await deleteSystemAgents(deps.db)
 
   await ensureDirectoryExists(generalChatDir)
+  await removeGeneratedAgentFiles(generalChatDir)
+  const configuredAgents = await listAgents(deps.db)
+  const enabledAgents = configuredAgents.filter((agent) => agent.enabled)
+  const userAgentNames = new Set(configuredAgents.map((agent) => agent.name))
 
   const agentsMdPath = path.join(generalChatDir, ASSISTANT_AGENTS_MD_FILENAME)
   const opencodeJsonPath = path.join(generalChatDir, ASSISTANT_OPENCODE_CONFIG_FILENAME)
@@ -1635,10 +1620,7 @@ export async function ensureGeneralChat(
       ? await (async () => {
           try {
             const existingConfig = JSON.parse(existingOpenCodeJsonContent) as OpenCodeConfigInput
-            const mergedConfig = mergeAssistantOpenCodeConfig(existingConfig)
-            return assistantOpenCodeConfigHasGeneratedAgentPersona(mergedConfig)
-              ? stripGeneratedAssistantAgentPersona(mergedConfig)
-              : mergedConfig
+            return removeDefaultAgentConfig(mergeAssistantOpenCodeConfig(existingConfig), userAgentNames)
           } catch {
             return buildAssistantOpenCodeConfig()
           }
@@ -1649,12 +1631,7 @@ export async function ensureGeneralChat(
   } else if (existingOpenCodeJsonContent) {
     try {
       const existingConfig = JSON.parse(existingOpenCodeJsonContent) as OpenCodeConfigInput
-      const repairedConfig = assistantOpenCodeConfigNeedsRepair(existingConfig)
-        ? mergeAssistantOpenCodeConfig(existingConfig)
-        : existingConfig
-      const updatedConfig = assistantOpenCodeConfigHasGeneratedAgentPersona(repairedConfig)
-        ? stripGeneratedAssistantAgentPersona(repairedConfig)
-        : repairedConfig
+      const updatedConfig = removeDefaultAgentConfig(existingConfig, userAgentNames)
 
       if (updatedConfig !== existingConfig) {
         await writeFileContent(opencodeJsonPath, JSON.stringify(updatedConfig, null, 2))
@@ -1724,14 +1701,6 @@ export async function ensureGeneralChat(
   const subpolarToolsSkillCreated = await writeFileIfChanged(subpolarToolsSkillPath, buildSubpolarToolsSkill(), existingSubpolarToolsSkillContent)
 
   const agents = await writeAgentFiles(generalChatDir, enabledAgents)
-  await handleLegacyAssistantAgent(generalChatDir)
-
-  const defaultAgentInfo: AgentFileInfo = {
-    name: AGENT_AUTO,
-    path: getAgentPath(generalChatDir, AGENT_AUTO),
-    exists: true,
-    created: agents.find(a => a.name === AGENT_AUTO)?.created ?? false,
-  }
 
   const managedUpdatesApplied = agentsMdCreated || opencodeJsonUpdated || agents.some(a => a.created)
   const warnings = managedUpdatesApplied && agentsMdHasPreservedLegacyGuidance
@@ -1822,92 +1791,40 @@ export async function ensureGeneralChat(
       path: subpolarToolsSkillPath,
       created: subpolarToolsSkillCreated,
     },
-    defaultAgent: defaultAgentInfo,
   }
 }
 
-function assistantOpenCodeConfigNeedsRepair(config: OpenCodeConfigInput): boolean {
-  if (config.default_agent !== AGENT_AUTO) return true
-  if (!config.agent || typeof config.agent !== 'object') return true
-  const autoAgent = config.agent[AGENT_AUTO]
-  if (!autoAgent || typeof autoAgent !== 'object') return true
-  const mode = (autoAgent as { mode?: unknown }).mode
-  if (mode !== 'primary') return true
-  if ((autoAgent as { disable?: unknown }).disable === true) return true
-  if (assistantOpenCodeConfigHasGeneratedAgentPersona(config)) return true
-  return false
-}
+function removeDefaultAgentConfig(config: OpenCodeConfigInput, userAgentNames: Set<string>): OpenCodeConfigInput {
+  const agent = { ...(config.agent ?? {}) }
+  let changed = false
+  for (const name of AGENT_NAMES) {
+    if (!userAgentNames.has(name) && name in agent) {
+      delete agent[name]
+      changed = true
+    }
+  }
 
-function assistantOpenCodeConfigHasGeneratedAgentPersona(config: OpenCodeConfigInput): boolean {
-  const autoAgent = config.agent?.[AGENT_AUTO]
-  if (typeof autoAgent !== 'object' || autoAgent === null) return false
-  const prompt = (autoAgent as { prompt?: unknown }).prompt
-  return matchesGeneratedAutoAgentPrompt(prompt)
-}
+  if (!changed && !(config.default_agent && AGENT_NAMES.includes(config.default_agent as typeof AGENT_NAMES[number]) && !userAgentNames.has(config.default_agent))) {
+    return config
+  }
 
-function matchesGeneratedAutoAgentPrompt(prompt: unknown): prompt is string {
-  if (typeof prompt !== 'string') return false
-  const currentHash = hashContent(buildAutoAgentPrompt())
-  const contentHash = hashContent(prompt)
-  return contentHash === currentHash
-}
-
-function stripGeneratedAssistantAgentPersona(config: OpenCodeConfigInput): OpenCodeConfigInput {
+  const { default_agent: defaultAgent, ...rest } = config
   return {
-    ...config,
-    agent: {
-      ...(config.agent ?? {}),
-      [AGENT_AUTO]: { mode: 'primary' },
-    },
+    ...rest,
+    ...(defaultAgent && (!AGENT_NAMES.includes(defaultAgent as typeof AGENT_NAMES[number]) || userAgentNames.has(defaultAgent)) ? { default_agent: defaultAgent } : {}),
+    agent,
   }
 }
 
 function mergeAssistantOpenCodeConfig(existing?: OpenCodeConfigInput): OpenCodeConfigInput {
   const generated = buildAssistantOpenCodeConfig()
-  const existingAutoAgent = existing?.agent?.[AGENT_AUTO]
-
-  const existingIsGenerated = existingAutoAgent != null &&
-    typeof existingAutoAgent === 'object' &&
-    matchesGeneratedAutoAgentPrompt(
-      (existingAutoAgent as { prompt?: unknown }).prompt,
-    )
-
-  let mergedAutoAgent: Record<string, unknown>
-  if (existingIsGenerated) {
-    mergedAutoAgent = { mode: 'primary' }
-  } else {
-    mergedAutoAgent = {
-      ...(typeof existingAutoAgent === 'object' && existingAutoAgent !== null ? existingAutoAgent : {}),
-      mode: 'primary',
-      disable: false,
-    }
-  }
-
-  const mergedAgents: Record<string, unknown> = {
-    ...(existing?.agent ?? {}),
-    [AGENT_AUTO]: mergedAutoAgent,
-  }
-
-  for (const name of AGENT_NAMES) {
-    if (!mergedAgents[name]) {
-      mergedAgents[name] = generated.agent?.[name]
-    }
-  }
-
-  if (mergedAgents['build'] === undefined) {
-    mergedAgents['build'] = { disable: true }
-  }
-  if (mergedAgents['plan'] === undefined) {
-    mergedAgents['plan'] = { disable: true }
-  }
 
   return {
     ...generated,
     ...existing,
-    default_agent: AGENT_AUTO,
     instructions: existing?.instructions ?? generated.instructions,
     permission: existing?.permission ?? generated.permission,
-    agent: mergedAgents,
+    agent: { ...(generated.agent ?? {}), ...(existing?.agent ?? {}) },
   }
 }
 
@@ -1957,8 +1874,6 @@ export async function getGeneralChatStatus(project: Project): Promise<GeneralCha
       created: false,
     })
   }
-
-  const defaultAgentPath = getAgentPath(generalChatDir, AGENT_AUTO)
 
   return {
     repoId: project.id,
@@ -2031,12 +1946,6 @@ export async function getGeneralChatStatus(project: Project): Promise<GeneralCha
     },
     notesCliSkill: {
       path: notesCliSkillPath,
-      created: false,
-    },
-    defaultAgent: {
-      name: AGENT_AUTO,
-      path: defaultAgentPath,
-      exists: await fileExists(defaultAgentPath),
       created: false,
     },
   }

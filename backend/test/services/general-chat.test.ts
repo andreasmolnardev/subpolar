@@ -248,24 +248,18 @@ describe('buildAssistantDefaultAgentMd', () => {
 })
 
 describe('buildAssistantOpenCodeConfig', () => {
-  it('includes default_agent set to auto and hides default build/plan agents', () => {
+  it('does not include a default agent and hides built-in build/plan agents', () => {
     const config = buildAssistantOpenCodeConfig()
-    expect(config.default_agent).toBe('auto')
-    expect(config.agent?.auto).toEqual({ mode: 'primary' })
-    expect(config.agent?.auto?.prompt).toBeUndefined()
-    expect(config.agent?.auto?.description).toBeUndefined()
-    expect(config.agent?.auto?.permission).toBeUndefined()
+    expect(config.default_agent).toBeUndefined()
+    expect(config.agent?.auto).toBeUndefined()
     expect(config.agent?.build).toEqual({ disable: true })
     expect(config.agent?.plan).toEqual({ disable: true })
   })
 
-  it('includes all subagent definitions', () => {
-    const config = buildAssistantOpenCodeConfig()
-    expect(config.agent?.['code-build-sandbox']).toEqual({ mode: 'subagent' })
-    expect(config.agent?.['code-build-master']).toEqual({ mode: 'subagent' })
-    expect(config.agent?.['code-plan']).toEqual({ mode: 'subagent' })
-    expect(config.agent?.['code-analyze']).toEqual({ mode: 'subagent' })
-    expect(config.agent?.research).toEqual({ mode: 'subagent' })
+  it('includes user-provided agent definitions', () => {
+    const config = buildAssistantOpenCodeConfig([{ name: 'my-agent', mode: 'subagent' }])
+    expect(config.agent?.['my-agent']).toEqual({ mode: 'subagent' })
+    expect(config.agent?.research).toBeUndefined()
   })
 })
 
@@ -545,6 +539,32 @@ describe('ensureGeneralChat', () => {
     const preservedContent = await readFile(autoAgentPath, 'utf8')
     expect(preservedContent).toBe(customContent)
     expect(result2.defaultAgent?.created).toBe(false)
+  })
+
+  it('allows custom agent names when checking existing agent files', async () => {
+    await pb.collection('agents').create({
+      id: 'weather-id',
+      name: 'weather',
+      description: 'Weather agent',
+      mode: 'subagent',
+      prompt: 'Provide weather information.',
+      permission: {},
+      skills: [],
+      skill_access: [],
+      enabled: true,
+      source: 'user',
+      sort_order: 0,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    })
+
+    await ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })
+    const weatherAgentPath = path.join(ws.assistantDir, '.opencode/agents/weather.md')
+    const customContent = '---\ndescription: Custom weather\n---\n\nCustom weather instructions.'
+    await writeFile(weatherAgentPath, customContent)
+
+    await expect(ensureGeneralChat(mockRepo, { db: pb, apiBaseUrl })).resolves.toBeDefined()
+    expect(await readFile(weatherAgentPath, 'utf8')).toBe(customContent)
   })
 
   it('repairs existing opencode config missing auto agent', async () => {

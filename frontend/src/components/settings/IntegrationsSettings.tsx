@@ -294,7 +294,7 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
                 <div className="space-y-2">
                   <Label htmlFor="openapi-provider-name">Provider name</Label>
                   <Input id="openapi-provider-name" value={formData.providerName} onChange={(event) => updateField('providerName', event.target.value)} disabled={isSaving} placeholder="github" />
-                  <p className="text-xs text-muted-foreground">Tool IDs use openapi.providerName.subtool.</p>
+                  <p className="text-xs text-muted-foreground">Tool IDs use toolName.subtool.</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="openapi-document">OpenAPI JSON</Label>
