@@ -7,7 +7,7 @@ import { Header } from '@/components/ui/header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Plus } from 'lucide-react'
-import { OPENCODE_API_ENDPOINT } from '@/config'
+import { SUBPOLAR_API_BASE_URL } from '@/config'
 import { useCreateSession } from '@/hooks/usePiHarness'
 import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
 import { formatDistanceToNow } from 'date-fns'
@@ -50,7 +50,7 @@ export function History() {
     ])
   }, [historyProjects, storedSessions])
 
-  const apiUrl = OPENCODE_API_ENDPOINT
+  const apiUrl = SUBPOLAR_API_BASE_URL
   const primaryDirectory = generalChat?.fullPath ?? directories[0]
 
   const handleSelectSession = useCallback((sessionId: string, directory: string | null, storedProjectId: number | null) => {

@@ -122,5 +122,5 @@ export async function resolvePiInternalModel(
     }
   }
 
-  throw new Error('No configured OpenCode models are available')
+  throw new Error('No configured Pi models are available')
 }

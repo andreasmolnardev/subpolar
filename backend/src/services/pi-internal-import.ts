@@ -138,7 +138,7 @@ export async function importOpenCodeStateDirectory(sourcePath: string, targetPat
 
 export async function getPiInternalImportStatus(): Promise<PiInternalImportStatus> {
   const workspaceConfigPath = getPiConfigFilePath()
-  const workspaceStatePath = path.join(getWorkspacePath(), '.opencode', 'state', 'opencode')
+  const workspaceStatePath = path.join(getWorkspacePath(), '.subpolar', 'state', 'pi')
   const workspaceStateExists = await fileExists(path.join(workspaceStatePath, 'opencode.db'))
 
   const configSourcePath = await getFirstExistingPath(
@@ -157,7 +157,7 @@ export async function getPiInternalImportStatus(): Promise<PiInternalImportStatu
   }
 }
 
-async function importOpenCodeConfigFromSource(db: Database, userId: string, sourcePath: string, workspaceConfigPath: string): Promise<boolean> {
+async function importPiConfigFromSource(db: Database, sourcePath: string, workspaceConfigPath: string): Promise<boolean> {
   const rawContent = await readFileContent(sourcePath)
   const parsed = parseJsonc(rawContent)
   const validation = PiConfigSchema.safeParse(parsed)
@@ -167,19 +167,19 @@ async function importOpenCodeConfigFromSource(db: Database, userId: string, sour
   }
 
   const settingsService = new SettingsService(db)
-  const existingDefault = await settingsService.getOpenCodeConfigByName('default', userId)
+  const existingDefault = await settingsService.getPiConfigByName('default')
 
   if (existingDefault) {
-    await settingsService.updateOpenCodeConfig('default', {
+    await settingsService.updatePiConfig('default', {
       content: rawContent,
       isDefault: true,
-    }, userId)
+    })
   } else {
-    await settingsService.createOpenCodeConfig({
+    await settingsService.createPiConfig({
       name: 'default',
       content: rawContent,
       isDefault: true,
-    }, userId)
+    })
   }
 
   await writeFileContent(workspaceConfigPath, rawContent)
@@ -188,7 +188,6 @@ async function importOpenCodeConfigFromSource(db: Database, userId: string, sour
 
 export async function syncPiInternalImport(options: SyncPiInternalImportOptions): Promise<SyncPiInternalImportResult> {
   const initialStatus = await getPiInternalImportStatus()
-  const userId = options.userId || 'default'
   const overwriteState = options.overwriteState === true
   let configImported = false
   let stateImported = false
@@ -200,7 +199,7 @@ export async function syncPiInternalImport(options: SyncPiInternalImportOptions)
   }
 
   if (initialStatus.configSourcePath) {
-    configImported = await importOpenCodeConfigFromSource(options.db, userId, initialStatus.configSourcePath, initialStatus.workspaceConfigPath)
+    configImported = await importPiConfigFromSource(options.db, initialStatus.configSourcePath, initialStatus.workspaceConfigPath)
   }
 
   if (initialStatus.stateSourcePath && (overwriteState || !initialStatus.workspaceStateExists)) {
@@ -217,7 +216,7 @@ export async function syncPiInternalImport(options: SyncPiInternalImportOptions)
 }
 
 export async function getImportedSessionDirectories(workspaceStatePath?: string): Promise<ImportedSessionDirectorySummary> {
-  const statePath = workspaceStatePath || path.join(getWorkspacePath(), '.opencode', 'state', 'opencode')
+  const statePath = workspaceStatePath || path.join(getWorkspacePath(), '.subpolar', 'state', 'pi')
   const stateDbPath = path.join(statePath, 'opencode.db')
 
   if (!await fileExists(stateDbPath)) {

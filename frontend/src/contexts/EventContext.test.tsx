@@ -35,7 +35,7 @@ vi.mock('@/api/sessions', () => ({
   updateStoredSession: mocks.updateStoredSession,
 }))
 
-vi.mock('@/lib/opencode-event-stream', () => ({
+vi.mock('@/lib/runtime-event-stream', () => ({
   eventStream: {
     subscribeGlobalMonitor: mocks.subscribeGlobalMonitor,
     getHealth: mocks.getHealth,

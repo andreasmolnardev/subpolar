@@ -13,7 +13,7 @@ import { useCreateSession } from '@/hooks/usePiHarness'
 import { useProjectActivity } from '@/hooks/useProjectActivity'
 import { useSSE } from '@/hooks/useSSE'
 import { useDialogParam } from '@/hooks/useDialogParam'
-import { OPENCODE_API_ENDPOINT } from '@/config'
+import { SUBPOLAR_API_BASE_URL } from '@/config'
 import { Button } from '@/components/ui/button'
 import { Plus, Loader2 } from 'lucide-react'
 import { invalidateConfigCaches } from '@/lib/queryInvalidation'
@@ -38,7 +38,7 @@ export function ProjectDetail() {
 
   useProjectActivity(projectId, Boolean(project))
 
-  const apiUrl = OPENCODE_API_ENDPOINT
+  const apiUrl = SUBPOLAR_API_BASE_URL
   const composerDirectory = project?.fullPath
   const subscriptionDirectories = useMemo(() => composerDirectory ? [composerDirectory] : [], [composerDirectory])
 

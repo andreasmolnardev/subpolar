@@ -16,12 +16,8 @@ interface HealthResponse {
   status: 'healthy' | 'degraded' | 'unhealthy'
   timestamp: string
   database: 'connected' | 'disconnected'
-  opencode: 'healthy' | 'unhealthy'
-  opencodePort: number
-  opencodeVersion: string | null
-  opencodeMinVersion: string
-  opencodeVersionSupported: boolean
-  opencodeManagerVersion: string | null
+  runtime: 'pi'
+  pi: 'healthy' | 'unhealthy'
   error?: string
 }
 
@@ -81,7 +77,7 @@ export function useServerHealth(enabled = true) {
   useEffect(() => {
     if (!health) return
 
-    const isUnhealthy = health.opencode !== 'healthy'
+    const isUnhealthy = health.pi !== 'healthy'
     const currentStatus = isUnhealthy ? 'unhealthy' : 'healthy'
     const previousStatus = lastHealthStatusRef.current
     const prevHealth = prevHealthRef.current

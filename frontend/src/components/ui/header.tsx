@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
 import { PageHeader } from "@/components/ui/page-header";
 import { useSettingsDialog } from "@/hooks/useSettingsDialog";
-import { useTheme } from "@/hooks/useTheme";
 import { EditSessionTitleDialog } from "@/components/session/EditSessionTitleDialog";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
@@ -37,14 +36,12 @@ interface HeaderTitleProps {
 }
 
 function HeaderTitle({ children, logo, className }: HeaderTitleProps) {
-  const theme = useTheme();
-
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      {logo && typeof children === "string" && children === "OpenCode" ? (
+      {logo && typeof children === "string" && children === "Subpolar" ? (
         <img 
-          src={theme === 'light' ? "/opencode-wordmark-light.svg" : "/subpolar-logo-text-dark.png"} 
-          alt="OpenCode" 
+          src="/subpolar-logo-text-dark.png"
+          alt="Subpolar"
           className="h-6 w-auto sm:h-8"
         />
       ) : (

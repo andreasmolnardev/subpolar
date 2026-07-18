@@ -40,7 +40,7 @@ Subpolar uses the `pi-coding-agent` package as its agent harness and extends it 
 
 ## Pi Runtime Architecture
 
-- Subpolar uses Pi as the native coding-agent runtime and keeps OpenCode-shaped frontend APIs as compatibility adapters where needed.
+- Subpolar uses Pi as the embedded coding-agent runtime behind native Subpolar HTTP APIs.
 - Prefer the Pi SDK from `@earendil-works/pi-coding-agent` for runtime integration instead of spawning `pi --mode rpc`.
 - Model selection flows from the frontend as `providerID/modelID`, is posted to the native session run API, and is resolved through the Pi SDK before execution.
 - `/api/provider` is a compatibility endpoint backed by the Pi SDK `ModelRegistry`; it maps Pi models into the provider/model shape expected by the current React model selector.
@@ -73,8 +73,8 @@ Subpolar uses the `pi-coding-agent` package as its agent harness and extends it 
   - **Dependency Inversion**: Depend on abstractions, not concretions—inject dependencies and avoid hard-coding implementations.
 - YAGNI: Don’t build or keep code you don’t need. If you change something, remove the unused parts. use the new code or keep the old, but don’t keep both.
 - Never leave dead code: remove unused code, commented-out blocks, and unused variables/imports.
-- ./temp/opencode is reference only, never commit has opencode src
-- Use shared types from workspace package (@opencode-manager/shared)
+- ./temp/runtime is reference only and must never be committed
+- Use shared types from workspace package (@subpolar/shared)
 - Pi runs through the SDK; backend API runs on port 5003
 - Prefer pnpm over npm for all package management
 - Run `pnpm lint` after completing tasks to ensure code quality

@@ -275,11 +275,11 @@ export function createProjectRoutes(database: PocketBase) {
       const { configName } = SwitchConfigSchema.parse(body)
 
       const settingsService = new SettingsService(database)
-      const configContent = await settingsService.getOpenCodeConfigContent(configName)
+      const configContent = await settingsService.getPiConfigContent(configName)
       if (!configContent) throw new ProjectServiceError(`Config '${configName}' not found`, 404)
 
-      const openCodeConfigPath = getPiConfigFilePath()
-      await writeFileContent(openCodeConfigPath, configContent)
+      const piConfigPath = getPiConfigFilePath()
+      await writeFileContent(piConfigPath, configContent)
       await updateProjectConfigName(database, id, configName)
 
       logger.info(`Switched config for project ${id} to '${configName}'`)

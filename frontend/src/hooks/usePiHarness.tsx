@@ -9,7 +9,7 @@ import type {
   MessageWithParts,
 } from "../api/types";
 import type { paths, components } from "../api/opencode-types";
-import { parseNetworkError } from "../lib/opencode-errors";
+import { parseNetworkError } from "../lib/runtime-errors";
 import { showToast } from "../lib/toast";
 import { useSendErrorStore } from "../stores/sendErrorStore";
 import { useSessionStatus } from "../stores/sessionStatusStore";

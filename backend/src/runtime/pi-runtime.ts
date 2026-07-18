@@ -10,8 +10,6 @@ import { getAuthPath, getPiModelsPath } from '@subpolar/shared/config/env'
 import fs from 'fs/promises'
 import path from 'path'
 import type { RuntimeAdapter, RuntimeEvent, RuntimeRunInput } from './types'
-import type { SkillFileInfo } from '@subpolar/shared'
-import { buildAgentPrompt } from '../services/agent-prompt'
 import { closeMcpSession } from '../services/mcp'
 import { runWithPiContext, type PiRunContext } from '../pi/run-context'
 
@@ -179,6 +177,7 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
     const modelId = this.getModelArg(input.model)
     const model = modelId ? this.findModel(modelRegistry, modelId) : undefined
     const thinkingLevel = this.getThinkingLevel(input.model)
+    const systemPrompt = input.systemPrompt
     const loader = new DefaultResourceLoader({
       cwd,
       agentDir: getAgentDir(),
@@ -192,7 +191,6 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
       ...await this.getRuntimeSkills(cwd, loader.getSkills().skills),
       ...generatedToolSkills,
     ]
-    const systemPrompt = await this.getSystemPrompt(input.systemPrompt, input.skillAccess, cwd, skills)
     await loader.reload()
     const sessionManager = SessionManager.inMemory(cwd)
     this.seedSessionHistory(sessionManager, input)
@@ -245,29 +243,9 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
     return undefined
   }
 
-  private async getSystemPrompt(systemPrompt: string | undefined, skillAccess: RuntimeRunInput['skillAccess'], cwd: string, skills: RuntimeSkill[]): Promise<string | undefined> {
-    const agentsMdPath = path.join(cwd, 'AGENTS.md')
-    const agentsMd = await fs.readFile(agentsMdPath, 'utf8').catch(() => '')
-    return buildAgentPrompt({
-      agentPrompt: systemPrompt,
-      projectInstructions: agentsMd,
-      skillAccess,
-      skills: skills.map((skill): SkillFileInfo => ({
-        name: skill.name,
-        description: skill.description,
-        body: skill.source === 'auto-generated'
-          ? `Load ${skill.name} with skill-load for the tool's full instructions and schema.`
-          : '',
-        scope: skill.source === 'auto-generated' ? 'global' : 'project',
-        location: skill.filePath,
-        source: skill.source === 'auto-generated' ? 'auto' : 'project',
-      })),
-    }).prompt
-  }
-
   private async getProjectSkillPaths(cwd: string): Promise<string[]> {
     const candidates = [
-      path.join(cwd, '.opencode', 'skills'),
+      path.join(cwd, '.subpolar', 'skills'),
       path.join(cwd, '.subpolar', 'skills'),
       path.join(cwd, 'skills'),
     ]

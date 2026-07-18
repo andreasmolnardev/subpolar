@@ -6,7 +6,7 @@ import { useServerHealth } from '@/hooks/useServerHealth'
 import { useCommands } from '@/hooks/useCommands'
 import { useUrlParams } from '@/hooks/useUrlParams'
 import { useUIState } from '@/stores/uiStateStore'
-import { OPENCODE_API_ENDPOINT } from '@/config'
+import { SUBPOLAR_API_BASE_URL } from '@/config'
 import { SideDrawer, SideDrawerContent } from '@/components/ui/side-drawer'
 import { FileBrowserSheet } from '@/components/file-browser/FileBrowserSheet'
 import { buildMoreItems } from './moreDrawerItems'
@@ -34,7 +34,7 @@ export function MoreDrawer({ isOpen, onClose }: MoreDrawerProps) {
   const { logout } = useAuth()
   const { data: health } = useServerHealth()
   const isSessionDetail = /^\/projects\/\d+\/sessions\/[^/]+$/.test(location.pathname)
-  const { filterCommands } = useCommands(isSessionDetail ? OPENCODE_API_ENDPOINT : null)
+  const { filterCommands } = useCommands(isSessionDetail ? SUBPOLAR_API_BASE_URL : null)
   const activePromptFileBasePath = useUIState((state) => state.activePromptFileBasePath)
   const selectPromptCommand = useUIState((state) => state.selectPromptCommand)
   const selectPromptFile = useUIState((state) => state.selectPromptFile)

@@ -11,7 +11,7 @@
 
   "CALDAV_IGNORE_INSECURE_CERTIFICATES": false,
 
-  "DATABASE_PATH": "./data/opencode.db",
+  "DATABASE_PATH": "./data/subpolar.db",
   "WORKSPACE_PATH": "./workspace",
 
   "PROCESS_START_WAIT_MS": 2000,

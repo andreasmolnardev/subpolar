@@ -5,7 +5,7 @@ import { getProvidersWithModels } from '@/api/providers'
 import { createSubpolarClient } from '@/api/subpolar'
 import { settingsApi } from '@/api/settings'
 import { listProjects, type Project } from '@/api/projects'
-import { OPENCODE_API_ENDPOINT } from '@/config'
+import { SUBPOLAR_API_BASE_URL } from '@/config'
 import { Button } from '@/components/ui/button'
 import type { ComboboxOption } from '@/components/ui/combobox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -76,7 +76,7 @@ export function AutomationJobDialog({ open, onOpenChange, job, isSaving, onSubmi
   const { data: agents = [] } = useQuery({
     queryKey: ['opencode-agents', 'automation-dialog'],
     queryFn: async () => {
-      const client = createSubpolarClient(OPENCODE_API_ENDPOINT)
+      const client = createSubpolarClient(SUBPOLAR_API_BASE_URL)
       return await client.listAgents()
     },
     enabled: open,
@@ -93,7 +93,7 @@ export function AutomationJobDialog({ open, onOpenChange, job, isSaving, onSubmi
   const { data: openCodeConfig } = useQuery({
     queryKey: ['opencode-config', 'automation-dialog'],
     queryFn: async () => {
-      const client = createSubpolarClient(OPENCODE_API_ENDPOINT)
+      const client = createSubpolarClient(SUBPOLAR_API_BASE_URL)
       return await client.getConfig()
     },
     enabled: open,

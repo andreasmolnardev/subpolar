@@ -16,6 +16,7 @@ const AgentRequestSchema = z.object({
   description: z.string().default(''),
   mode: z.enum(['primary', 'subagent']),
   prompt: z.string().min(1),
+  systemPrompt: z.string().default(''),
   permission: z.record(z.string(), z.unknown()).default({}),
   skills: z.array(z.string()).default([]),
   skillAccess: z.array(AgentSkillAccessSchema).default([]),

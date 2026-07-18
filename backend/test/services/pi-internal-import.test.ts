@@ -52,9 +52,9 @@ const mockRename = rename as unknown as ReturnType<typeof vi.fn>
 describe('pi-internal-import service', () => {
   const mockDb = {} as unknown as Database
   const settingsService = {
-    getOpenCodeConfigByName: vi.fn(),
-    updateOpenCodeConfig: vi.fn(),
-    createOpenCodeConfig: vi.fn(),
+    getPiConfigByName: vi.fn(),
+    updatePiConfig: vi.fn(),
+    createPiConfig: vi.fn(),
   }
 
   beforeEach(() => {
@@ -108,7 +108,7 @@ describe('pi-internal-import service', () => {
         || candidate === '/tmp/workspace/.opencode/state/opencode/opencode.db'
     })
 
-    settingsService.getOpenCodeConfigByName.mockReturnValue({ name: 'default' })
+    settingsService.getPiConfigByName.mockReturnValue({ name: 'default' })
 
     const result = await syncPiInternalImport({
       db: mockDb,
@@ -119,10 +119,10 @@ describe('pi-internal-import service', () => {
     expect(result.configImported).toBe(true)
     expect(result.stateImported).toBe(true)
     expect(result.workspaceStateExists).toBe(true)
-    expect(settingsService.updateOpenCodeConfig).toHaveBeenCalledWith('default', {
+    expect(settingsService.updatePiConfig).toHaveBeenCalledWith('default', {
       content: '{"$schema":"https://opencode.ai/config.json"}',
       isDefault: true,
-    }, 'default')
+    })
     expect(mockWriteFileContent).toHaveBeenCalledWith(
       '/tmp/workspace/.config/opencode/opencode.json',
       '{"$schema":"https://opencode.ai/config.json"}'
@@ -243,7 +243,7 @@ describe('pi-internal-import service', () => {
       protectExistingState: true,
     })).rejects.toThrow('OpenCode host import was blocked to protect existing workspace state')
 
-    expect(settingsService.updateOpenCodeConfig).not.toHaveBeenCalled()
+    expect(settingsService.updatePiConfig).not.toHaveBeenCalled()
     expect(mockEnsureDirectoryExists).not.toHaveBeenCalled()
   })
 

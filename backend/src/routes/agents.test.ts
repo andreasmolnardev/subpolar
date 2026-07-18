@@ -48,6 +48,7 @@ describe('agent routes', () => {
         description: 'Researches topics',
         mode: 'primary',
         prompt: 'Research the requested topic.',
+        systemPrompt: 'You are a focused research agent.',
         permission: { webfetch: 'allow' },
         skills: ['research'],
         skillAccess: [{ id: 'tool-openai-responses-create', discovery: 'name', source: 'tool-default' }],
@@ -60,6 +61,7 @@ describe('agent routes', () => {
       name: 'researcher',
       source: 'user',
       enabled: true,
+      systemPrompt: 'You are a focused research agent.',
       skillAccess: [{ id: 'tool-openai-responses-create', discovery: 'name', source: 'tool-default' }],
     })
 

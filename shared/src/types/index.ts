@@ -32,7 +32,7 @@ import {
 import {
   SessionSchema,
   MessageSchema,
-} from '../schemas/opencode'
+} from '../schemas/runtime'
 import {
   NotificationPreferencesSchema,
   PushSubscriptionRequestSchema,

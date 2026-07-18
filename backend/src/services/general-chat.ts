@@ -1,13 +1,11 @@
 import path from 'path'
-import { createHash } from 'node:crypto'
-import type { AgentDefinition, Project, GeneralChatStatus, OpenCodeConfigInput } from '@subpolar/shared/types'
+import type { AgentDefinition, Project, GeneralChatStatus, PiConfigInput } from '@subpolar/shared/types'
 import type { AgentFileInfo } from '@subpolar/shared/schemas/repo'
 import {
   readFileContent,
   writeFileContent,
   fileExists,
   ensureDirectoryExists,
-  deletePath,
 } from './file-operations'
 import { PiConfigSchema } from '@subpolar/shared/schemas'
 import { GENERAL_CHAT_PROJECT_ID, GENERAL_CHAT_PROJECT_PATH } from '@subpolar/shared/utils'
@@ -21,8 +19,8 @@ import { deleteSystemAgents, listAgents } from '../db/subpolar-agents'
 const GENERAL_CHAT_DIR = GENERAL_CHAT_PROJECT_PATH
 const GENERAL_CHAT_RELATIVE_PATH = 'general-chat'
 const ASSISTANT_AGENTS_MD_FILENAME = 'AGENTS.md'
-const ASSISTANT_OPENCODE_CONFIG_FILENAME = 'opencode.json'
-const ASSISTANT_OPENCODE_DIR = '.opencode'
+const ASSISTANT_PI_CONFIG_FILENAME = 'subpolar.json'
+const ASSISTANT_SUBPOLAR_DIR = '.subpolar'
 const ASSISTANT_INTERNAL_TOKEN_FILENAME = 'internal-token'
 const ASSISTANT_SKILLS_DIR = 'skills'
 const ASSISTANT_SKILL_FILENAME = 'SKILL.md'
@@ -54,7 +52,7 @@ const SKILL_CODE_REVIEW_DIR = 'code-review'
 const SKILL_CODE_ANALYSIS_DIR = 'code-analysis'
 const SKILL_RESEARCH_WEB_DIR = 'research-web'
 const SKILL_SUBPOLAR_CONTEXT_DIR = 'subpolar-context'
-const SKILL_OPENCODE_CONTEXT_DIR = 'opencode-context'
+const SKILL_PI_CONTEXT_DIR = 'pi-context'
 const SKILL_CALENDAR_CLI_DIR = 'calendar-cli'
 const SKILL_MAIL_CLI_DIR = 'mail-cli'
 const SKILL_TODO_CLI_DIR = 'todo-cli'
@@ -70,7 +68,7 @@ const SKILL_DIRS = [
   SKILL_CODE_ANALYSIS_DIR,
   SKILL_RESEARCH_WEB_DIR,
   SKILL_SUBPOLAR_CONTEXT_DIR,
-  SKILL_OPENCODE_CONTEXT_DIR,
+  SKILL_PI_CONTEXT_DIR,
   SKILL_CALENDAR_CLI_DIR,
   SKILL_MAIL_CLI_DIR,
   SKILL_TODO_CLI_DIR,
@@ -105,23 +103,19 @@ export function buildGeneralChatProject(): Project {
 }
 
 function getInternalTokenPath(generalChatDir: string): string {
-  return path.join(generalChatDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_INTERNAL_TOKEN_FILENAME)
+  return path.join(generalChatDir, ASSISTANT_SUBPOLAR_DIR, ASSISTANT_INTERNAL_TOKEN_FILENAME)
 }
 
 function getAgentPath(generalChatDir: string, agentName: string): string {
-  return path.join(generalChatDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_AGENTS_DIR, `${agentName}.md`)
+  return path.join(generalChatDir, ASSISTANT_SUBPOLAR_DIR, ASSISTANT_AGENTS_DIR, `${agentName}.md`)
 }
 
 function getSkillPath(generalChatDir: string, skillDir: string): string {
-  return path.join(generalChatDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, skillDir, ASSISTANT_SKILL_FILENAME)
+  return path.join(generalChatDir, ASSISTANT_SUBPOLAR_DIR, ASSISTANT_SKILLS_DIR, skillDir, ASSISTANT_SKILL_FILENAME)
 }
 
-function hashContent(content: string): string {
-  return createHash('sha256').update(content).digest('hex')
-}
-
-function hasSameContentHash(existingContent: string | undefined, generatedContent: string): boolean {
-  return existingContent !== undefined && hashContent(existingContent) === hashContent(generatedContent)
+function hasSameContent(existingContent: string | undefined, generatedContent: string): boolean {
+  return existingContent !== undefined && existingContent === generatedContent
 }
 
 function buildAgentMd(
@@ -170,459 +164,9 @@ function buildFullPermission(): Record<string, string> {
   }
 }
 
-function buildReadOnlyPermission(): Record<string, string> {
-  return {
-    read: 'allow',
-    glob: 'allow',
-    grep: 'allow',
-    list: 'allow',
-    edit: 'deny',
-    bash: 'deny',
-    webfetch: 'allow',
-    websearch: 'deny',
-    skill: 'allow',
-    todowrite: 'allow',
-    question: 'allow',
-    external_directory: 'ask',
-  }
-}
 
-function buildSandboxPermission(): Record<string, string | Record<string, string>> {
-  return {
-    read: 'allow',
-    edit: 'allow',
-    glob: 'allow',
-    grep: 'allow',
-    list: 'allow',
-    bash: {
-      '*': 'allow',
-      'rm -rf /*': 'deny',
-      'sudo *': 'deny',
-    },
-    webfetch: 'allow',
-    websearch: 'deny',
-    skill: 'allow',
-    todowrite: 'allow',
-    question: 'allow',
-    external_directory: 'allow',
-  }
-}
 
-function buildResearchPermission(): Record<string, string> {
-  return {
-    read: 'allow',
-    edit: 'deny',
-    glob: 'allow',
-    grep: 'allow',
-    list: 'allow',
-    bash: 'deny',
-    webfetch: 'allow',
-    websearch: 'allow',
-    skill: 'allow',
-    todowrite: 'allow',
-    question: 'allow',
-    external_directory: 'ask',
-  }
-}
 
-function buildProductivityPermission(): Record<string, string | Record<string, string>> {
-  return {
-    read: 'allow',
-    edit: 'deny',
-    glob: 'allow',
-    grep: 'allow',
-    list: 'allow',
-    bash: 'deny',
-    webfetch: 'deny',
-    websearch: 'deny',
-    skill: 'allow',
-    todowrite: 'allow',
-    question: 'allow',
-    external_directory: 'ask',
-  }
-}
-
-// --- Agent Prompts ---
-
-function buildAutoAgentPrompt(): string {
-  return [
-    'You are the Auto agent for subpolar. Your job is to analyze the user\'s query and route it to the correct specialized agent.',
-    '',
-    '## Available Agents',
-    '',
-    '- **code-build-master**: Full build agent with access to subpolar internals (repos, automations, notifications, settings) and code review. Use this for building features, fixing bugs, or any work that needs full project access.',
-    '- **code-build-sandbox**: Build agent that works in a temporary sandbox directory. Use this for experimental code, testing ideas, or when the user wants to try something without affecting the main project.',
-    '- **code-plan**: Read-only planning agent. Use this for architecture discussions, design proposals, or planning features without making changes.',
-    '- **code-analyze**: Read-only analysis agent with code analysis skills. Use this for debugging, finding bugs, detecting repetitive patterns, or deep code review.',
-    '- **research**: Deep web research agent with websearch, webfetch, web.search, and web.scrape tools. Use this for source-backed research, documentation lookups, and current information.',
-    '- **productivity**: Productivity agent for calendar, mail, todo, and notes work through subpolar-tools. Use this for personal organization tasks.',
-    '',
-    '## Routing Rules',
-    '',
-    '- If the user wants to BUILD or MODIFY code, route to a build agent.',
-    '- If the user wants to PLAN or DESIGN, route to code-plan.',
-    '- If the user wants to ANALYZE code, find bugs, or review, route to code-analyze.',
-    '- If the user is experimenting or wants a safe environment, route to code-build-sandbox.',
-    '- If the user needs web research or documentation lookups, route to research.',
-    '- If the user asks about calendar, mail, todo, notes, reminders, scheduling, or personal productivity, route to productivity.',
-    '- If unsure, ask the user which agent they need.',
-    '',
-    '## Model Routing Contract',
-    '',
-    'If you are invoked only as an intermediate model router, choose exactly one model from the supplied model list and respond with only valid JSON in this shape:',
-    '',
-    '{"use":"MODEL"}',
-    '',
-    'Use the exact model identifier from the supplied list. Consider the model names, limits, modalities, reasoning support, tool support, status, and cost metadata when provided.',
-    '',
-    'When routing to an agent, explain briefly why you chose that agent and hand off to it.',
-  ].join('\n')
-}
-
-function buildCodeBuildSandboxAgentPrompt(): string {
-  return [
-    'You are the Code Build (Sandbox) agent for subpolar.',
-    '',
-    '## Sandbox Rules',
-    '',
-    'You MUST work in a temporary sandbox directory. Create one at the start of your session:',
-    '',
-    '1. Create a temp directory using `mkdir -p /tmp/subpolar-sandbox-<session-id>`',
-    '2. Copy or symlink only the files needed for the task',
-    '3. Work exclusively inside this sandbox directory',
-    '4. Present the results to the user without modifying the main project',
-    '',
-    '## What You Can Do',
-    '',
-    '- Write and test experimental code',
-    '- Prototype features and ideas',
-    '- Run builds and tests in isolation',
-    '- Create proof-of-concept implementations',
-    '',
-    '## Constraints',
-    '',
-    '- NEVER modify files outside the sandbox directory',
-    '- NEVER run destructive system commands',
-    '- Clean up temp directories when done if the user asks',
-    '- Ask before moving sandbox code into the main project',
-  ].join('\n')
-}
-
-function buildCodeBuildMasterAgentPrompt(): string {
-  return [
-    'You are the Code Build (Master) agent for subpolar. You have full access to the subpolar project, OpenCode configuration, and all workspace skills.',
-    '',
-    '## Available Skills',
-    '',
-    'Load these skills when relevant:',
-    '- **subpolar-context**: How subpolar is structured, run, tested, and safely changed.',
-    '- **opencode-context**: How OpenCode configuration, agents, permissions, and skills work.',
-    '- **repo-management**: List repos and look up repo IDs. Load before automation-management if you need a repo ID.',
-    '- **automation-management**: Create, list, update, delete, run, and cancel automation jobs and runs.',
-    '- **notifications**: Send push notifications to the user\'s registered devices.',
-    '- **manager-settings**: Read and safely modify user preferences (theme, mode, etc.).',
-    '- **code-review**: Review code for quality, bugs, security, and best practices.',
-    '',
-    '## Self-Editing Rules',
-    '',
-    'This workspace is the shared general chat workspace. Durable agent instructions belong in `.opencode/agents/`.',
-    'Preserve user-customized workspace files unless the user explicitly asks you to change them.',
-    'Ask before destructive operations or changes outside this workspace.',
-  ].join('\n')
-}
-
-function buildCodePlanAgentPrompt(): string {
-  return [
-    'You are the Code Plan agent for subpolar. You are read-only and focused on planning and design.',
-    '',
-    '## What You Do',
-    '',
-    '- Draft architecture proposals and design documents',
-    '- Plan feature implementations with step-by-step breakdowns',
-    '- Discuss trade-offs, tech stack decisions, and design patterns',
-    '- Review requirements and create technical specifications',
-    '- Estimate effort and identify risks',
-    '',
-    '## Constraints',
-    '',
-    '- You CANNOT edit files or run shell commands',
-    '- You CAN read files to understand the codebase',
-    '- Present plans as clear, actionable documents the user can hand to a build agent',
-    '- When appropriate, reference specific files and line numbers',
-  ].join('\n')
-}
-
-function buildCodeAnalyzeAgentPrompt(): string {
-  return [
-    'You are the Code Analyze agent for subpolar. You are read-only and focused on deep code analysis.',
-    '',
-    '## Available Skills',
-    '',
-    'Load this skill when relevant:',
-    '- **code-analysis**: Techniques for analyzing code, finding bugs, detecting repetitive behavior, and identifying code quality issues.',
-    '',
-    '## What You Do',
-    '',
-    '- Analyze code for bugs, logic errors, and edge cases',
-    '- Detect repetitive patterns, code duplication, and violations of DRY',
-    '- Identify security vulnerabilities and performance bottlenecks',
-    '- Review code structure and suggest improvements',
-    '- Trace execution paths and data flow',
-    '- Draft plans for refactoring or fixing issues',
-    '',
-    '## Constraints',
-    '',
-    '- You CANNOT edit files or run shell commands',
-    '- You CAN read files and search the codebase',
-    '- Present findings clearly with file paths and line references',
-    '- Suggest concrete fixes that a build agent can implement',
-  ].join('\n')
-}
-
-function buildResearchAgentPrompt(): string {
-  return [
-    'You are the Research agent for subpolar. Your job is to run source-backed web research and produce clear, cited findings.',
-    '',
-    '## Tools Available',
-    '',
-    '- **websearch**: Built-in web search. Use this whenever possible for broad discovery, current information, and quick source triangulation before falling back to backend-routed search.',
-    '- **webfetch**: Built-in page reader. Use this for specific URLs, official docs, articles, and API references.',
-    '- **subpolar-tools web.search**: Backend-routed search tool. Use this when you need auditable, policy-controlled search results through Subpolar.',
-    '- **subpolar-tools web.scrape**: Backend-routed scrape tool. Use this to extract readable text from a public URL for deeper source reading.',
-    '',
-    '## Deep Research Workflow',
-    '',
-    '1. Clarify the research question, time sensitivity, and success criteria.',
-    '2. Search broadly with `websearch` or `subpolar-tools` `web.search` using multiple targeted queries.',
-    '3. Select high-quality sources: official docs, primary sources, project repos, standards, papers, or reputable reporting.',
-    '4. Read selected pages with `webfetch` or `subpolar-tools` `web.scrape`; do not rely only on search snippets.',
-    '5. Track source URLs and note disagreements, stale pages, missing dates, or uncertainty.',
-    '6. Iterate if the first source set is thin, contradictory, or biased.',
-    '7. Synthesize into a concise answer with citations and practical next steps.',
-    '',
-    '## Output Style',
-    '',
-    '- Use Markdown for final answers.',
-    '- Cite sources with Markdown links, using source titles as link text, for example `[Title](https://example.com)`.',
-    '- Include a References section with Markdown links to every source cited.',
-    '- Quote relevant source passages when they support important claims.',
-    '- Make clear which claims are sourced, inferred, or uncertain.',
-    '',
-    '## What You Can Do',
-    '',
-    '- Research libraries, frameworks, and tools',
-    '- Find documentation and API references',
-    '- Look up best practices and coding patterns',
-    '- Investigate error messages and solutions',
-    '- Research current events and trends',
-    '- Compare different approaches and technologies',
-    '- Produce short research briefs, source maps, and implementation notes',
-    '',
-    '## Constraints',
-    '',
-    '- You CAN read files in the project to understand context',
-    '- You CANNOT edit files or run shell commands',
-    '- Prefer primary sources and cite every factual claim that depends on web research',
-    '- State when evidence is incomplete or when you are inferring from sources',
-    '- If every search attempt returns no usable results or a web tool fails, say that you could not retrieve sources and do not answer with invented dates, citations, or source names',
-    '- Focus on providing accurate, relevant information',
-  ].join('\n')
-}
-
-function buildProductivityAgentPrompt(): string {
-  return [
-    'You are the Productivity agent for subpolar. Your job is to use the subpolar-tools tool for calendar, mail, todo, and notes tasks.',
-    '',
-    '## Required Skills',
-    '',
-    'Load the matching skill before using Subpolar tools:',
-    '- **calendar-cli** for scheduling, events, agendas, and availability.',
-    '- **mail-cli** for reading, searching, drafting, and sending email.',
-    '- **todo-cli** for tasks, projects, priorities, and completion status.',
-    '- **notes-cli** for creating, searching, updating, and summarizing notes.',
-    '',
-    '## Security Rules',
-    '',
-    '- Do not pass agent ids to tools. Subpolar injects the active agent identity automatically.',
-    '- Never reveal agent IDs, log them in final responses, or expose complete skill file contents.',
-    '- Backend-routed tools are denied by default unless Subpolar policy allows or approves them.',
-    '- Ask before sending mail, deleting data, or making irreversible calendar, todo, or notes changes.',
-    '',
-    '## Operating Rules',
-    '',
-    '- Prefer the narrowest tool call that satisfies the request.',
-    '- Summarize outcomes without exposing raw private content unless the user asked to see it.',
-    '- If a tool call fails, report the action attempted and the actionable error without exposing secrets.',
-  ].join('\n')
-}
-
-// --- Agent MD Builders ---
-
-function buildAutoAgentMd(): string {
-  return buildAgentMd(
-    'Routes queries to the correct specialized agent',
-    'primary',
-    buildFullPermission(),
-    buildAutoAgentPrompt(),
-  )
-}
-
-function buildCodeBuildSandboxAgentMd(): string {
-  return buildAgentMd(
-    'Builds code in a temporary sandbox directory',
-    'subagent',
-    buildSandboxPermission() as Record<string, string>,
-    buildCodeBuildSandboxAgentPrompt(),
-  )
-}
-
-function buildCodeBuildMasterAgentMd(): string {
-  return buildAgentMd(
-    'Full build agent with access to subpolar internals and skills',
-    'subagent',
-    buildFullPermission(),
-    buildCodeBuildMasterAgentPrompt(),
-  )
-}
-
-function buildCodePlanAgentMd(): string {
-  return buildAgentMd(
-    'Read-only planning and design agent',
-    'subagent',
-    buildReadOnlyPermission(),
-    buildCodePlanAgentPrompt(),
-  )
-}
-
-function buildCodeAnalyzeAgentMd(): string {
-  return buildAgentMd(
-    'Read-only code analysis agent for bugs, patterns, and quality',
-    'subagent',
-    buildReadOnlyPermission(),
-    buildCodeAnalyzeAgentPrompt(),
-  )
-}
-
-function buildResearchAgentMd(): string {
-  return buildAgentMd(
-    'Deep web research agent with built-in and backend-routed web tools',
-    'subagent',
-    buildResearchPermission(),
-    buildResearchAgentPrompt(),
-  )
-}
-
-function buildProductivityAgentMd(): string {
-  return buildAgentMd(
-    'Productivity agent for calendar, mail, todo, and notes via subpolar-tools',
-    'subagent',
-    buildProductivityPermission(),
-    buildProductivityAgentPrompt(),
-  )
-}
-
-function buildAgentContent(agentName: string): string {
-  const builders: Record<string, () => string> = {
-    [AGENT_AUTO]: buildAutoAgentMd,
-    [AGENT_CODE_BUILD_SANDBOX]: buildCodeBuildSandboxAgentMd,
-    [AGENT_CODE_BUILD_MASTER]: buildCodeBuildMasterAgentMd,
-    [AGENT_CODE_PLAN]: buildCodePlanAgentMd,
-    [AGENT_CODE_ANALYZE]: buildCodeAnalyzeAgentMd,
-    [AGENT_RESEARCH]: buildResearchAgentMd,
-    [AGENT_PRODUCTIVITY]: buildProductivityAgentMd,
-  }
-  const builder = builders[agentName]
-  if (!builder) throw new Error(`Unknown generated agent: ${agentName}`)
-  return builder()
-}
-
-// --- Legacy Support ---
-
-function buildLegacyAssistantAgentsMd(): string {
-  return `# General Chat Workspace
-
-This directory is the shared General Chat workspace for subpolar.
-
-## Directory Contents
-
-- \`opencode.json\` configures this workspace and selects the default agent (\`auto\`).
-- \`.opencode/agents/\` contains specialized agent definitions for build, plan, analyze, and research tasks.
-- \`.opencode/skills/\` contains managed workspace skills.
-- \`.opencode/internal-token\` is managed by subpolar for internal API authentication.
-
-Agent-specific instructions belong in their respective \`.opencode/agents/<name>.md\` files.
-`
-}
-
-function buildAssistantAgentPermission(): Record<string, string> {
-  return {
-    read: 'allow',
-    edit: 'allow',
-    glob: 'allow',
-    grep: 'allow',
-    list: 'allow',
-    bash: 'allow',
-    external_directory: 'ask',
-  }
-}
-
-function buildLegacyAssistantDefaultAgentMd(): string {
-  const permission = buildAssistantAgentPermission()
-  return `---
-description: Default subpolar general chat workspace agent
-mode: primary
-permission:
-  read: ${permission.read}
-  edit: ${permission.edit}
-  glob: ${permission.glob}
-  grep: ${permission.grep}
-  list: ${permission.list}
-  bash: ${permission.bash}
-  external_directory: ${permission.external_directory}
----
-
-You are the default General Chat agent for subpolar.
-
-This workspace is the shared general chat workspace. Help the user manage repos, automations, notifications, settings, and General Chat behavior safely.
-
-Use the workspace skills when relevant:
-- Load repo-management before automation-management when you need a repo ID.
-- Load automation-management for automation jobs and runs.
-- Load notifications when the user should be notified about important events.
-- Load manager-settings when reading or safely updating UI preferences.
-
-Preserve user-customized workspace files unless the user explicitly asks you to change them.
-Ask before destructive operations or changes outside this general chat workspace.
-`
-}
-
-// --- Hash verification for migration ---
-
-function matchesGeneratedAgentsMd(content: string): boolean {
-  const currentHash = hashContent(buildAssistantAgentsMd())
-  const legacyHash = hashContent(buildLegacyAssistantAgentsMd())
-  const contentHash = hashContent(content)
-  return contentHash === currentHash || contentHash === legacyHash
-}
-
-function matchesGeneratedAgentMd(agentName: string, content: string): boolean {
-  if (!(AGENT_NAMES as readonly string[]).includes(agentName)) return false
-  const currentHash = hashContent(buildAgentContent(agentName))
-  const contentHash = hashContent(content)
-  return contentHash === currentHash
-}
-
-function matchesLegacyAssistantDefaultAgentMd(content: string): boolean {
-  const legacyHash = hashContent(buildLegacyAssistantDefaultAgentMd())
-  const contentHash = hashContent(content)
-  return contentHash === legacyHash
-}
-
-function containsLegacyAssistantAgentsGuidance(content: string): boolean {
-  return content.includes('## Self-Editing Rules') &&
-    content.includes('AGENTS.md') &&
-    content.includes('durable preferences')
-}
 
 export function buildAssistantAgentsMd(): string {
   return `# General Chat Workspace
@@ -631,70 +175,15 @@ This directory is the shared General Chat workspace for subpolar.
 
 ## Directory Contents
 
-- \`opencode.json\` configures this workspace and selects the default agent (\`auto\`).
-- \`.opencode/agents/\` contains specialized agent definitions:
-  - \`auto.md\` — Routes queries to the correct specialized agent
-  - \`code-build-sandbox.md\` — Builds code in a temporary sandbox
-  - \`code-build-master.md\` — Full build agent with access to internals and skills
-  - \`code-plan.md\` — Read-only planning and design
-  - \`code-analyze.md\` — Read-only code analysis for bugs and patterns
-  - \`research.md\` — Deep web research with built-in and backend-routed web tools
-  - \`productivity.md\` — Productivity work through the #2 Agents CLI
-- \`.opencode/skills/\` contains managed workspace skills for repos, automations, notifications, settings, code analysis, code review, research, subpolar, opencode, and productivity CLI workflows.
-- \`.opencode/internal-token\` is managed by subpolar for internal API authentication.
+- \`subpolar.json\` configures this workspace and its enabled agents.
+- \`.subpolar/agents/\` contains configured agent definitions.
+- \`.subpolar/skills/\` contains managed workspace skills for repos, automations, notifications, settings, code analysis, code review, research, and productivity CLI workflows.
+- \`.subpolar/internal-token\` is managed by Subpolar for internal API authentication.
 
-Agent-specific instructions belong in their respective \`.opencode/agents/<name>.md\` files.
+Agent-specific instructions belong in their respective \`.subpolar/agents/<name>.md\` files.
 `
 }
 
-function buildAssistantAgentPrompt(): string {
-  return [
-    'You are the default General Chat agent for subpolar.',
-    '',
-    'This workspace is the shared general chat workspace for subpolar. Help the user manage repos, automations, notifications, settings, and General Chat behavior safely.',
-    '',
-    '## Self-Editing Rules',
-    '',
-    'Durable General Chat instructions, behavior, and preferences belong in `.opencode/agents/assistant.md`. Edit that file when the user expresses lasting preferences or when you need to refine your behavior.',
-    '',
-    'The workspace directory explanation belongs in `AGENTS.md`. Keep that file focused on describing the directory contents and pointing to managed files.',
-    '',
-    'Preserve user-customized workspace files unless the user explicitly asks you to change them. Ask before making significant, destructive, or out-of-workspace changes.',
-    '',
-    'After editing `.opencode/agents/assistant.md`, load `manager-settings` and call `POST /assistant/reload` to apply changes. Always ask the user before reloading.',
-    '',
-    '## Skill Usage',
-    '',
-    'Use the workspace skills when relevant:',
-    '- Load `repo-management` before `automation-management` when you need a repo ID.',
-    '- Load `automation-management` for automation jobs and runs.',
-    '- Load `notifications` when the user should be notified about important events.',
-    '- Load `manager-settings` when reading or safely updating UI preferences.',
-  ].join('\n')
-}
-
-function buildAssistantDefaultAgentMdFromPrompt(prompt: string): string {
-  const permission = buildAssistantAgentPermission()
-  return `---
-description: Default subpolar general chat workspace agent
-mode: primary
-permission:
-  read: ${permission.read}
-  edit: ${permission.edit}
-  glob: ${permission.glob}
-  grep: ${permission.grep}
-  list: ${permission.list}
-  bash: ${permission.bash}
-  external_directory: ${permission.external_directory}
----
-
-${prompt}
-`
-}
-
-export function buildAssistantDefaultAgentMd(): string {
-  return buildAssistantDefaultAgentMdFromPrompt(buildAssistantAgentPrompt())
-}
 
 function toLocalhostInternalBaseUrl(baseUrl: string): string {
   const url = new URL(baseUrl)
@@ -720,7 +209,7 @@ Load this skill when the user asks about managing automations, automation jobs, 
 
 ## Authentication
 
-All API calls require a bearer token. Read the token from \`.opencode/internal-token\` (relative to the general chat workspace cwd) and pass it as:
+All API calls require a bearer token. Read the token from \`.subpolar/internal-token\` (relative to the general chat workspace cwd) and pass it as:
 
 \`\`\`
 Authorization: Bearer <token>
@@ -845,7 +334,7 @@ Load this skill when you need to notify the user about important events, complet
 
 ## Authentication
 
-All API calls require a bearer token. Read the token from \`.opencode/internal-token\` (relative to the general chat workspace cwd) and pass it as:
+All API calls require a bearer token. Read the token from \`.subpolar/internal-token\` (relative to the general chat workspace cwd) and pass it as:
 
 \`\`\`
 Authorization: Bearer <token>
@@ -919,7 +408,7 @@ Load this skill when you need to inspect or update the user's UI preferences, th
 
 ## Authentication
 
-All API calls require a bearer token. Read the token from \`.opencode/internal-token\` (relative to the general chat workspace cwd) and pass it as:
+All API calls require a bearer token. Read the token from \`.subpolar/internal-token\` (relative to the general chat workspace cwd) and pass it as:
 
 \`\`\`
 Authorization: Bearer <token>
@@ -1016,7 +505,7 @@ Returns the updated settings object with the same structure as GET.
 
 ### POST /assistant/reload
 
-Reload the general chat workspace by disposing the current OpenCode instance. Use this after editing agent files or \`opencode.json\` so changes take effect on the next message.
+Reload the general chat workspace by refreshing the active Pi session. Use this after editing agent files or \`subpolar.json\` so changes take effect on the next message.
 
 **Note:** Always confirm with the user before reloading, as it re-bootstraps the workspace.
 
@@ -1037,7 +526,7 @@ curl -X POST -H "Authorization: Bearer <token>" \\
 
 - This API intentionally rejects any attempt to modify credentials, API keys, or other sensitive settings
 - If you need to change credentials (Git, TTS, STT, etc.), guide the user to use the full UI
-- The settings PATCH endpoint does NOT trigger OpenCode reload or restart
+- The settings PATCH endpoint does NOT automatically reload the active Pi session
 `
 }
 
@@ -1055,7 +544,7 @@ Load this skill when you need to discover repos, look up repo IDs, or need to re
 
 ## Authentication
 
-All API calls require a bearer token. Read the token from \`.opencode/internal-token\` (relative to the general chat workspace cwd) and pass it as:
+All API calls require a bearer token. Read the token from \`.subpolar/internal-token\` (relative to the general chat workspace cwd) and pass it as:
 
 \`\`\`
 Authorization: Bearer <token>
@@ -1340,29 +829,28 @@ Use this skill before changing or analyzing subpolar application code.
 `
 }
 
-export function buildOpenCodeContextSkill(): string {
+export function buildPiContextSkill(): string {
   return `---
-name: opencode-context
-description: Use when creating or editing OpenCode config, agents, permissions, tools, skills, plugins, or MCP servers
+name: pi-context
+description: Use when creating or editing Subpolar agents, permissions, tools, skills, profiles, or MCP servers
 ---
 
 ## Purpose
 
-Use this skill before changing \`opencode.json\`, \`.opencode/agents/*.md\`, \`.opencode/skills/*/SKILL.md\`, permissions, tools, plugins, or MCP servers.
+Use this skill before changing \`subpolar.json\`, \`.subpolar/agents/*.md\`, \`.subpolar/skills/*/SKILL.md\`, permissions, tools, or MCP servers.
 
 ## Config Rules
 
-- OpenCode config uses \`$schema: https://opencode.ai/config.json\`.
-- Agents are best stored as files under \`.opencode/agents/<name>.md\` for non-trivial prompts.
-- Skills live at \`.opencode/skills/<name>/SKILL.md\` with frontmatter \`name\` and \`description\`.
+- Subpolar profiles are stored in \`subpolar.json\` when a workspace profile file is required.
+- Agents are best stored as files under \`.subpolar/agents/<name>.md\` for non-trivial prompts.
+- Skills live at \`.subpolar/skills/<name>/SKILL.md\` with frontmatter \`name\` and \`description\`.
 - Permissions are controlled through \`permission\`, with keys such as \`read\`, \`edit\`, \`bash\`, \`webfetch\`, \`websearch\`, \`skill\`, \`todowrite\`, and \`question\`.
-- \`websearch\` is available for non-default models only when OpenCode is started with \`OPENCODE_ENABLE_EXA=1\` or another truthy value.
 
 ## Safety
 
-- Validate unknown config fields against \`https://opencode.ai/config.json\` before writing them.
+- Validate unknown profile fields against the shared Subpolar schema before writing them.
 - Disable built-in agents by setting \`agent.<name>.disable: true\`.
-- After changing config, agents, or skills, OpenCode must be restarted or the workspace reloaded before changes take effect.
+- After changing agents or skills, reload the active Pi session before changes take effect.
 `
 }
 
@@ -1493,11 +981,11 @@ export function buildNotesCliSkill(): string {
   )
 }
 
-// --- OpenCode Config ---
+// --- Pi Profile ---
 
-export function buildAssistantOpenCodeConfig(agentDefinitions: Pick<AgentDefinition, 'name' | 'mode'>[] = []): OpenCodeConfigInput {
+export function buildAssistantPiConfig(agentDefinitions: Pick<AgentDefinition, 'name' | 'mode'>[] = []): PiConfigInput {
   const agent = Object.fromEntries(agentDefinitions.map(definition => [definition.name, { mode: definition.mode }]))
-  const config: OpenCodeConfigInput = {
+  const config: PiConfigInput = {
     instructions: ['AGENTS.md'],
     permission: buildFullPermission(),
     agent: {
@@ -1509,7 +997,7 @@ export function buildAssistantOpenCodeConfig(agentDefinitions: Pick<AgentDefinit
 
   const result = PiConfigSchema.safeParse(config)
   if (!result.success) {
-    throw new Error(`Generated OpenCode config is invalid: ${result.error.message}`)
+    throw new Error(`Generated Pi profile is invalid: ${result.error.message}`)
   }
 
   return config
@@ -1518,7 +1006,7 @@ export function buildAssistantOpenCodeConfig(agentDefinitions: Pick<AgentDefinit
 // --- Write operations ---
 
 async function writeFileIfChanged(filePath: string, content: string, existingContent?: string): Promise<boolean> {
-  if (hasSameContentHash(existingContent, content)) return false
+  if (hasSameContent(existingContent, content)) return false
   await writeFileContent(filePath, content)
   return true
 }
@@ -1526,7 +1014,7 @@ async function writeFileIfChanged(filePath: string, content: string, existingCon
 async function ensureSkillDirectories(generalChatDir: string): Promise<void> {
   for (const skillDir of SKILL_DIRS) {
     await ensureDirectoryExists(
-      path.join(generalChatDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_SKILLS_DIR, skillDir),
+      path.join(generalChatDir, ASSISTANT_SUBPOLAR_DIR, ASSISTANT_SKILLS_DIR, skillDir),
     )
   }
 }
@@ -1540,8 +1028,7 @@ async function writeAgentFiles(generalChatDir: string, agentsToWrite: AgentDefin
     const exists = await fileExists(agentPath)
     const existingContent = exists ? await readFileContent(agentPath) : undefined
 
-    const isGenerated = exists && (matchesGeneratedAgentMd(agentDefinition.name, existingContent!) || matchesLegacyAssistantDefaultAgentMd(existingContent!))
-    const shouldOverwrite = isGenerated || !exists
+    const shouldOverwrite = !exists
     const created = shouldOverwrite && await writeFileIfChanged(agentPath, content, existingContent)
 
     agentInfos.push({
@@ -1555,97 +1042,47 @@ async function writeAgentFiles(generalChatDir: string, agentsToWrite: AgentDefin
   return agentInfos
 }
 
-async function removeGeneratedAgentFiles(generalChatDir: string): Promise<void> {
-  for (const agentName of AGENT_NAMES) {
-    const agentPath = getAgentPath(generalChatDir, agentName)
-    if (!await fileExists(agentPath)) continue
-    const content = await readFileContent(agentPath)
-    if (matchesGeneratedAgentMd(agentName, content) || (agentName === AGENT_AUTO && matchesLegacyAssistantDefaultAgentMd(content))) {
-      await deletePath(agentPath)
-    }
-  }
-}
-
 export async function ensureGeneralChat(
   project: Project,
   deps: { db: Database; apiBaseUrl: string },
-  options?: { overwriteAgentsMd?: boolean; overwriteOpenCodeConfig?: boolean },
+  options?: { overwriteAgentsMd?: boolean; overwritePiConfig?: boolean },
 ): Promise<GeneralChatStatus> {
   const generalChatDir = getGeneralChatDirectory()
   await deleteSystemAgents(deps.db)
 
   await ensureDirectoryExists(generalChatDir)
-  await removeGeneratedAgentFiles(generalChatDir)
   const configuredAgents = await listAgents(deps.db)
   const enabledAgents = configuredAgents.filter((agent) => agent.enabled)
-  const userAgentNames = new Set(configuredAgents.map((agent) => agent.name))
 
   const agentsMdPath = path.join(generalChatDir, ASSISTANT_AGENTS_MD_FILENAME)
-  const opencodeJsonPath = path.join(generalChatDir, ASSISTANT_OPENCODE_CONFIG_FILENAME)
+  const piConfigPath = path.join(generalChatDir, ASSISTANT_PI_CONFIG_FILENAME)
   const tokenPath = getInternalTokenPath(generalChatDir)
 
   const existingAgentsMdContent = await fileExists(agentsMdPath) ? await readFileContent(agentsMdPath) : undefined
-  const existingOpenCodeJsonContent = await fileExists(opencodeJsonPath) ? await readFileContent(opencodeJsonPath) : undefined
+  const existingPiConfigContent = await fileExists(piConfigPath) ? await readFileContent(piConfigPath) : undefined
 
-  const overwriteOpenCodeConfig = options?.overwriteOpenCodeConfig ?? false
+  const overwritePiConfig = options?.overwritePiConfig ?? false
   const overwriteAgentsMd = options?.overwriteAgentsMd ?? false
 
   const agentsMdContent = buildAssistantAgentsMd()
 
-  const agentsMdShouldMigrate =
-    existingAgentsMdContent !== undefined &&
-    matchesGeneratedAgentsMd(existingAgentsMdContent) &&
-    !hasSameContentHash(existingAgentsMdContent, agentsMdContent)
-
-  const agentsMdHasPreservedLegacyGuidance =
-    existingAgentsMdContent !== undefined &&
-    !overwriteAgentsMd &&
-    !matchesGeneratedAgentsMd(existingAgentsMdContent) &&
-    containsLegacyAssistantAgentsGuidance(existingAgentsMdContent)
-
   const agentsMdCreated =
     !existingAgentsMdContent ||
-    overwriteAgentsMd ||
-    agentsMdShouldMigrate
+    overwriteAgentsMd
 
-  if (agentsMdCreated && !hasSameContentHash(existingAgentsMdContent, agentsMdContent)) {
+  if (agentsMdCreated && !hasSameContent(existingAgentsMdContent, agentsMdContent)) {
     await writeFileContent(agentsMdPath, agentsMdContent)
   }
 
-  const hasLegacyConfig = existingOpenCodeJsonContent !== undefined && await isLegacyAssistantOpenCodeConfig(opencodeJsonPath)
-
-  let opencodeJsonUpdated = false
-  if (!existingOpenCodeJsonContent || overwriteOpenCodeConfig || hasLegacyConfig) {
-    const config = hasLegacyConfig && existingOpenCodeJsonContent
-      ? await (async () => {
-          try {
-            const existingConfig = JSON.parse(existingOpenCodeJsonContent) as OpenCodeConfigInput
-            return removeDefaultAgentConfig(mergeAssistantOpenCodeConfig(existingConfig), userAgentNames)
-          } catch {
-            return buildAssistantOpenCodeConfig()
-          }
-        })()
-      : buildAssistantOpenCodeConfig(enabledAgents)
-    await writeFileContent(opencodeJsonPath, JSON.stringify(config, null, 2))
-    opencodeJsonUpdated = true
-  } else if (existingOpenCodeJsonContent) {
-    try {
-      const existingConfig = JSON.parse(existingOpenCodeJsonContent) as OpenCodeConfigInput
-      const updatedConfig = removeDefaultAgentConfig(existingConfig, userAgentNames)
-
-      if (updatedConfig !== existingConfig) {
-        await writeFileContent(opencodeJsonPath, JSON.stringify(updatedConfig, null, 2))
-        opencodeJsonUpdated = true
-      }
-    } catch {
-      const config = buildAssistantOpenCodeConfig(enabledAgents)
-      await writeFileContent(opencodeJsonPath, JSON.stringify(config, null, 2))
-      opencodeJsonUpdated = true
-    }
+  let piConfigUpdated = false
+  if (!existingPiConfigContent || overwritePiConfig) {
+    const config = buildAssistantPiConfig(enabledAgents)
+    await writeFileContent(piConfigPath, JSON.stringify(config, null, 2))
+    piConfigUpdated = true
   }
 
-  await ensureDirectoryExists(path.join(generalChatDir, ASSISTANT_OPENCODE_DIR))
-  await ensureDirectoryExists(path.join(generalChatDir, ASSISTANT_OPENCODE_DIR, ASSISTANT_AGENTS_DIR))
+  await ensureDirectoryExists(path.join(generalChatDir, ASSISTANT_SUBPOLAR_DIR))
+  await ensureDirectoryExists(path.join(generalChatDir, ASSISTANT_SUBPOLAR_DIR, ASSISTANT_AGENTS_DIR))
   await ensureSkillDirectories(generalChatDir)
 
   const token = await getOrCreateInternalToken(deps.db)
@@ -1663,7 +1100,7 @@ export async function ensureGeneralChat(
   const codeAnalysisSkillPath = getSkillPath(generalChatDir, SKILL_CODE_ANALYSIS_DIR)
   const researchWebSkillPath = getSkillPath(generalChatDir, SKILL_RESEARCH_WEB_DIR)
   const subpolarContextSkillPath = getSkillPath(generalChatDir, SKILL_SUBPOLAR_CONTEXT_DIR)
-  const opencodeContextSkillPath = getSkillPath(generalChatDir, SKILL_OPENCODE_CONTEXT_DIR)
+  const piContextSkillPath = getSkillPath(generalChatDir, SKILL_PI_CONTEXT_DIR)
   const calendarCliSkillPath = getSkillPath(generalChatDir, SKILL_CALENDAR_CLI_DIR)
   const mailCliSkillPath = getSkillPath(generalChatDir, SKILL_MAIL_CLI_DIR)
   const todoCliSkillPath = getSkillPath(generalChatDir, SKILL_TODO_CLI_DIR)
@@ -1678,7 +1115,7 @@ export async function ensureGeneralChat(
   const existingCodeAnalysisSkillContent = await fileExists(codeAnalysisSkillPath) ? await readFileContent(codeAnalysisSkillPath) : undefined
   const existingResearchWebSkillContent = await fileExists(researchWebSkillPath) ? await readFileContent(researchWebSkillPath) : undefined
   const existingSubpolarContextSkillContent = await fileExists(subpolarContextSkillPath) ? await readFileContent(subpolarContextSkillPath) : undefined
-  const existingOpenCodeContextSkillContent = await fileExists(opencodeContextSkillPath) ? await readFileContent(opencodeContextSkillPath) : undefined
+  const existingPiContextSkillContent = await fileExists(piContextSkillPath) ? await readFileContent(piContextSkillPath) : undefined
   const existingCalendarCliSkillContent = await fileExists(calendarCliSkillPath) ? await readFileContent(calendarCliSkillPath) : undefined
   const existingMailCliSkillContent = await fileExists(mailCliSkillPath) ? await readFileContent(mailCliSkillPath) : undefined
   const existingTodoCliSkillContent = await fileExists(todoCliSkillPath) ? await readFileContent(todoCliSkillPath) : undefined
@@ -1693,7 +1130,7 @@ export async function ensureGeneralChat(
   const codeAnalysisSkillCreated = await writeFileIfChanged(codeAnalysisSkillPath, buildCodeAnalysisSkill(), existingCodeAnalysisSkillContent)
   const researchWebSkillCreated = await writeFileIfChanged(researchWebSkillPath, buildResearchWebSkill(), existingResearchWebSkillContent)
   const subpolarContextSkillCreated = await writeFileIfChanged(subpolarContextSkillPath, buildSubpolarContextSkill(), existingSubpolarContextSkillContent)
-  const opencodeContextSkillCreated = await writeFileIfChanged(opencodeContextSkillPath, buildOpenCodeContextSkill(), existingOpenCodeContextSkillContent)
+  const piContextSkillCreated = await writeFileIfChanged(piContextSkillPath, buildPiContextSkill(), existingPiContextSkillContent)
   const calendarCliSkillCreated = await writeFileIfChanged(calendarCliSkillPath, buildCalendarCliSkill(), existingCalendarCliSkillContent)
   const mailCliSkillCreated = await writeFileIfChanged(mailCliSkillPath, buildMailCliSkill(), existingMailCliSkillContent)
   const todoCliSkillCreated = await writeFileIfChanged(todoCliSkillPath, buildTodoCliSkill(), existingTodoCliSkillContent)
@@ -1702,32 +1139,20 @@ export async function ensureGeneralChat(
 
   const agents = await writeAgentFiles(generalChatDir, enabledAgents)
 
-  const managedUpdatesApplied = agentsMdCreated || opencodeJsonUpdated || agents.some(a => a.created)
-  const warnings = managedUpdatesApplied && agentsMdHasPreservedLegacyGuidance
-    ? [
-        {
-          code: 'assistant-agents-md-preserved',
-          path: agentsMdPath,
-          message: 'Some General Chat instruction updates were not applied because AGENTS.md appears to contain customized legacy General Chat instructions. To regenerate the default workspace explanation, manually delete AGENTS.md and initialize General Chat again.',
-        },
-      ]
-    : undefined
-
   return {
     repoId: project.id,
     directory: generalChatDir,
     relativePath: GENERAL_CHAT_RELATIVE_PATH,
-    warnings,
     files: {
       agentsMd: {
         path: agentsMdPath,
         exists: true,
         created: agentsMdCreated,
       },
-      opencodeJson: {
-        path: opencodeJsonPath,
+      piConfigJson: {
+        path: piConfigPath,
         exists: true,
-        created: opencodeJsonUpdated,
+        created: piConfigUpdated,
       },
     },
     agents,
@@ -1767,9 +1192,9 @@ export async function ensureGeneralChat(
       path: subpolarContextSkillPath,
       created: subpolarContextSkillCreated,
     },
-    opencodeContextSkill: {
-      path: opencodeContextSkillPath,
-      created: opencodeContextSkillCreated,
+    piContextSkill: {
+      path: piContextSkillPath,
+      created: piContextSkillCreated,
     },
     calendarCliSkill: {
       path: calendarCliSkillPath,
@@ -1794,58 +1219,13 @@ export async function ensureGeneralChat(
   }
 }
 
-function removeDefaultAgentConfig(config: OpenCodeConfigInput, userAgentNames: Set<string>): OpenCodeConfigInput {
-  const agent = { ...(config.agent ?? {}) }
-  let changed = false
-  for (const name of AGENT_NAMES) {
-    if (!userAgentNames.has(name) && name in agent) {
-      delete agent[name]
-      changed = true
-    }
-  }
 
-  if (!changed && !(config.default_agent && AGENT_NAMES.includes(config.default_agent as typeof AGENT_NAMES[number]) && !userAgentNames.has(config.default_agent))) {
-    return config
-  }
-
-  const { default_agent: defaultAgent, ...rest } = config
-  return {
-    ...rest,
-    ...(defaultAgent && (!AGENT_NAMES.includes(defaultAgent as typeof AGENT_NAMES[number]) || userAgentNames.has(defaultAgent)) ? { default_agent: defaultAgent } : {}),
-    agent,
-  }
-}
-
-function mergeAssistantOpenCodeConfig(existing?: OpenCodeConfigInput): OpenCodeConfigInput {
-  const generated = buildAssistantOpenCodeConfig()
-
-  return {
-    ...generated,
-    ...existing,
-    instructions: existing?.instructions ?? generated.instructions,
-    permission: existing?.permission ?? generated.permission,
-    agent: { ...(generated.agent ?? {}), ...(existing?.agent ?? {}) },
-  }
-}
-
-async function isLegacyAssistantOpenCodeConfig(opencodeJsonPath: string): Promise<boolean> {
-  try {
-    const content = await readFileContent(opencodeJsonPath)
-    const config = JSON.parse(content) as {
-      permission?: { allow?: unknown; ask?: unknown }
-    }
-    if (Array.isArray(config.permission?.allow) || Array.isArray(config.permission?.ask)) return true
-    return false
-  } catch {
-    return false
-  }
-}
 
 export async function getGeneralChatStatus(project: Project): Promise<GeneralChatStatus> {
   const generalChatDir = getGeneralChatDirectory()
 
   const agentsMdPath = path.join(generalChatDir, ASSISTANT_AGENTS_MD_FILENAME)
-  const opencodeJsonPath = path.join(generalChatDir, ASSISTANT_OPENCODE_CONFIG_FILENAME)
+  const piConfigPath = path.join(generalChatDir, ASSISTANT_PI_CONFIG_FILENAME)
   const tokenPath = getInternalTokenPath(generalChatDir)
   const automationsSkillPath = getSkillPath(generalChatDir, SKILL_AUTOMATIONS_DIR)
   const notificationsSkillPath = getSkillPath(generalChatDir, SKILL_NOTIFICATIONS_DIR)
@@ -1855,14 +1235,14 @@ export async function getGeneralChatStatus(project: Project): Promise<GeneralCha
   const codeAnalysisSkillPath = getSkillPath(generalChatDir, SKILL_CODE_ANALYSIS_DIR)
   const researchWebSkillPath = getSkillPath(generalChatDir, SKILL_RESEARCH_WEB_DIR)
   const subpolarContextSkillPath = getSkillPath(generalChatDir, SKILL_SUBPOLAR_CONTEXT_DIR)
-  const opencodeContextSkillPath = getSkillPath(generalChatDir, SKILL_OPENCODE_CONTEXT_DIR)
+  const piContextSkillPath = getSkillPath(generalChatDir, SKILL_PI_CONTEXT_DIR)
   const calendarCliSkillPath = getSkillPath(generalChatDir, SKILL_CALENDAR_CLI_DIR)
   const mailCliSkillPath = getSkillPath(generalChatDir, SKILL_MAIL_CLI_DIR)
   const todoCliSkillPath = getSkillPath(generalChatDir, SKILL_TODO_CLI_DIR)
   const notesCliSkillPath = getSkillPath(generalChatDir, SKILL_NOTES_CLI_DIR)
 
   const agentsMdExists = await fileExists(agentsMdPath)
-  const opencodeJsonExists = await fileExists(opencodeJsonPath)
+  const piConfigExists = await fileExists(piConfigPath)
 
   const agents: AgentFileInfo[] = []
   for (const agentName of AGENT_NAMES) {
@@ -1885,9 +1265,9 @@ export async function getGeneralChatStatus(project: Project): Promise<GeneralCha
         exists: agentsMdExists,
         created: false,
       },
-      opencodeJson: {
-        path: opencodeJsonPath,
-        exists: opencodeJsonExists,
+      piConfigJson: {
+        path: piConfigPath,
+        exists: piConfigExists,
         created: false,
       },
     },
@@ -1928,8 +1308,8 @@ export async function getGeneralChatStatus(project: Project): Promise<GeneralCha
       path: subpolarContextSkillPath,
       created: false,
     },
-    opencodeContextSkill: {
-      path: opencodeContextSkillPath,
+    piContextSkill: {
+      path: piContextSkillPath,
       created: false,
     },
     calendarCliSkill: {

@@ -1,5 +1,12 @@
 import type { AgentSkillAccess, SkillFileInfo } from '@subpolar/shared'
 
+function formatFullSkill(skill: SkillFileInfo): string {
+  const schema = skill.source === 'auto' && skill.inputSchema
+    ? `\n\nTool call parameters:\n\`\`\`json\n${JSON.stringify(skill.inputSchema, null, 2)}\n\`\`\``
+    : ''
+  return `### ${skill.name}\n${skill.description}${schema}\n\n${skill.body}`
+}
+
 export function buildAgentPromptPreview(input: {
   prompt?: string
   skillAccess?: AgentSkillAccess[]
@@ -10,7 +17,7 @@ export function buildAgentPromptPreview(input: {
     if (access.discovery === 'search') return []
     const skill = skills.get(access.id)
     if (!skill) return [`### ${access.id}\nMissing skill file`]
-    if (access.discovery === 'full') return [`### ${skill.name}\n${skill.description}\n\n${skill.body}`]
+    if (access.discovery === 'full') return [formatFullSkill(skill)]
     if (access.discovery === 'description') return [`### ${skill.name}\n${skill.source === 'auto' ? 'Type: Auto-generated\n' : ''}${skill.description || 'No description'}`]
     return [`### ${skill.name}`]
   })

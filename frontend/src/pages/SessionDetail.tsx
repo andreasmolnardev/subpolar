@@ -25,7 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ContextUsageIndicator } from "@/components/session/ContextUsageIndicator";
 import { useSession, useAbortSession, useMessages, useCreateSession, useSendPrompt } from "@/hooks/usePiHarness";
 import { useProjectActivity } from "@/hooks/useProjectActivity";
-import { OPENCODE_API_ENDPOINT } from "@/config";
+import { SUBPOLAR_API_BASE_URL } from "@/config";
 import { useSSE } from "@/hooks/useSSE";
 import { useUIState } from "@/stores/uiStateStore";
 import { useModelSelection } from "@/hooks/useModelSelection";
@@ -124,7 +124,7 @@ export function SessionDetail() {
 
   useProjectActivity(repoId, Boolean(repo));
 
-  const apiUrl = OPENCODE_API_ENDPOINT;
+  const apiUrl = SUBPOLAR_API_BASE_URL;
   
   const repoDirectory = repo?.fullPath;
   const sessionRouteSuffix = '';

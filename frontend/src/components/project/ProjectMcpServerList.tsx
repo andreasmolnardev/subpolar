@@ -93,7 +93,7 @@ export function ProjectMcpServerList({
         <div className="text-center py-6 text-muted-foreground">
           <Plug className="w-10 h-10 mx-auto mb-3 opacity-50" />
           <p className="text-sm">No MCP servers configured for this location</p>
-          <p className="text-xs mt-1">Add them in Settings or in the project's opencode.json</p>
+          <p className="text-xs mt-1">Add them in Settings or in the project's subpolar.json</p>
         </div>
       ) : isLoadingStatus ? (
         <div className="flex items-center justify-center py-8">

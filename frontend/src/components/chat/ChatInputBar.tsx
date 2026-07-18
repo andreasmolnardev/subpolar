@@ -18,7 +18,7 @@ import { useAgents, useAbortSession, useConfig, useCreateSession, useSendPrompt 
 import { getProviders } from "@/api/providers";
 import { DEFAULT_USER_PREFERENCES } from "@/api/types/settings";
 import { getProject, listProjectMentions, listProjects, loadMentionContext, type MentionContextItem, type Project } from "@/api/projects";
-import { OPENCODE_API_ENDPOINT } from "@/config";
+import { SUBPOLAR_API_BASE_URL } from "@/config";
 import { useSettings } from "@/hooks/useSettings";
 import { showToast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -97,7 +97,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
   const [selectedMentions, setSelectedMentions] = useState<MentionContextItem[]>([]);
 
-  const apiUrl = OPENCODE_API_ENDPOINT;
+  const apiUrl = SUBPOLAR_API_BASE_URL;
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],

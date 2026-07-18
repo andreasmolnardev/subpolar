@@ -83,6 +83,7 @@ export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
     text('description'),
     select('mode', ['primary', 'subagent']),
     text('prompt'),
+    text('systemPrompt'),
     json('permission'),
     json('skills'),
     json('skill_access'),

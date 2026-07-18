@@ -9,7 +9,6 @@ import {
   buildAutomationsSkill,
   buildReposSkill,
   buildSettingsSkill,
-  buildAssistantDefaultAgentMd,
   buildAssistantOpenCodeConfig,
   buildAssistantRepo,
   installAssistantWorkspace,
@@ -217,33 +216,6 @@ describe('buildSettingsSkill', () => {
     expect(skill).toContain('stt.apiKey')
     expect(skill).toContain('stt.endpoint')
     expect(skill).toContain('DO NOT attempt to set')
-  })
-})
-
-describe('buildAssistantDefaultAgentMd', () => {
-  it('contains description and mode in frontmatter', () => {
-    const content = buildAssistantDefaultAgentMd()
-    expect(content).toContain('description: Default subpolar assistant workspace agent')
-    expect(content).toContain('mode: primary')
-  })
-
-  it('references workspace skills', () => {
-    const content = buildAssistantDefaultAgentMd()
-    expect(content).toContain('repo-management')
-    expect(content).toContain('automation-management')
-    expect(content).toContain('notifications')
-    expect(content).toContain('manager-settings')
-  })
-
-  it('contains reload guidance in the agent prompt', () => {
-    const content = buildAssistantDefaultAgentMd()
-    expect(content).toContain('/assistant/reload')
-    expect(content).toContain('Always ask the user before reloading')
-  })
-
-  it('does not contain v file', () => {
-    const content = buildAssistantDefaultAgentMd()
-    expect(content).not.toContain('v file')
   })
 })
 

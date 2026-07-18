@@ -1,7 +1,7 @@
 When repository exploration is required:
 
 - Invoke:
-  opencode run --model openai/gpt-5.4-mini "$PROMPT"
+  subpolar-cli run --model openai/gpt-5.4-mini "$PROMPT"
 
 - Ask it to:
   - Find only the relevant files.

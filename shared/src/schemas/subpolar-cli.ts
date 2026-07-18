@@ -10,6 +10,7 @@ export const AgentDefinitionSchema = z.object({
   description: z.string(),
   mode: AgentModeSchema,
   prompt: z.string(),
+  systemPrompt: z.string().default(''),
   permission: z.record(z.string(), z.unknown()),
   skills: z.array(z.string()),
   skillAccess: z.array(AgentSkillAccessSchema).default([]),

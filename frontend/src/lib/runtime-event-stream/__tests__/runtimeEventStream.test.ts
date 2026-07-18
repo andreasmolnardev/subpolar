@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventStream, TestEventStreamTransport } from '..'
 import type { EventStreamHealthState } from '..'
 
-describe('OpenCodeEventStream', () => {
+describe('RuntimeEventStream', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })

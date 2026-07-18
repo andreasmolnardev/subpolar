@@ -468,7 +468,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       cwd: directory,
       messages,
       model,
-      systemPrompt: agent?.prompt,
+      systemPrompt: agent?.systemPrompt || agent?.prompt,
       skillAccess: agent?.skillAccess.length ? agent.skillAccess : agent?.skills.map(id => ({ id, discovery: 'description' as const })),
     })) {
       await writeRuntimeEvent(db, { runId, sessionId: run.sessionId, event })

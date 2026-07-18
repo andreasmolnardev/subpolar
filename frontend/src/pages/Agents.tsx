@@ -16,6 +16,7 @@ import { showToast } from '@/lib/toast'
 interface Agent {
   id?: string
   prompt?: string
+  systemPrompt?: string
   description?: string
   mode?: 'subagent' | 'primary' | 'all'
   temperature?: number
@@ -102,6 +103,7 @@ export function Agents() {
         description: agent.description || '',
         mode: agent.mode === 'all' ? 'primary' as const : agent.mode || 'subagent' as const,
         prompt: agent.prompt || '',
+        systemPrompt: agent.systemPrompt || '',
         permission: agent.permission || {},
         skills: agent.skills || [],
         skillAccess: agent.skillAccess || [],

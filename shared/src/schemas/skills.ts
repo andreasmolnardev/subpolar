@@ -48,6 +48,7 @@ export interface SkillFileInfo {
   name: string
   description: string
   body: string
+  inputSchema?: Record<string, unknown>
   scope: SkillScope
   location: string
   repoId?: number

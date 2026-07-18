@@ -32,6 +32,7 @@ const agentFormSchema = z.object({
   name: z.string().min(1, 'Agent name is required').regex(/^[a-z0-9-]+$/, 'Must be lowercase letters, numbers, and hyphens only'),
   description: z.string().optional(),
   prompt: z.string().min(1, 'Prompt is required'),
+  systemPrompt: z.string(),
   disable: z.boolean(),
   icon: z.string().optional(),
   skills: z.array(z.string()).optional(),
@@ -46,6 +47,7 @@ type ToolAccess = z.infer<typeof toolAccessSchema>
 interface Agent {
   id?: string
   prompt?: string
+  systemPrompt?: string
   description?: string
   mode?: 'subagent' | 'primary' | 'all'
   temperature?: number
@@ -87,6 +89,7 @@ function generatedToolSkill(tool: SubpolarTool): SkillFileInfo {
     name: generatedToolSkillName(tool.tool_id),
     description: `Auto-generated skill for ${tool.tool_id}: ${tool.description}`,
     body: '',
+    inputSchema: tool.input_schema,
     scope: 'global',
     location: `subpolar-tool://${tool.tool_id}`,
     source: 'auto',
@@ -172,6 +175,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
       name: agent?.name || '',
       description: agent?.agent.description || '',
       prompt: agent?.agent.prompt || '',
+      systemPrompt: agent?.agent.systemPrompt || '',
       disable: agent?.agent.disable ?? false,
       icon: agent?.agent.icon || '',
       skills: agent?.agent.skills || [],
@@ -198,6 +202,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
   const toolAccess = form.watch('toolAccess') ?? EMPTY_TOOL_ACCESS
   const skillAccess = form.watch('skillAccess') ?? EMPTY_SKILL_ACCESS
   const promptValue = form.watch('prompt')
+  const systemPromptValue = form.watch('systemPrompt')
   const selectedTool = toolAccess[selectedToolIndex]
   const selectedSkill = skillAccess[selectedSkillIndex]
   const promptPreview = useMemo(() => buildAgentPromptPreview({ prompt: promptValue, skillAccess, skills: promptSkills }), [promptValue, skillAccess, promptSkills])
@@ -296,6 +301,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
     ]
     const agent: Agent = {
       prompt: values.prompt,
+      systemPrompt: values.systemPrompt.trim() || promptPreview,
       description: values.description || undefined,
       disable: values.disable,
       tools: {},
@@ -459,6 +465,26 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                         className="font-mono md:text-sm"
                       />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="systemPrompt"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>System Prompt</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        placeholder={promptPreview}
+                        rows={10}
+                        className="font-mono md:text-sm"
+                      />
+                    </FormControl>
+                    <FormDescription>Generated from the agent configuration when left blank. Edit it to override the generated prompt.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -647,7 +673,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
             </div>
             <div className="rounded-lg border bg-muted/30 p-3 lg:sticky lg:top-0 lg:max-h-[70vh] overflow-auto">
               <div className="mb-2 text-sm font-medium">Prompt Preview</div>
-              <pre className="whitespace-pre-wrap break-words text-xs font-mono text-muted-foreground">{promptPreview}</pre>
+              <pre className="whitespace-pre-wrap break-words text-xs font-mono text-muted-foreground">{systemPromptValue.trim() || promptPreview}</pre>
             </div>
             </div>
           </Form>

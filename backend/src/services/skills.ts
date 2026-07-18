@@ -21,7 +21,7 @@ interface PiSkillInfo {
 const SKILL_SCAN_IGNORES = new Set(['node_modules', '.git', 'dist', 'build', '.next', '.vite', 'coverage'])
 
 function getGlobalSkillsPath(): string {
-  return path.join(getWorkspacePath(), '.config', 'opencode', 'skills')
+  return path.join(getWorkspacePath(), '.config', 'subpolar', 'skills')
 }
 
 function getOldGlobalSkillsPath(): string {
@@ -29,7 +29,7 @@ function getOldGlobalSkillsPath(): string {
 }
 
 function getProjectSkillsPath(project: Project): string {
-  return path.join(project.fullPath, '.opencode', 'skills')
+  return path.join(project.fullPath, '.subpolar', 'skills')
 }
 
 export async function migrateGlobalSkills(): Promise<void> {
@@ -159,7 +159,7 @@ function classifySkillLocation(
     return { scope: 'global' }
   }
   if (customDirectory) {
-    const projectPrefix = path.join(customDirectory, '.opencode', 'skills')
+    const projectPrefix = path.join(customDirectory, '.subpolar', 'skills')
     if (location.startsWith(projectPrefix + path.sep) || location.startsWith(customDirectory + path.sep)) {
       return { scope: 'project' }
     }
@@ -215,7 +215,7 @@ export async function listManagedSkills(
   if (directory) {
     const skills = [
       ...await readSkillsFromPath(globalPrefix, 'global'),
-      ...await readSkillsRecursive(path.join(directory, '.opencode', 'skills'), 'project'),
+      ...await readSkillsRecursive(path.join(directory, '.subpolar', 'skills'), 'project'),
       ...await readSkillsRecursive(directory, 'auto'),
     ]
     for (const skill of skills) {
@@ -238,7 +238,7 @@ export async function listManagedSkills(
     for (const dir of directories) {
       const skills = [
         ...await readSkillsFromPath(globalPrefix, 'global'),
-        ...await readSkillsRecursive(path.join(dir, '.opencode', 'skills'), 'project'),
+      ...await readSkillsRecursive(path.join(dir, '.subpolar', 'skills'), 'project'),
         ...await readSkillsRecursive(dir, 'auto'),
       ]
       for (const skill of skills) {

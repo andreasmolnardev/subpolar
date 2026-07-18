@@ -8,6 +8,7 @@ function toAgent(record: Record<string, unknown>): AgentDefinition {
     description: String(record.description ?? ''),
     mode: record.mode === 'primary' ? 'primary' : 'subagent',
     prompt: String(record.prompt ?? ''),
+    systemPrompt: String(record.systemPrompt ?? ''),
     permission: (record.permission && typeof record.permission === 'object' ? record.permission : {}) as Record<string, unknown>,
     skills: Array.isArray(record.skills) ? record.skills.map(String) : [],
     skillAccess: Array.isArray(record.skill_access) ? record.skill_access as AgentDefinition['skillAccess'] : [],

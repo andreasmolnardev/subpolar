@@ -247,18 +247,17 @@ export function createSettingsRoutes(db: Database) {
   })
 
   app.get('/pi-settings', async (c) => {
-    return c.json(await settingsService.getOpenCodeConfigs(c.req.query('userId') || 'default'))
+    return c.json(await settingsService.getPiConfigs())
   })
 
   app.get('/pi-settings/default', async (c) => {
-    return c.json(await settingsService.getDefaultOpenCodeConfig(c.req.query('userId') || 'default'))
+    return c.json(await settingsService.getDefaultPiConfig())
   })
 
   app.post('/pi-settings', async (c) => {
     try {
-      const userId = c.req.query('userId') || 'default'
       const request = CreatePiConfigRequestSchema.parse(await c.req.json())
-      return c.json(await settingsService.createOpenCodeConfig(request, userId))
+      return c.json(await settingsService.createPiConfig(request))
     } catch (error) {
       if (error instanceof z.ZodError) return c.json({ error: 'Invalid Pi config data', details: error.issues }, 400)
       logger.error('Failed to create Pi config:', error)
@@ -268,9 +267,8 @@ export function createSettingsRoutes(db: Database) {
 
   app.put('/pi-settings/:configName', async (c) => {
     try {
-      const userId = c.req.query('userId') || 'default'
       const request = UpdatePiConfigRequestSchema.parse(await c.req.json())
-      const config = await settingsService.updateOpenCodeConfig(decodeURIComponent(c.req.param('configName')), request, userId)
+      const config = await settingsService.updatePiConfig(decodeURIComponent(c.req.param('configName')), request)
       if (!config) return c.json({ error: 'Pi config not found' }, 404)
       return c.json(config)
     } catch (error) {
@@ -281,13 +279,13 @@ export function createSettingsRoutes(db: Database) {
   })
 
   app.delete('/pi-settings/:configName', async (c) => {
-    const deleted = await settingsService.deleteOpenCodeConfig(decodeURIComponent(c.req.param('configName')), c.req.query('userId') || 'default')
+    const deleted = await settingsService.deletePiConfig(decodeURIComponent(c.req.param('configName')))
     if (!deleted) return c.json({ error: 'Pi config not found' }, 404)
     return c.json({ success: true })
   })
 
   app.post('/pi-settings/:configName/set-default', async (c) => {
-    const config = await settingsService.setDefaultOpenCodeConfig(decodeURIComponent(c.req.param('configName')), c.req.query('userId') || 'default')
+    const config = await settingsService.setDefaultPiConfig(decodeURIComponent(c.req.param('configName')))
     if (!config) return c.json({ error: 'Pi config not found' }, 404)
     return c.json(config)
   })

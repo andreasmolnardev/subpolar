@@ -11,7 +11,7 @@ import { settingsApi, type AgentToolPolicyEffect } from "@/api/settings";
 import { DEFAULT_USER_PREFERENCES } from "@/api/types/settings";
 import { useAgents } from "@/hooks/usePiHarness";
 import { useSettings } from "@/hooks/useSettings";
-import { OPENCODE_API_ENDPOINT } from "@/config";
+import { SUBPOLAR_API_BASE_URL } from "@/config";
 import { GENERAL_CHAT_PROJECT_ID } from "@subpolar/shared/utils";
 import {
   Bot,
@@ -252,7 +252,7 @@ export function DesktopSidebar() {
     queryFn: listStoredSessions,
   });
 
-  const { data: generalChatAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, generalChatDirectory);
+  const { data: generalChatAgents = [] } = useAgents(SUBPOLAR_API_BASE_URL, generalChatDirectory);
   const hiddenSidebarAgents = useMemo(
     () => new Set((preferences?.hiddenSidebarAgents ?? DEFAULT_USER_PREFERENCES.hiddenSidebarAgents).map((name) => name.toLowerCase())),
     [preferences?.hiddenSidebarAgents],
@@ -263,7 +263,7 @@ export function DesktopSidebar() {
     ? generalChatProject
     : navigableProjects.find((project) => String(project.id) === selectedSidebarProjectId);
   const selectedSidebarDirectory = selectedSidebarProject?.fullPath;
-  const { data: projectAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, selectedSidebarDirectory);
+  const { data: projectAgents = [] } = useAgents(SUBPOLAR_API_BASE_URL, selectedSidebarDirectory);
   const visibleProjectAgents = useMemo(() => {
     const base = projectAgents.filter((agent) => !hiddenSidebarAgents.has(agent.name.toLowerCase()));
     const overrideNames = selectedSidebarProject?.hasAgentOverride ? new Set(selectedSidebarProject.agentNames ?? []) : null;
@@ -314,7 +314,7 @@ export function DesktopSidebar() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subpolar-configs"] });
       queryClient.invalidateQueries({
-        queryKey: ["subpolar", "agents", OPENCODE_API_ENDPOINT, generalChatDirectory],
+      queryKey: ["subpolar", "agents", SUBPOLAR_API_BASE_URL, generalChatDirectory],
       });
       queryClient.invalidateQueries({ queryKey: ["agent-tool-policies"] });
     },

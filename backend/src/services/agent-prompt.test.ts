@@ -38,6 +38,25 @@ describe('buildAgentPrompt', () => {
     expect(result.prompt).toContain('## Skills\n### tool-weather-get')
   })
 
+  it('includes generated tool parameters for full discovery', () => {
+    const result = buildAgentPrompt({
+      skillAccess: [{ id: 'tool-openapi-wttr-in-getweather', discovery: 'full', source: 'tool-default' }],
+      skills: [{
+        name: 'tool-openapi-wttr-in-getweather',
+        description: 'Auto-generated skill for openapi.wttr-in.getWeather: Get current weather and forecast for a location from openapi',
+        body: 'Load tool-openapi-wttr-in-getweather with skill-load for the tool\'s full instructions and schema.',
+        inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+        scope: 'global',
+        location: 'subpolar-tool://openapi.wttr-in.getWeather',
+        source: 'auto',
+      }],
+    })
+
+    expect(result.prompt).toContain('Tool call parameters:')
+    expect(result.prompt).toContain('"query": {')
+    expect(result.prompt).toContain('"required": [')
+  })
+
   it('does not add skills to the prompt unless they are explicitly configured', () => {
     const result = buildAgentPrompt({
       skills: [{
