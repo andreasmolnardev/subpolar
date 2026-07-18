@@ -4,7 +4,7 @@ import { readFile } from 'fs/promises'
 import { compareVersions } from '../utils/version-utils'
 
 const GITHUB_REPO_OWNER = 'chriswritescode-dev'
-const GITHUB_REPO_NAME = 'opencode-manager'
+const GITHUB_REPO_NAME = 'subpolar'
 
 interface CachedRelease {
   tagName: string
@@ -27,7 +27,7 @@ async function fetchLatestRelease(): Promise<CachedRelease | null> {
       {
         headers: {
           'Accept': 'application/vnd.github+json',
-          'User-Agent': 'OpenCode-Manager'
+          'User-Agent': 'Subpolar'
         }
       }
     )
@@ -54,7 +54,7 @@ async function fetchLatestRelease(): Promise<CachedRelease | null> {
   }
 }
 
-const opencodeManagerVersionPromise = (async (): Promise<string | null> => {
+const subpolarVersionPromise = (async (): Promise<string | null> => {
   try {
     const packageUrl = new URL('../../../package.json', import.meta.url)
     const packageJsonRaw = await readFile(packageUrl, 'utf-8')
@@ -70,7 +70,7 @@ export function createHealthRoutes() {
 
   app.get('/', async (c) => {
     try {
-      const opencodeManagerVersion = await opencodeManagerVersionPromise
+      const subpolarVersion = await subpolarVersionPromise
       const dbCheck = await pbHealthCheck()
       const status = dbCheck ? 'healthy' : 'degraded'
 
@@ -80,16 +80,16 @@ export function createHealthRoutes() {
         database: dbCheck ? 'connected' : 'disconnected',
         runtime: 'pi',
         pi: 'healthy',
-        opencodeManagerVersion,
+        version: subpolarVersion,
       }
 
       return c.json(response, 200)
     } catch (error) {
-      const opencodeManagerVersion = await opencodeManagerVersionPromise
+      const subpolarVersion = await subpolarVersionPromise
       return c.json({
         status: 'unhealthy',
         timestamp: new Date().toISOString(),
-        opencodeManagerVersion,
+        version: subpolarVersion,
         error: error instanceof Error ? error.message : 'Unknown error'
       }, 503)
     }
@@ -103,7 +103,7 @@ export function createHealthRoutes() {
   })
 
   app.get('/version', async (c) => {
-    const currentVersion = await opencodeManagerVersionPromise
+    const currentVersion = await subpolarVersionPromise
     const latestRelease = await fetchLatestRelease()
 
     if (!currentVersion) {

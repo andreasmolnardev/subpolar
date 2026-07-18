@@ -322,7 +322,7 @@ export function SkillsEditor({ skills, managedSkills = [], onChange }: SkillsEdi
                 handlePathsChange(updated.length > 0 ? updated : [])
               }}
               label="Skill Paths"
-              placeholder="e.g., .opencode/skills/"
+              placeholder="e.g., .subpolar/skills/"
             />
 
             <SkillPathEditor
@@ -389,4 +389,3 @@ export function SkillsEditor({ skills, managedSkills = [], onChange }: SkillsEdi
     </div>
   )
 }
-

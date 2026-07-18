@@ -448,10 +448,27 @@ export class SubpolarClient {
     })
   }
 
+  async listRunEvents(runID: string) {
+    return fetchWrapper<{ events: Array<{ id: string; type: string; payload: unknown; createdAt: number }> }>(`${this.nativeBaseURL}/runs/${encodeURIComponent(runID)}/events`, {
+      params: this.getParams(),
+    })
+  }
+
+  getRunEventStreamURL(runID: string) {
+    const base = this.nativeBaseURL.startsWith('http')
+      ? this.nativeBaseURL
+      : `${window.location.origin}${this.nativeBaseURL}`
+    const url = new URL(`${base}/runs/${encodeURIComponent(runID)}/events/stream`)
+    if (this.directory) {
+      url.searchParams.set('directory', this.directory)
+    }
+    return url.toString()
+  }
+
   getEventSourceURL() {
-    const base = this.baseURL.startsWith('http')
-      ? this.baseURL
-      : `${window.location.origin}${this.baseURL}`
+    const base = this.nativeBaseURL.startsWith('http')
+      ? this.nativeBaseURL
+      : `${window.location.origin}${this.nativeBaseURL}`
     const url = new URL(`${base}/sse`)
     if (this.directory) {
       url.searchParams.set('directory', this.directory)

@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { AlertCircle, KeyRound, XCircle, Clock } from 'lucide-react'
-import { parseRuntimeError, type RuntimeError } from '@/lib/opencode-errors'
+import { parseRuntimeError, type RuntimeError } from '@/lib/runtime-errors'
 
 interface MessageErrorProps {
   error: RuntimeError

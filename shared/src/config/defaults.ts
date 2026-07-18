@@ -19,8 +19,8 @@ export const DEFAULTS = {
   WORKSPACE: {
     BASE_PATH: './workspace',
     REPOS_DIR: 'repos',
-    CONFIG_DIR: '.config/opencode',
-    AUTH_FILE: '.opencode/state/opencode/auth.json',
+    CONFIG_DIR: '.config/subpolar',
+    AUTH_FILE: '.subpolar/state/pi/auth.json',
   },
 
   TIMEOUTS: {

@@ -1,7 +1,7 @@
 {
   "id": "/",
   "name": "subpolar",
-  "short_name": "OpenCode",
+  "short_name": "Subpolar",
   "description": "AI-powered coding assistant interface",
   "start_url": "/",
   "display": "standalone",

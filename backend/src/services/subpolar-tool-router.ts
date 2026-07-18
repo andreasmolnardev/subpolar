@@ -6,6 +6,8 @@ import { getEnabledIntegrationForTool } from '../db/integrations'
 import type { IntegrationType } from '@subpolar/shared/types'
 import { getUpcomingCalDavEvents, type CalDavEventQuery } from './caldav'
 import { webScrape, webSearch } from './web-research'
+import { callMcpTool } from './mcp'
+import { callOpenApiTool } from './openapi'
 
 type PolicyResult =
   | { decision: 'allow' }
@@ -13,6 +15,18 @@ type PolicyResult =
   | { decision: 'approval'; approvalId: string; message: string }
 
 export type ToolPermissionOverride = 'ask' | 'none' | 'allow_all'
+
+function generatedToolSkillName(toolId: string): string {
+  return `tool-${toolId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
+}
+
+function hasSelectedGeneratedToolSkill(agent: AgentDefinition, toolId: string): boolean {
+  return agent.skillAccess.some(skill => skill.id === generatedToolSkillName(toolId))
+}
+
+function matchingPolicies(policies: Awaited<ReturnType<typeof listPoliciesForAgent>>, toolId: string) {
+  return policies.filter(policy => policy.tool_id === toolId || policy.tool_id === '*')
+}
 
 function validateInput(schema: Record<string, unknown>, input: unknown): string | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return 'Input must be a JSON object'
@@ -40,7 +54,7 @@ async function checkPolicy(db: Database, agent: AgentDefinition, tool: ToolDefin
   if (permissionOverride === 'allow_all') return { decision: 'allow' }
 
   const policies = await listPoliciesForAgent(db, agentId)
-  const matching = policies.filter(policy => policy.tool_id === tool.tool_id || policy.tool_id === '*')
+  const matching = matchingPolicies(policies, tool.tool_id)
 
   if (matching.some(policy => policy.effect === 'deny')) return { decision: 'deny', code: 'PERMISSION_DENIED', message: `Agent is not allowed to use ${tool.tool_id}` }
 
@@ -49,18 +63,21 @@ async function checkPolicy(db: Database, agent: AgentDefinition, tool: ToolDefin
     return { decision: 'approval', approvalId, message: `${tool.tool_id} requires approval` }
   }
 
-  if (matching.some(policy => policy.effect === 'allow')) return { decision: 'allow' }
+  if (matching.some(policy => policy.effect === 'allow') || hasSelectedGeneratedToolSkill(agent, tool.tool_id)) return { decision: 'allow' }
 
   return { decision: 'deny', code: 'PERMISSION_DENIED', message: `Agent is not allowed to use ${tool.tool_id}` }
 }
 
-async function callIntegrationTool(db: Database, tool: ToolDefinition, input: unknown): Promise<unknown> {
+async function callIntegrationTool(db: Database, tool: ToolDefinition, input: unknown, sessionId?: string): Promise<unknown> {
   const inputObject = input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : {}
 
   if (tool.target === 'web') {
     if (tool.operation === 'search') return webSearch(inputObject)
     if (tool.operation === 'scrape') return webScrape(inputObject)
   }
+
+  if (tool.adapter === 'mcp') return callMcpTool(db, tool.target, tool.operation, input, sessionId)
+  if (tool.adapter === 'openapi') return callOpenApiTool(db, tool.target, tool.operation, input)
 
   const integrationType = typeof tool.metadata.integrationType === 'string' ? tool.metadata.integrationType as IntegrationType : undefined
   if (!integrationType) {
@@ -82,10 +99,6 @@ async function callIntegrationTool(db: Database, tool: ToolDefinition, input: un
     return { toolId: tool.tool_id, integrationId: integration.id, provider: 'imap_smtp', operation: tool.operation, status: 'configured', input }
   }
 
-  if (tool.adapter === 'mcp') {
-    return { toolId: tool.tool_id, integrationId: integration.id, provider: 'mcp', server: tool.target, operation: tool.operation, status: 'configured', input }
-  }
-
   return { toolId: tool.tool_id, integrationId: integration.id, operation: tool.operation, status: 'configured', input }
 }
 
@@ -95,10 +108,18 @@ export async function listToolsForAgent(db: Database, agentId: string) {
 
   const tools = await listEnabledTools(db)
   const policies = await listPoliciesForAgent(db, agent.id)
-  const allowedIds = new Set(policies.filter(policy => policy.effect === 'allow' || policy.effect === 'approval').map(policy => policy.tool_id))
   return tools
-    .filter(tool => allowedIds.has(tool.tool_id) || allowedIds.has('*'))
-    .map(tool => ({ id: tool.tool_id, description: tool.description, requiresApproval: tool.requires_approval || policies.some(policy => policy.tool_id === tool.tool_id && policy.effect === 'approval') }))
+    .filter((tool) => {
+      const matching = matchingPolicies(policies, tool.tool_id)
+      if (matching.some(policy => policy.effect === 'deny')) return false
+      return matching.some(policy => policy.effect === 'allow' || policy.effect === 'approval') || hasSelectedGeneratedToolSkill(agent, tool.tool_id)
+    })
+    .map((tool) => ({
+      id: tool.tool_id,
+      description: tool.description,
+      inputSchema: tool.input_schema,
+      requiresApproval: tool.requires_approval || matchingPolicies(policies, tool.tool_id).some(policy => policy.effect === 'approval'),
+    }))
 }
 
 export async function describeToolForAgent(db: Database, agentId: string, toolId: string) {
@@ -107,9 +128,9 @@ export async function describeToolForAgent(db: Database, agentId: string, toolId
   const agent = await getAgentByIdOrSlug(db, agentId)
   if (!agent || !agent.enabled) return null
   const policies = await listPoliciesForAgent(db, agent.id)
-  const matching = policies.filter(policy => policy.tool_id === tool.tool_id || policy.tool_id === '*')
+  const matching = matchingPolicies(policies, tool.tool_id)
   if (matching.some(policy => policy.effect === 'deny')) return null
-  const allowed = matching.some(policy => policy.effect === 'allow' || policy.effect === 'approval')
+  const allowed = matching.some(policy => policy.effect === 'allow' || policy.effect === 'approval') || hasSelectedGeneratedToolSkill(agent, tool.tool_id)
   if (!allowed) return null
   return {
     id: tool.tool_id,
@@ -148,7 +169,7 @@ export async function callTool(db: Database, agentId: string, toolId: string, in
   }
 
   try {
-    const result = await callIntegrationTool(db, tool, input)
+    const result = await callIntegrationTool(db, tool, input, sessionId)
     await writeToolAudit(db, { agent_id: resolvedAgentId, session_id: sessionId, tool_id: toolId, input, status: 'success', result_summary: `${tool.target} adapter accepted call` })
     return { ok: true as const, toolId, result }
   } catch (error) {

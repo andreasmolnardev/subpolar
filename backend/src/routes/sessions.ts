@@ -6,6 +6,7 @@ import type { RuntimeId, RuntimeUsage } from '../runtime/types'
 import type { RuntimeRegistry } from '../runtime/registry'
 import { sseAggregator } from '../services/sse-aggregator'
 import { logger } from '../utils/logger'
+import { getAgentByIdOrSlug } from '../db/subpolar-agents'
 
 type StoredToolState = Record<string, unknown>
 
@@ -279,6 +280,7 @@ function normalizeUsage(usage: RuntimeUsage) {
 async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId: string, projectId: string | null, model?: Record<string, unknown>, directory?: string, requestedAt?: number): Promise<void> {
   const run = await getRun(db, runId)
   if (!run) return
+  const agent = await getAgentByIdOrSlug(db, run.agentId)
 
   await updateRunStatus(db, runId, 'running')
   const messages = await listMessages(db, run.sessionId)
@@ -466,6 +468,8 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       cwd: directory,
       messages,
       model,
+      systemPrompt: agent?.systemPrompt || agent?.prompt,
+      skillAccess: agent?.skillAccess.length ? agent.skillAccess : agent?.skills.map(id => ({ id, discovery: 'description' as const })),
     })) {
       await writeRuntimeEvent(db, { runId, sessionId: run.sessionId, event })
       if (event.type === 'message.delta') {

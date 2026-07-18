@@ -7,8 +7,8 @@ import { listProjects } from '@/api/projects'
 import { updateStoredSession } from '@/api/sessions'
 import type { PermissionRequest, PermissionResponse, QuestionRequest, SSEEvent, SSHHostKeyRequest, MessageWithParts } from '@/api/types'
 import { showToast } from '@/lib/toast'
-import { eventStream, type EventStreamHealthState } from '@/lib/opencode-event-stream'
-import { OPENCODE_API_ENDPOINT } from '@/config'
+import { eventStream, type EventStreamHealthState } from '@/lib/runtime-event-stream'
+import { SUBPOLAR_API_BASE_URL } from '@/config'
 import { addToSessionKeyedState, removeFromSessionKeyedState } from '@/lib/sessionKeyedState'
 
 type PermissionsBySession = Record<string, PermissionRequest[]>
@@ -260,7 +260,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
   const findSessionInCache = useCallback((sessionID: string): { url: string; directory: string } | null => {
     const directory = findSessionDirectory(sessionID)
     if (!directory) return null
-    return { url: OPENCODE_API_ENDPOINT, directory }
+    return { url: SUBPOLAR_API_BASE_URL, directory }
   }, [findSessionDirectory])
 
   const getRepoIdForSession = useCallback((sessionID: string): number | null => {
@@ -431,7 +431,7 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
     
     for (const directory of uniqueDirectories) {
       try {
-        const client = new SubpolarClient(OPENCODE_API_ENDPOINT, directory)
+        const client = new SubpolarClient(SUBPOLAR_API_BASE_URL, directory)
         const pendingPermissions = await client.listPendingPermissions()
         reconcilePermissionsForDirectory(directory, pendingPermissions ?? [])
         const pendingQuestions = await client.listPendingQuestions()
@@ -445,14 +445,14 @@ export function EventProvider({ children }: { children: React.ReactNode }) {
   }, [reconcilePermissionsForDirectory, reconcileQuestionsForDirectory])
 
   const syncPermissionsForSession = useCallback(async (directory: string, sessionID: string) => {
-    const client = new SubpolarClient(OPENCODE_API_ENDPOINT, directory)
+    const client = new SubpolarClient(SUBPOLAR_API_BASE_URL, directory)
     const pendingPermissions = await client.listPendingPermissions()
     rememberSessionDirectory(sessionID, directory)
     reconcilePermissionsForDirectory(directory, pendingPermissions ?? [])
   }, [rememberSessionDirectory, reconcilePermissionsForDirectory])
 
   const syncQuestionsForSession = useCallback(async (directory: string, sessionID: string) => {
-    const client = new SubpolarClient(OPENCODE_API_ENDPOINT, directory)
+    const client = new SubpolarClient(SUBPOLAR_API_BASE_URL, directory)
     const pendingQuestions = await client.listPendingQuestions()
     rememberSessionDirectory(sessionID, directory)
     reconcileQuestionsForDirectory(directory, pendingQuestions ?? [])

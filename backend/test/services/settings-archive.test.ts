@@ -12,18 +12,18 @@ import { SettingsService } from '../../src/services/settings'
 describe('SettingsService - archiveBrokenConfig', () => {
   let settingsService: SettingsService
   let mockGetDefaultConfig: ReturnType<typeof vi.fn>
-  let mockCreateOpenCodeConfig: ReturnType<typeof vi.fn>
+  let mockCreatePiConfig: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     vi.clearAllMocks()
     settingsService = new SettingsService({ query: vi.fn() } as unknown as Database)
     mockGetDefaultConfig = vi.fn()
-    mockCreateOpenCodeConfig = vi.fn()
-    vi.spyOn(settingsService, 'getDefaultOpenCodeConfig').mockImplementation(mockGetDefaultConfig)
-    vi.spyOn(settingsService, 'createOpenCodeConfig').mockImplementation(mockCreateOpenCodeConfig)
+    mockCreatePiConfig = vi.fn()
+    vi.spyOn(settingsService, 'getDefaultPiConfig').mockImplementation(mockGetDefaultConfig)
+    vi.spyOn(settingsService, 'createPiConfig').mockImplementation(mockCreatePiConfig)
   })
 
-  it('creates a broken config backup with default-broken prefix', () => {
+  it('creates a broken config backup with default-broken prefix', async () => {
     const defaultConfig = {
       id: 1,
       name: 'default',
@@ -36,33 +36,31 @@ describe('SettingsService - archiveBrokenConfig', () => {
     }
 
     mockGetDefaultConfig.mockReturnValue(defaultConfig)
-    mockCreateOpenCodeConfig.mockReturnValue({
+    mockCreatePiConfig.mockReturnValue({
       ...defaultConfig,
       id: 2,
       name: 'default-broken-2026-04-25T00-00-00-000Z',
       isDefault: false,
     })
 
-    const backupName = settingsService.archiveBrokenConfig()
+    const backupName = await settingsService.archiveBrokenConfig()
 
     expect(backupName).toMatch(/^default-broken-/)
-    expect(mockCreateOpenCodeConfig).toHaveBeenCalledWith(
+    expect(mockCreatePiConfig).toHaveBeenCalledWith(
       expect.objectContaining({
         name: expect.stringMatching(/^default-broken-/),
         content: defaultConfig.rawContent,
         isDefault: false,
       }),
-      'default',
-      { suppressAutoDefault: true },
     )
   })
 
-  it('returns null when no default config exists', () => {
+  it('returns null when no default config exists', async () => {
     mockGetDefaultConfig.mockReturnValue(null)
 
-    const result = settingsService.archiveBrokenConfig()
+    const result = await settingsService.archiveBrokenConfig()
 
     expect(result).toBeNull()
-    expect(mockCreateOpenCodeConfig).not.toHaveBeenCalled()
+    expect(mockCreatePiConfig).not.toHaveBeenCalled()
   })
 })

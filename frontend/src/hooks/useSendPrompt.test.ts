@@ -34,7 +34,7 @@ vi.mock('../lib/toast', () => ({
   showToast: { error: vi.fn() },
 }))
 
-vi.mock('../lib/opencode-errors', () => ({
+vi.mock('../lib/runtime-errors', () => ({
   parseNetworkError: vi.fn((err) => ({
     title: 'Error',
     message: err.message,

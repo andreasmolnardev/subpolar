@@ -16,6 +16,7 @@ import {
   Search,
   Trash2,
   Underline,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { settingsApi } from '@/api/settings'
@@ -86,7 +87,7 @@ export function ProductivitySidebar() {
     >
       {expanded ? (
         <>
-          <div className="flex items-center border-b border-border px-3 py-3">
+          <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -111,6 +112,16 @@ export function ProductivitySidebar() {
                 })}
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setExpanded(false)}
+              aria-label="Close productivity sidebar"
+              className="h-8 w-8 shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {activeTab === 'calendar' && (

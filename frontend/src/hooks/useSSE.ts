@@ -8,9 +8,9 @@ import { settingsApi } from '@/api/settings'
 import { useSessionStatus } from '@/stores/sessionStatusStore'
 import { useSessionTodos } from '@/stores/sessionTodosStore'
 import { useSendErrorStore } from '@/stores/sendErrorStore'
-import { eventStream } from '@/lib/opencode-event-stream'
-import type { EventStreamSubscription } from '@/lib/opencode-event-stream'
-import { parseRuntimeError } from '@/lib/opencode-errors'
+import { eventStream } from '@/lib/runtime-event-stream'
+import type { EventStreamSubscription } from '@/lib/runtime-event-stream'
+import { parseRuntimeError } from '@/lib/runtime-errors'
 import { createPartsBatcher } from '@/lib/partsBatcher'
 
 const STATUS_POLL_INTERVAL_MS = 5000

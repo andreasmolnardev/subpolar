@@ -19,10 +19,11 @@ import {
   type CreateSkillRequest,
   type UpdateSkillRequest,
   type SkillScope,
+  type AgentDefinition,
 } from '@subpolar/shared'
 import type { NotificationPreferences } from '@subpolar/shared/types'
 
-export type { TTSConfig, STTConfig, OpenCodeConfigContent, ModelConfig, ProviderConfig, NotificationPreferences, SkillFileInfo, CreateSkillRequest, UpdateSkillRequest, SkillScope, IntegrationConfig, IntegrationSettings, DefaultModels }
+export type { TTSConfig, STTConfig, OpenCodeConfigContent, ModelConfig, ProviderConfig, NotificationPreferences, SkillFileInfo, CreateSkillRequest, UpdateSkillRequest, SkillScope, IntegrationConfig, IntegrationSettings, DefaultModels, AgentDefinition }
 export { DEFAULT_TTS_CONFIG, DEFAULT_STT_CONFIG, DEFAULT_KEYBOARD_SHORTCUTS, DEFAULT_USER_PREFERENCES, DEFAULT_LEADER_KEY, BLOCKED_SERVER_ENV_KEYS, DEFAULT_SERVER_ENV_VARS, DEFAULT_INTEGRATION_SETTINGS }
 
 export interface CustomCommand {

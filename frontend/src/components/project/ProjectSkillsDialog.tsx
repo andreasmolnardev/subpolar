@@ -88,7 +88,7 @@ export function ProjectSkillsDialog({
               data={projectSkills}
               error={error as Error | null}
               emptyTitle="No local skills found"
-              emptyHint="Add skills to .opencode/skills/&lt;name&gt;/SKILL.md in this repository."
+              emptyHint="Add skills to .subpolar/skills/&lt;name&gt;/SKILL.md in this repository."
               onLoad={canLoad ? handleLoad : undefined}
             />
           </TabsContent>
@@ -98,7 +98,7 @@ export function ProjectSkillsDialog({
               data={globalSkills}
               error={error as Error | null}
               emptyTitle="No global skills"
-              emptyHint="Global skills live under ~/.config/opencode/skills/."
+              emptyHint="Global skills live under ~/.config/subpolar/skills/."
               onLoad={canLoad ? handleLoad : undefined}
             />
           </TabsContent>

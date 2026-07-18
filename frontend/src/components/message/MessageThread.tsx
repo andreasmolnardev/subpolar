@@ -10,7 +10,7 @@ import { useSessionTodos } from '@/stores/sessionTodosStore'
 import { useSettings } from '@/hooks/useSettings'
 import type { components } from '@/api/opencode-types'
 import type { Todo } from '@/components/message/SessionTodoDisplay'
-import type { RuntimeError } from '@/lib/opencode-errors'
+import type { RuntimeError } from '@/lib/runtime-errors'
 
 function getMessageTextContent(parts: Part[]): string {
   return parts

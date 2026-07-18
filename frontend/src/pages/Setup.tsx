@@ -3,7 +3,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuth } from '@/hooks/useAuth'
-import { useTheme } from '@/hooks/useTheme'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,7 +19,6 @@ type SetupFormData = z.infer<typeof setupSchema>
 
 export function Setup() {
   const { signUpWithEmail } = useAuth()
-  const theme = useTheme()
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -50,8 +48,8 @@ export function Setup() {
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center space-y-2">
           <img 
-            src={theme === 'light' ? "/opencode-wordmark-light.svg" : "/subpolar-logo-text-dark.png"} 
-            alt="OpenCode" 
+            src="/subpolar-logo-text-dark.png"
+            alt="Subpolar"
             className="h-8 w-auto"
           />
           <p className="text-sm text-muted-foreground">Create Admin Account</p>

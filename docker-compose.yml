@@ -38,8 +38,8 @@ services:
       - POCKETBASE_PASSWORD=${POCKETBASE_PASSWORD:-adminpassword}
     volumes:
       - ./config.json:/app/config.json:ro
-      - opencode-workspace:/workspace
-      - opencode-data:/app/data
+      - subpolar-workspace:/workspace
+      - subpolar-data:/app/data
     depends_on:
       pocketbase:
         condition: service_healthy
@@ -52,7 +52,7 @@ services:
       start_period: 40s
 
 volumes:
-  opencode-workspace:
+  subpolar-workspace:
     driver: local
-  opencode-data:
+  subpolar-data:
     driver: local

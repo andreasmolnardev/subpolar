@@ -58,30 +58,20 @@ RUN pnpm --filter frontend build
 FROM base AS runner
 
 ARG UV_VERSION=latest
-ARG OPENCODE_VERSION=latest
-# Bump TOOLS_CACHEBUST (e.g. via --build-arg) to force a fresh uv/opencode
+# Bump TOOLS_CACHEBUST (e.g. via --build-arg) to force a fresh uv
 # install without invalidating the rest of the build cache.
 ARG TOOLS_CACHEBUST=0
 
-RUN echo "Installing uv=${UV_VERSION} opencode=${OPENCODE_VERSION} (cachebust=${TOOLS_CACHEBUST})" && \
+RUN echo "Installing uv=${UV_VERSION} (cachebust=${TOOLS_CACHEBUST})" && \
     curl -LsSf https://astral.sh/uv/install.sh | UV_NO_MODIFY_PATH=1 sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     mv /root/.local/bin/uvx /usr/local/bin/uvx && \
-    chmod +x /usr/local/bin/uv /usr/local/bin/uvx && \
-    if [ "${OPENCODE_VERSION}" = "latest" ]; then \
-        curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path; \
-    else \
-        curl -fsSL https://opencode.ai/install | bash -s -- --version ${OPENCODE_VERSION} --no-modify-path; \
-    fi && \
-    mv /root/.opencode /opt/opencode && \
-    chmod -R 755 /opt/opencode && \
-    ln -s /opt/opencode/bin/opencode /usr/local/bin/opencode
+    chmod +x /usr/local/bin/uv /usr/local/bin/uvx
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=5003
-ENV OPENCODE_SERVER_PORT=5551
-ENV DATABASE_PATH=/app/data/opencode.db
+ENV DATABASE_PATH=/app/data/subpolar.db
 ENV WORKSPACE_PATH=/workspace
 ENV XDG_CACHE_HOME=/home/node/.cache
 
@@ -99,7 +89,7 @@ RUN mkdir -p /app/backend/node_modules/@subpolar && \
 COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-RUN mkdir -p /workspace /app/data /home/node/.cache /home/node/.opencode && \
+RUN mkdir -p /workspace /app/data /home/node/.cache /home/node/.subpolar && \
     chown -R node:node /workspace /app/data /home/node
 
 EXPOSE 5003 5100 5101 5102 5103

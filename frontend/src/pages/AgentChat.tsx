@@ -9,7 +9,7 @@ import { ChatInputBar } from '@/components/chat/ChatInputBar'
 import { Card, CardContent } from '@/components/ui/card'
 import { useAgents } from '@/hooks/usePiHarness'
 import { useSidebarAction } from '@/hooks/useSidebarAction'
-import { OPENCODE_API_ENDPOINT } from '@/config'
+import { SUBPOLAR_API_BASE_URL } from '@/config'
 
 interface ConfigAgent {
   description?: string
@@ -43,7 +43,7 @@ export function AgentChat() {
 
   const generalChatDirectory = generalChatProject?.fullPath
 
-  const { data: runtimeAgents = [] } = useAgents(OPENCODE_API_ENDPOINT, generalChatDirectory)
+  const { data: runtimeAgents = [] } = useAgents(SUBPOLAR_API_BASE_URL, generalChatDirectory)
 
   const { data: configs } = useQuery({
     queryKey: ['subpolar-configs'],

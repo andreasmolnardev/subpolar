@@ -32,7 +32,10 @@ export function createRuntimeRoutes(db: Database) {
   app.patch('/config', async (c) => c.json(await c.req.json().catch(() => ({}))))
 
   app.get('/provider', async (c) => c.json(await getPiProviders()))
-  app.get('/config/providers', async (c) => c.json({}))
+  app.get('/config/providers', async (c) => {
+    const providers = await getPiProviders()
+    return c.json({ providers: providers.all, default: providers.default })
+  })
   app.get('/command', async (c) => c.json([]))
   app.get('/permission', async (c) => {
     const sessionId = c.req.query('sessionID') ?? c.req.query('sessionId')

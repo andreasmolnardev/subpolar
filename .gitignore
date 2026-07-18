@@ -19,6 +19,7 @@ workspace/
 /config/
 temp/
 .forge/
+.pnpm-store/v11/.tmp
 
 pocketbase/pb_data/
 

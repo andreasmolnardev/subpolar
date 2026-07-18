@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuth } from '@/hooks/useAuth'
-import { useTheme } from '@/hooks/useTheme'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,7 +21,6 @@ type LoginFormData = z.infer<typeof loginSchema>
 export function Login() {
   const { signInWithEmail } = useAuth()
   const { config } = useLoaderData() as { config: AuthConfig }
-  const theme = useTheme()
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -52,8 +50,8 @@ export function Login() {
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center space-y-2">
           <img 
-            src={theme === 'light' ? "/opencode-wordmark-light.svg" : "/subpolar-logo-text-dark.png"} 
-            alt="OpenCode" 
+            src="/subpolar-logo-text-dark.png"
+            alt="Subpolar"
             className="h-14 w-auto"
           />
         </div>

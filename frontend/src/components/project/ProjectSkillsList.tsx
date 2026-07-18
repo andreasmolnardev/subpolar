@@ -48,7 +48,7 @@ export function ProjectSkillsList({
         <p className="text-sm">{emptyTitle || 'No skills available'}</p>
         <p className="text-xs mt-1">
           {emptyHint ||
-            'Skills will appear here when configured in the project\'s .opencode/skills/ directory'}
+            'Skills will appear here when configured in the project\'s .subpolar/skills/ directory'}
         </p>
       </div>
     )

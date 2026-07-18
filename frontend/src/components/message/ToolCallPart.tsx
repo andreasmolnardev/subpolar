@@ -181,6 +181,7 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
   const isFileTool = ['read', 'write', 'edit'].includes(part.tool)
   const isCompactTool = part.tool === 'bash' || part.tool === 'glob' || part.tool === 'read'
   const isActiveToolStep = part.state.status === 'pending' || part.state.status === 'running'
+  const isSkillTool = part.tool === 'skill-load' || part.tool === 'skill-discover'
 
   const getCompactToolLabel = () => {
     if (!isCompactTool) return part.tool
@@ -250,6 +251,55 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
     }
 
     return null
+  }
+
+  if (isSkillTool) {
+    const isSkillDiscoverTool = part.tool === 'skill-discover'
+    const skillName = !isSkillDiscoverTool && part.state.status !== 'pending' && part.state.input && typeof part.state.input.name === 'string'
+      ? part.state.input.name
+      : undefined
+    const label = part.state.status === 'running'
+      ? isSkillDiscoverTool ? 'Discovering Skills' : 'Loading skill'
+      : part.state.status === 'completed'
+        ? isSkillDiscoverTool ? 'Discovered Skills' : `Loaded skill${skillName ? ` ${skillName}` : ''}`
+        : part.state.status === 'error'
+          ? isSkillDiscoverTool ? 'Skill discovery failed' : `Skill load failed${skillName ? ` ${skillName}` : ''}`
+          : isSkillDiscoverTool ? 'Preparing skill discovery' : 'Preparing skill load'
+
+    return (
+      <details className="group my-2 text-sm text-muted-foreground">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md py-1 text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+          {isSkillDiscoverTool && <Search className="mr-1 h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+          {part.state.status === 'running' && <Loader2 className="mr-1 h-3.5 w-3.5 shrink-0 animate-spin text-yellow-600 dark:text-yellow-400" />}
+          {part.state.status === 'error' && <span className="mr-1 text-red-600 text-sm font-medium">✗</span>}
+          <span className={part.state.status === 'running' ? 'reasoning-text-trail font-medium' : 'font-medium text-muted-foreground'}>{label}</span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+        </summary>
+        <div className="space-y-2 pl-6 pt-1 text-muted-foreground animate-disclosure-down">
+          {part.state.status === 'running' && (
+            <div className="text-sm">
+              <div className="text-muted-foreground mb-1">Input:</div>
+              <ClickableJson json={part.state.input} onFileClick={onFileClick} />
+            </div>
+          )}
+          {part.state.status === 'completed' && (
+            <div className="text-sm">
+              <div className="text-muted-foreground mb-1">Output:</div>
+              <div className="relative">
+                <pre className="bg-accent p-2 rounded text-xs overflow-x-auto whitespace-pre-wrap break-all">{part.state.output}</pre>
+                <CopyButton content={part.state.output} title="Copy output" className="absolute top-1 right-1" iconSize="sm" />
+              </div>
+            </div>
+          )}
+          {part.state.status === 'error' && (
+            <div className="text-sm">
+              <div className="text-red-600 dark:text-red-400 mb-1">Error:</div>
+              <pre className="bg-accent p-2 rounded text-xs overflow-x-auto whitespace-pre-wrap break-words text-red-600 dark:text-red-300">{part.state.error}</pre>
+            </div>
+          )}
+        </div>
+      </details>
+    )
   }
 
   const toolSpecificRender = getToolSpecificRender(part, onFileClick)

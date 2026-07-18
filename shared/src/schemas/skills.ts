@@ -10,6 +10,16 @@ export const SkillNameSchema = z.string()
 export const SkillScopeSchema = z.enum(['global', 'project'])
 export type SkillScope = z.infer<typeof SkillScopeSchema>
 
+export const SkillDiscoveryModeSchema = z.enum(['full', 'description', 'name', 'search'])
+export type SkillDiscoveryMode = z.infer<typeof SkillDiscoveryModeSchema>
+
+export const AgentSkillAccessSchema = z.object({
+  id: SkillNameSchema,
+  discovery: SkillDiscoveryModeSchema,
+  source: z.enum(['manual', 'tool-default', 'project-auto']).optional(),
+})
+export type AgentSkillAccess = z.infer<typeof AgentSkillAccessSchema>
+
 export const SkillFrontmatterSchema = z.object({
   name: SkillNameSchema,
   description: z.string().min(1).max(1024),
@@ -38,8 +48,11 @@ export interface SkillFileInfo {
   name: string
   description: string
   body: string
+  inputSchema?: Record<string, unknown>
   scope: SkillScope
   location: string
   repoId?: number
   repoName?: string
+  source?: 'global' | 'project' | 'auto'
+  discoveryEligible?: boolean
 }

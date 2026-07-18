@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs'
 import { createBashToolDefinition } from '@earendil-works/pi-coding-agent'
+import { getPiRunContext } from './run-context'
 
 type PiToolAuthorizationRequest = {
   agentId: string
@@ -30,6 +31,9 @@ type SkillInfo = {
   description: string
   filePath: string
   baseDir: string
+  source?: 'auto-generated'
+  toolId?: string
+  inputSchema?: Record<string, unknown>
 }
 
 type SkillDiscoverParams = {
@@ -125,6 +129,15 @@ const subpolarToolsParameters = {
 }
 
 function requiredEnv(name: string): string {
+  const context = getPiRunContext()
+  const contextValue = context && ({
+    SUBPOLAR_BASE_URL: context.baseUrl,
+    SUBPOLAR_INTERNAL_TOKEN: context.internalToken,
+    SUBPOLAR_AGENT_ID: context.agentId,
+    SUBPOLAR_SESSION_ID: context.sessionId,
+    SUBPOLAR_RUN_ID: context.runId,
+  } as Record<string, string>)[name]
+  if (contextValue) return contextValue
   const value = process.env[name]
   if (!value) throw new Error(`${name} is required`)
   return value
@@ -177,6 +190,8 @@ export async function authorizeToolCall(toolCall: PiToolCall): Promise<void | { 
 }
 
 function getSkills(): SkillInfo[] {
+  const context = getPiRunContext()
+  if (context) return context.skills
   const raw = process.env.SUBPOLAR_PI_SKILLS
   if (!raw) return []
   try {
@@ -225,35 +240,58 @@ async function callSubpolarBackend(path: string, body: Record<string, unknown>):
 
 async function callSubpolarTools(params: unknown): Promise<ExtensionToolResult> {
   const input = params && typeof params === 'object' ? params as { action?: unknown; toolId?: unknown; input?: unknown } : {}
-  const agentId = process.env.SUBPOLAR_AGENT_ID
+  const agentId = requiredEnv('SUBPOLAR_AGENT_ID')
   if (input.action === 'list') return callSubpolarBackend('/tools/list', { agentId })
   if (typeof input.toolId !== 'string' || input.toolId.length === 0) return textResult('toolId is required for describe and call actions', { ok: false })
   if (input.action === 'describe') return callSubpolarBackend('/tools/describe', { agentId, toolId: input.toolId })
-  if (input.action === 'call') return callSubpolarBackend('/tools/call', { agentId, toolId: input.toolId, input: input.input ?? {}, sessionId: process.env.SUBPOLAR_SESSION_ID })
+  if (input.action === 'call') return callSubpolarBackend('/tools/call', { agentId, toolId: input.toolId, input: input.input ?? {}, sessionId: requiredEnv('SUBPOLAR_SESSION_ID') })
   return textResult('action must be one of: list, describe, call', { ok: false })
 }
 
-function discoverSkills(params: SkillDiscoverParams): ExtensionToolResult {
+async function discoverSkills(params: SkillDiscoverParams): Promise<ExtensionToolResult> {
   const query = params.query?.trim().toLowerCase()
   const limit = Number.isFinite(params.limit) && params.limit && params.limit > 0 ? Math.floor(params.limit) : undefined
   const skills = getSkills()
     .filter(skill => !query || skill.name.toLowerCase().includes(query) || skill.description.toLowerCase().includes(query))
     .slice(0, limit)
-    .map(skill => ({ name: skill.name, description: skill.description }))
+    .map(skill => ({
+      name: skill.name,
+      description: skill.description,
+      type: skill.source === 'auto-generated' ? 'Auto-generated' : 'Skill',
+      ...(skill.source === 'auto-generated' && skill.toolId ? {
+        toolId: skill.toolId,
+        inputSchema: skill.inputSchema,
+      } : {}),
+    }))
 
   return textResult(JSON.stringify({ skills }, null, 2), { count: skills.length, query })
 }
 
-function loadSkill(params: SkillLoadParams): ExtensionToolResult {
+async function loadSkill(params: SkillLoadParams): Promise<ExtensionToolResult> {
   const skill = getSkills().find(item => item.name === params.name)
   if (!skill) {
     return textResult(`Skill not found: ${params.name}`, { found: false, name: params.name })
   }
 
+  if (skill.source === 'auto-generated' && skill.toolId) return loadGeneratedToolSkill(skill)
+
   const body = stripFrontmatter(readFileSync(skill.filePath, 'utf-8')).trim()
   return textResult(
     `<skill name="${skill.name}" location="${skill.filePath}">\nReferences are relative to ${skill.baseDir}.\n\n${body}\n</skill>`,
     { found: true, name: skill.name, location: skill.filePath, baseDir: skill.baseDir },
+  )
+}
+
+async function loadGeneratedToolSkill(skill: SkillInfo): Promise<ExtensionToolResult> {
+  const result = await callSubpolarBackend('/tools/describe', {
+    agentId: requiredEnv('SUBPOLAR_AGENT_ID'),
+    toolId: skill.toolId,
+  })
+  const details = result.details as { status?: unknown }
+  if (details.status !== 200) return result
+  return textResult(
+    `<skill name="${skill.name}" type="Auto-generated" tool-id="${skill.toolId}">\nUse this skill whenever the user needs ${skill.description.replace(/^Auto-generated skill for [^:]+:\s*/, '')}\n\nCall subpolar-tools with action "call", toolId "${skill.toolId}", and an input object that matches this tool definition:\n\n${result.content.map(item => typeof item === 'object' && item !== null && 'text' in item ? String(item.text) : '').join('')}\n</skill>`,
+    { found: true, name: skill.name, type: 'Auto-generated', toolId: skill.toolId },
   )
 }
 
@@ -268,7 +306,7 @@ function registerSkillTools(pi: ExtensionApi): void {
     promptGuidelines: ['Use skill-discover before loading a skill when you are unsure which skill applies.', 'Use skill-load with an exact skill name to load full skill instructions.'],
     parameters: skillDiscoverParameters,
     async execute(_toolCallId, params) {
-      return discoverSkills(params as SkillDiscoverParams)
+      return await discoverSkills(params as SkillDiscoverParams)
     },
   })
 
@@ -280,7 +318,7 @@ function registerSkillTools(pi: ExtensionApi): void {
     promptGuidelines: ['Call skill-load before applying a skill, then follow the loaded instructions.'],
     parameters: skillLoadParameters,
     async execute(_toolCallId, params) {
-      return loadSkill(params as SkillLoadParams)
+      return await loadSkill(params as SkillLoadParams)
     },
   })
 }

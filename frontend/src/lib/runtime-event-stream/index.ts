@@ -1,4 +1,4 @@
-export { eventStream, EventStream } from './openCodeEventStream'
+export { eventStream, EventStream } from './runtimeEventStream'
 export { createBrowserEventStreamTransport } from './browserTransport'
 export { TestEventStreamTransport } from './testTransport'
 export type {

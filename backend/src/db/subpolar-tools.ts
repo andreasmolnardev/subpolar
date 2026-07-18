@@ -147,6 +147,8 @@ export async function writeToolAudit(db: PocketBase, data: Omit<ToolAuditRecord,
 }
 
 export async function seedTools(db: PocketBase, tools: ToolSeed[], policies: PolicySeed[]): Promise<void> {
+  const staticMcpTools = await db.collection('tool_registry').getFullList({ filter: 'tool_id ~ "mcp.github."' }).catch(() => [])
+  for (const tool of staticMcpTools) await db.collection('tool_registry').update(String(tool.id), { enabled: false, updated_at: Date.now() })
   for (const tool of tools) await upsertTool(db, tool)
   for (const policy of policies) {
     const agent = await getAgentBySlug(db, policy.agent_id)

@@ -18,7 +18,7 @@ const StartSchema = z.object({
 })
 
 function getMcpAuthPath(): string {
-  return path.join(getWorkspacePath(), '.opencode/state/opencode/mcp-auth.json')
+  return path.join(getWorkspacePath(), '.subpolar/state/pi/mcp-auth.json')
 }
 
 async function readMcpAuth(): Promise<Record<string, unknown>> {

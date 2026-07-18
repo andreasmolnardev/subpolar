@@ -47,7 +47,7 @@ const LmStudioModelsResponseSchema = z.object({
 })
 
 export function getModelStatePath(): string {
-  return path.join(getWorkspacePath(), '.opencode', 'state', 'opencode', 'model.json')
+  return path.join(getWorkspacePath(), '.subpolar', 'state', 'pi', 'model.json')
 }
 
 function getLmStudioModelsUrl(baseUrl: string): string {

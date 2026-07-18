@@ -49,11 +49,11 @@ vi.mock('../../src/services/settings', () => ({
     getSettings: mockGetSettings,
     updateSettings: mockUpdateSettings,
     saveLastKnownGoodConfig: mockSaveLastKnownGoodConfig,
-    createOpenCodeConfig: mockCreateOpenCodeConfig,
-    updateOpenCodeConfig: mockUpdateOpenCodeConfig,
-    deleteOpenCodeConfig: mockDeleteOpenCodeConfig,
-    getOpenCodeConfigByName: mockGetOpenCodeConfigByName,
-    setDefaultOpenCodeConfig: mockSetDefaultOpenCodeConfig,
+    createPiConfig: mockCreateOpenCodeConfig,
+    updatePiConfig: mockUpdateOpenCodeConfig,
+    deletePiConfig: mockDeleteOpenCodeConfig,
+    getPiConfigByName: mockGetOpenCodeConfigByName,
+    setDefaultPiConfig: mockSetDefaultOpenCodeConfig,
   })),
 }))
 

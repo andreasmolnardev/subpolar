@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { getProviders } from '@/api/providers'
-import { OPENCODE_API_ENDPOINT } from '@/config'
+import { SUBPOLAR_API_BASE_URL } from '@/config'
 import { useAgents, useConfig } from '@/hooks/usePiHarness'
 
 type AgentOption = { name: string }
@@ -88,8 +88,8 @@ function AgentVisibilityDialog({
 
 export function ChatSettings() {
   const { preferences, isLoading, updateSettings, isUpdating } = useSettings()
-  const { data: config } = useConfig(OPENCODE_API_ENDPOINT)
-  const { data: agents = [] } = useAgents(OPENCODE_API_ENDPOINT)
+  const { data: config } = useConfig(SUBPOLAR_API_BASE_URL)
+  const { data: agents = [] } = useAgents(SUBPOLAR_API_BASE_URL)
   const [isSidebarAgentsOpen, setIsSidebarAgentsOpen] = useState(false)
   const [isChatInputAgentsOpen, setIsChatInputAgentsOpen] = useState(false)
 
@@ -97,7 +97,7 @@ export function ChatSettings() {
   const hiddenChatInputAgents = preferences?.hiddenChatInputAgents ?? DEFAULT_USER_PREFERENCES.hiddenChatInputAgents
 
   const { data: providersData } = useQuery({
-    queryKey: ['subpolar', 'providers', OPENCODE_API_ENDPOINT],
+    queryKey: ['subpolar', 'providers', SUBPOLAR_API_BASE_URL],
     queryFn: () => getProviders(),
     staleTime: 30000,
   })

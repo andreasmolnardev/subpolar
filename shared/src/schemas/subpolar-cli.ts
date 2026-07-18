@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AgentSkillAccessSchema } from './skills'
 
 export const AgentModeSchema = z.enum(['primary', 'subagent'])
 export const AgentSourceSchema = z.enum(['system', 'user'])
@@ -9,8 +10,10 @@ export const AgentDefinitionSchema = z.object({
   description: z.string(),
   mode: AgentModeSchema,
   prompt: z.string(),
+  systemPrompt: z.string().default(''),
   permission: z.record(z.string(), z.unknown()),
   skills: z.array(z.string()),
+  skillAccess: z.array(AgentSkillAccessSchema).default([]),
   enabled: z.boolean(),
   source: AgentSourceSchema,
   sort_order: z.number(),
@@ -106,7 +109,7 @@ export const ToolAuditRecordSchema = z.object({
   created_at: z.number(),
 })
 
-export const IntegrationTypeSchema = z.enum(['mcp', 'caldav', 'imap_smtp'])
+export const IntegrationTypeSchema = z.enum(['mcp', 'openapi', 'caldav', 'imap_smtp'])
 
 export const IntegrationSchema = z.object({
   id: z.string(),

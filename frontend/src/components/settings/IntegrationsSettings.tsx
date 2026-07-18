@@ -4,6 +4,7 @@ import { CalendarDays, Loader2, Mail, Network, Pencil, Plus, Trash2 } from 'luci
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -15,6 +16,7 @@ type IntegrationType = IntegrationConfig['type']
 
 const integrationTypes: Record<IntegrationType, { label: string; description: string }> = {
   mcp: { label: 'MCP', description: 'Model Context Protocol server access for agent tools' },
+  openapi: { label: 'OpenAPI', description: 'OpenAPI JSON operations exposed as agent tools' },
   caldav: { label: 'CalDAV', description: 'Calendar access for scheduling and availability workflows' },
   mail: { label: 'IMAP/SMTP', description: 'Email inbox and sending configuration for mail-aware agents' },
 }
@@ -27,7 +29,11 @@ function createIntegration(type: IntegrationType): IntegrationConfig {
   }
 
   if (type === 'mcp') {
-    return { ...base, type, serverUrl: '', apiKey: '' }
+    return { ...base, type, transport: 'streamable-http', serverUrl: '', command: [], cwd: '', environment: {}, headers: {}, timeout: 15000 }
+  }
+
+  if (type === 'openapi') {
+    return { ...base, type, providerName: 'api', document: '{\n  "openapi": "3.0.0",\n  "info": { "title": "API", "version": "1.0.0" },\n  "servers": [{ "url": "https://api.example.com" }],\n  "paths": {}\n}', serverUrl: '', timeout: 15000, authType: 'spec', authKeyName: '', authPlacement: 'header', authValue: '', authUsername: '', authPassword: '', headers: {} }
   }
 
   if (type === 'caldav') {
@@ -49,6 +55,7 @@ function createIntegration(type: IntegrationType): IntegrationConfig {
 
 function IntegrationIcon({ type }: { type: IntegrationType }) {
   if (type === 'mcp') return <Network className="h-4 w-4 text-muted-foreground" />
+  if (type === 'openapi') return <Network className="h-4 w-4 text-muted-foreground" />
   if (type === 'caldav') return <CalendarDays className="h-4 w-4 text-muted-foreground" />
   return <Mail className="h-4 w-4 text-muted-foreground" />
 }
@@ -61,20 +68,60 @@ interface IntegrationDialogProps {
   onSave: (integration: IntegrationConfig) => Promise<void>
 }
 
+interface McpKeyValueFieldsProps {
+  label: string
+  description: string
+  values: Record<string, string>
+  disabled: boolean
+  onChange: (values: Record<string, string>) => void
+}
+
+function McpKeyValueFields({ label, description, values, disabled, onChange }: McpKeyValueFieldsProps) {
+  const entries = Object.entries(values)
+  const update = (previousKey: string, key: string, value: string) => {
+    const next = { ...values }
+    delete next[previousKey]
+    if (key.trim()) next[key.trim()] = value
+    onChange(next)
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <Label>{label}</Label>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => onChange({ ...values, [`NEW_${entries.length + 1}`]: '' })} disabled={disabled}>Add</Button>
+      </div>
+      {entries.map(([key, value]) => (
+        <div key={key} className="flex gap-2">
+          <Input className="font-mono" value={key} onChange={(event) => update(key, event.target.value, value)} disabled={disabled} placeholder="NAME" />
+          <Input className="font-mono" type="password" value={value} onChange={(event) => update(key, key, event.target.value)} disabled={disabled} placeholder="Value" />
+          <Button type="button" variant="outline" size="icon" onClick={() => update(key, '', '')} disabled={disabled}>×</Button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }: IntegrationDialogProps) {
   const [formData, setFormData] = useState<IntegrationConfig>(createIntegration('mcp'))
   const [calDavCalendars, setCalDavCalendars] = useState<Array<{ name: string; url: string; description?: string }>>([])
   const [isDiscoveringCalendars, setIsDiscoveringCalendars] = useState(false)
   const [isTestingCalDav, setIsTestingCalDav] = useState(false)
+  const [discoveredTools, setDiscoveredTools] = useState<Array<{ toolId: string; method: string; path: string; description: string }>>([])
+  const [isDiscoveringOpenApi, setIsDiscoveringOpenApi] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setFormData(integration ?? createIntegration('mcp'))
     setCalDavCalendars([])
     setIsTestingCalDav(false)
+    setDiscoveredTools([])
   }, [open, integration])
 
-  const updateField = (field: string, value: string | number | boolean) => {
+  const updateField = (field: string, value: string | number | boolean | string[] | Record<string, string> | undefined) => {
     setFormData((current) => ({ ...current, [field]: value } as IntegrationConfig))
   }
 
@@ -88,8 +135,36 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
       return
     }
 
+    if (formData.type === 'mcp') {
+      if (formData.transport === 'stdio' && !(formData.command?.length)) {
+        showToast.error('A command is required for a local MCP server')
+        return
+      }
+      if (formData.transport === 'streamable-http' && !formData.serverUrl?.trim()) {
+        showToast.error('A server URL is required for a remote MCP server')
+        return
+      }
+    }
+
+    if (formData.type === 'openapi' && !formData.providerName.trim()) {
+      showToast.error('Provider name is required')
+      return
+    }
+
     await onSave(formData)
     onOpenChange(false)
+  }
+
+  const discoverOpenApi = async () => {
+    if (formData.type !== 'openapi') return
+    setIsDiscoveringOpenApi(true)
+    try {
+      const result = await settingsApi.discoverOpenApi(formData)
+      setDiscoveredTools(result.tools)
+      showToast.success(`Found ${result.tools.length} tool${result.tools.length === 1 ? '' : 's'}`)
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : 'OpenAPI discovery failed')
+    } finally { setIsDiscoveringOpenApi(false) }
   }
 
   const discoverCalDavCalendars = async () => {
@@ -160,8 +235,9 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
                 <SelectTrigger id="integration-type">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mcp">MCP</SelectItem>
+                  <SelectContent>
+                    <SelectItem value="mcp">MCP</SelectItem>
+                    <SelectItem value="openapi">OpenAPI</SelectItem>
                   <SelectItem value="caldav">CalDAV</SelectItem>
                   <SelectItem value="mail">IMAP/SMTP</SelectItem>
                 </SelectContent>
@@ -181,13 +257,68 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
             {formData.type === 'mcp' && (
               <>
                 <div className="space-y-2">
+                  <Label htmlFor="mcp-transport">Transport</Label>
+                  <Select value={formData.transport} onValueChange={(value) => updateField('transport', value)} disabled={isSaving}>
+                    <SelectTrigger id="mcp-transport"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="streamable-http">Remote Streamable HTTP</SelectItem>
+                      <SelectItem value="stdio">Local command (stdio)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {formData.transport === 'stdio' ? <>
+                  <div className="space-y-2">
+                    <Label htmlFor="mcp-command">Command and arguments</Label>
+                    <Input id="mcp-command" className="font-mono" placeholder="npx -y @modelcontextprotocol/server-filesystem /tmp" value={(formData.command ?? []).join(' ')} onChange={(event) => updateField('command', event.target.value.split(' ').filter(Boolean))} disabled={isSaving} />
+                    <p className="text-xs text-muted-foreground">Runs directly as argv; shell syntax is not interpreted.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="mcp-cwd">Working directory</Label>
+                    <Input id="mcp-cwd" placeholder="Optional" value={formData.cwd ?? ''} onChange={(event) => updateField('cwd', event.target.value)} disabled={isSaving} />
+                  </div>
+                </> : <div className="space-y-2">
                   <Label htmlFor="mcp-server-url">Server URL</Label>
-                  <Input id="mcp-server-url" placeholder="https://mcp.example.com" value={formData.serverUrl} onChange={(event) => updateField('serverUrl', event.target.value)} disabled={isSaving} />
+                  <Input id="mcp-server-url" className="font-mono" placeholder="https://mcp.example.com/mcp" value={formData.serverUrl ?? ''} onChange={(event) => updateField('serverUrl', event.target.value)} disabled={isSaving} />
+                </div>}
+                <McpKeyValueFields label="Environment variables" description="Available only to the local MCP process." values={formData.environment ?? {}} onChange={(environment) => updateField('environment', environment)} disabled={isSaving || formData.transport !== 'stdio'} />
+                <McpKeyValueFields label="HTTP headers" description="Sent with every remote MCP request. Values are write-only." values={formData.headers ?? {}} onChange={(headers) => updateField('headers', headers)} disabled={isSaving || formData.transport !== 'streamable-http'} />
+                <div className="space-y-2">
+                  <Label htmlFor="mcp-timeout">Request timeout (ms)</Label>
+                  <Input id="mcp-timeout" type="number" min={1000} max={120000} value={formData.timeout ?? 15000} onChange={(event) => updateField('timeout', Number(event.target.value) || 15000)} disabled={isSaving} />
+                </div>
+              </>
+            )}
+
+            {formData.type === 'openapi' && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="openapi-provider-name">Provider name</Label>
+                  <Input id="openapi-provider-name" value={formData.providerName} onChange={(event) => updateField('providerName', event.target.value)} disabled={isSaving} placeholder="github" />
+                  <p className="text-xs text-muted-foreground">Tool IDs use toolName.subtool.</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="mcp-api-key">API Key</Label>
-                  <Input id="mcp-api-key" type="password" value={formData.apiKey} onChange={(event) => updateField('apiKey', event.target.value)} disabled={isSaving} />
+                  <Label htmlFor="openapi-document">OpenAPI JSON</Label>
+                  <Textarea id="openapi-document" className="min-h-52 font-mono text-xs" value={formData.document} onChange={(event) => updateField('document', event.target.value)} disabled={isSaving} />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="openapi-server-url">Server URL override</Label>
+                  <Input id="openapi-server-url" className="font-mono" value={formData.serverUrl ?? ''} onChange={(event) => updateField('serverUrl', event.target.value)} disabled={isSaving} placeholder="Use the document server" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Auth type</Label>
+                    <Select value={formData.authType ?? 'spec'} onValueChange={(value) => updateField('authType', value)} disabled={isSaving}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="spec">Use specification default</SelectItem><SelectItem value="none">None</SelectItem><SelectItem value="apiKey">API key</SelectItem><SelectItem value="bearer">Bearer token</SelectItem><SelectItem value="basic">Basic auth</SelectItem><SelectItem value="headers">Custom headers</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2"><Label htmlFor="openapi-timeout">Request timeout (ms)</Label><Input id="openapi-timeout" type="number" min={1000} max={120000} value={formData.timeout ?? 15000} onChange={(event) => updateField('timeout', Number(event.target.value) || 15000)} disabled={isSaving} /></div>
+                </div>
+                {formData.authType === 'apiKey' && <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label>Key name</Label><Input value={formData.authKeyName ?? ''} onChange={(event) => updateField('authKeyName', event.target.value)} disabled={isSaving} /></div><div className="space-y-2"><Label>Placement</Label><Select value={formData.authPlacement ?? 'header'} onValueChange={(value) => updateField('authPlacement', value)} disabled={isSaving}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="header">Header</SelectItem><SelectItem value="query">Query</SelectItem><SelectItem value="cookie">Cookie</SelectItem></SelectContent></Select></div><div className="space-y-2 col-span-2"><Label>API key</Label><Input type="password" value={formData.authValue ?? ''} onChange={(event) => updateField('authValue', event.target.value)} disabled={isSaving} /></div></div>}
+                {formData.authType === 'bearer' && <div className="space-y-2"><Label>Bearer token</Label><Input type="password" value={formData.authValue ?? ''} onChange={(event) => updateField('authValue', event.target.value)} disabled={isSaving} /></div>}
+                {formData.authType === 'basic' && <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label>Username</Label><Input value={formData.authUsername ?? ''} onChange={(event) => updateField('authUsername', event.target.value)} disabled={isSaving} /></div><div className="space-y-2"><Label>Password</Label><Input type="password" value={formData.authPassword ?? ''} onChange={(event) => updateField('authPassword', event.target.value)} disabled={isSaving} /></div></div>}
+                <McpKeyValueFields label="Custom headers" description="Values are write-only." values={formData.headers ?? {}} onChange={(headers) => updateField('headers', headers)} disabled={isSaving} />
+                <div className="rounded-lg border p-3 space-y-2"><Button type="button" variant="outline" onClick={discoverOpenApi} disabled={isSaving || isDiscoveringOpenApi}>{isDiscoveringOpenApi && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Discover tools</Button>{discoveredTools.length > 0 && <div className="max-h-40 overflow-y-auto space-y-1 text-xs">{discoveredTools.map((tool) => <div key={tool.toolId} className="font-mono">{tool.toolId} · {tool.method.toUpperCase()} {tool.path}</div>)}</div>}</div>
               </>
             )}
 

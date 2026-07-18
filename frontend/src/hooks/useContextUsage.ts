@@ -11,6 +11,30 @@ interface ContextUsage {
   isLoading: boolean
 }
 
+type AssistantMessage = {
+  info: {
+    role: string
+    modelID?: string
+    providerID?: string
+    tokens?: {
+      input?: number
+      output?: number
+      reasoning?: number
+      cache?: { read?: number }
+    }
+  }
+  parts: Array<{
+    type: string
+    text?: string
+    tokens?: {
+      input?: number
+      output?: number
+      reasoning?: number
+      cache?: { read?: number }
+    }
+  }>
+}
+
 interface ModelLimit {
   context: number
   output: number
@@ -36,6 +60,33 @@ async function fetchProviders(apiUrl: string): Promise<ProvidersResponse> {
   return fetchWrapper<ProvidersResponse>(`${apiUrl}/config/providers`)
 }
 
+function getMessageTokens(message: AssistantMessage | undefined): number {
+  if (!message) return 0
+  const completedPart = message.parts.find((part) => part.type === 'step-finish')
+  const tokens = completedPart?.tokens ?? message.info.tokens
+  if (tokens) {
+    return (tokens.input ?? 0) + (tokens.output ?? 0) + (tokens.reasoning ?? 0) + (tokens.cache?.read ?? 0)
+  }
+
+  return estimateStreamedTokens(message)
+}
+
+function estimateStreamedTokens(message: AssistantMessage): number {
+  const streamedCharacters = message.parts.reduce((total, part) => {
+    if (part.type !== 'text' && part.type !== 'reasoning') return total
+    return total + (part.text?.length ?? 0)
+  }, 0)
+
+  return streamedCharacters > 0 ? Math.ceil(streamedCharacters / 4) : 0
+}
+
+function getMessageModel(message: AssistantMessage | undefined): string | null {
+  if (!message) return null
+  if (message.info.modelID?.includes('/')) return message.info.modelID
+  if (message.info.providerID && message.info.modelID) return `${message.info.providerID}/${message.info.modelID}`
+  return null
+}
+
 export const useContextUsage = (apiUrl: string | null | undefined, sessionID: string | undefined, directory?: string): ContextUsage => {
   const { data: messages, isLoading: messagesLoading } = useMessages(apiUrl, sessionID, directory)
 
@@ -50,29 +101,14 @@ export const useContextUsage = (apiUrl: string | null | undefined, sessionID: st
   })
 
   return useMemo(() => {
-    const assistantMessages = messages?.filter(msg => msg.info.role === 'assistant') || []
+    const assistantMessages = (messages?.filter(msg => msg.info.role === 'assistant') || []) as AssistantMessage[]
     let latestAssistantMessage = assistantMessages[assistantMessages.length - 1]
 
-    const sumTokens = (msg: typeof latestAssistantMessage) => {
-      if (msg?.info.role !== 'assistant') return 0
-      const msgInfo = msg.info as { tokens?: { input: number; output: number; reasoning: number; cache?: { read: number } } }
-      return (msgInfo.tokens?.input ?? 0) + (msgInfo.tokens?.output ?? 0) + (msgInfo.tokens?.reasoning ?? 0) + (msgInfo.tokens?.cache?.read ?? 0)
-    }
-
-    if (sumTokens(latestAssistantMessage) === 0 && assistantMessages.length > 1) {
+    if (getMessageTokens(latestAssistantMessage) === 0 && assistantMessages.length > 1) {
       latestAssistantMessage = assistantMessages[assistantMessages.length - 2]
     }
 
-    const currentModel = (() => {
-      if (!latestAssistantMessage || latestAssistantMessage.info.role !== 'assistant') {
-        return null
-      }
-      const msg = latestAssistantMessage.info as { providerID?: string; modelID?: string }
-      if (msg.providerID && msg.modelID) {
-        return `${msg.providerID}/${msg.modelID}`
-      }
-      return null
-    })()
+    const currentModel = getMessageModel(latestAssistantMessage)
 
     let contextLimit: number | null = null
     if (currentModel && providersData) {
@@ -96,7 +132,7 @@ export const useContextUsage = (apiUrl: string | null | undefined, sessionID: st
       }
     }
     
-    const totalTokens = sumTokens(latestAssistantMessage)
+    const totalTokens = getMessageTokens(latestAssistantMessage)
 
     const usagePercentage = contextLimit ? (totalTokens / contextLimit) * 100 : null
 

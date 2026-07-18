@@ -22,7 +22,7 @@ export async function resolveProjectId(repoFullPath: string): Promise<string | n
     return projectIdCache.get(repoFullPath) ?? null
   }
 
-  const cacheFile = `${repoFullPath}/.git/opencode`
+  const cacheFile = `${repoFullPath}/.git/subpolar-project`
   const cacheExists = await fileExists(cacheFile)
 
   if (cacheExists) {
