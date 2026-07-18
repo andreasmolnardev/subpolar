@@ -6,7 +6,15 @@ export type PiRunContext = {
   agentId: string
   sessionId: string
   runId: string
-  skills: Array<{ name: string; description: string; filePath: string; baseDir: string }>
+  skills: Array<{
+    name: string
+    description: string
+    filePath: string
+    baseDir: string
+    source?: 'auto-generated'
+    toolId?: string
+    inputSchema?: Record<string, unknown>
+  }>
 }
 
 const storage = new AsyncLocalStorage<PiRunContext>()

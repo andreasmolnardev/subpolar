@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import type { Database } from '../db/schema'
 import { getEnabledIntegrationForTool, listEnabledIntegrationsByType, updateIntegration } from '../db/integrations'
 import { upsertTool } from '../db/subpolar-tools'
+import { normalizeToolName, qualifiedToolId } from './tool-naming'
 
 type JsonObject = Record<string, unknown>
 type AuthType = 'spec' | 'none' | 'apiKey' | 'bearer' | 'basic' | 'headers'
@@ -72,9 +73,7 @@ function object(value: unknown): JsonObject {
 }
 
 export function normalizeProviderName(value: string): string {
-  const slug = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-  if (!slug) throw new Error('Provider name must include letters or numbers')
-  return slug
+  return normalizeToolName(value)
 }
 
 function parseDocument(value: string): JsonObject {
@@ -164,7 +163,7 @@ export function discoverOpenApiDocument(config: OpenApiConfig): OpenApiOperation
       if (!['get', 'put', 'post', 'delete', 'patch', 'head', 'options'].includes(method) || !rawOperation || typeof rawOperation !== 'object') continue
       const operation = resolveRef(document, rawOperation)
       const subtool = operationName(method, path, operation)
-      operations.push({ toolId: `openapi.${provider}.${subtool}`, subtool, method, path, description: typeof operation.summary === 'string' ? operation.summary : typeof operation.description === 'string' ? operation.description : `${method.toUpperCase()} ${path}`, inputSchema: inputSchema(document, pathItem, operation), security: operation.security ?? document.security ?? [] })
+      operations.push({ toolId: qualifiedToolId(provider, subtool), subtool, method, path, description: typeof operation.summary === 'string' ? operation.summary : typeof operation.description === 'string' ? operation.description : `${method.toUpperCase()} ${path}`, inputSchema: inputSchema(document, pathItem, operation), security: operation.security ?? document.security ?? [] })
     }
   }
   if (!operations.length) throw new Error('OpenAPI document has no supported operations')

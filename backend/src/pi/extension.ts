@@ -31,6 +31,9 @@ type SkillInfo = {
   description: string
   filePath: string
   baseDir: string
+  source?: 'auto-generated'
+  toolId?: string
+  inputSchema?: Record<string, unknown>
 }
 
 type SkillDiscoverParams = {
@@ -65,7 +68,7 @@ type ExtensionApi = {
   }) => void
 }
 
-const INTERNAL_TOOL_NAMES = new Set(['skill-discover', 'skill-load', 'subpolar-tools', 'subpolar-mcp', 'subpolar-openapi'])
+const INTERNAL_TOOL_NAMES = new Set(['skill-discover', 'skill-load', 'subpolar-tools'])
 const skillDiscoverParameters = {
   type: 'object',
   properties: {
@@ -120,32 +123,6 @@ const subpolarToolsParameters = {
       description: 'JSON object input for call actions',
       additionalProperties: true,
     },
-  },
-  required: ['action'],
-  additionalProperties: false,
-}
-
-const subpolarMcpParameters = {
-  type: 'object',
-  properties: {
-    action: { type: 'string', enum: ['search', 'load', 'run'], description: 'Search MCP tools, load one exact schema, or run one exact tool.' },
-    serverId: { type: 'string', description: 'MCP server id, required for load and run.' },
-    toolId: { type: 'string', description: 'Stable MCP tool id, required for load and run.' },
-    query: { type: 'string', description: 'Optional server/tool/description search query.' },
-    input: { type: 'object', description: 'JSON object input, required for run.', additionalProperties: true },
-  },
-  required: ['action'],
-  additionalProperties: false,
-}
-
-const subpolarOpenApiParameters = {
-  type: 'object',
-  properties: {
-    action: { type: 'string', enum: ['search', 'load', 'run'], description: 'Search OpenAPI tools, load one exact schema, or run one exact operation.' },
-    serverId: { type: 'string', description: 'OpenAPI provider id, required for load and run.' },
-    toolId: { type: 'string', description: 'Stable OpenAPI tool id, required for load and run.' },
-    query: { type: 'string', description: 'Optional provider/tool/description search query.' },
-    input: { type: 'object', description: 'JSON object input, required for run.', additionalProperties: true },
   },
   required: ['action'],
   additionalProperties: false,
@@ -271,47 +248,50 @@ async function callSubpolarTools(params: unknown): Promise<ExtensionToolResult> 
   return textResult('action must be one of: list, describe, call', { ok: false })
 }
 
-async function callSubpolarMcp(params: unknown): Promise<ExtensionToolResult> {
-  const input = params && typeof params === 'object' ? params as { action?: unknown; serverId?: unknown; toolId?: unknown; query?: unknown; input?: unknown } : {}
-  const agentId = requiredEnv('SUBPOLAR_AGENT_ID')
-  if (input.action === 'search') return callSubpolarBackend('/mcp/search', { agentId, sessionId: requiredEnv('SUBPOLAR_SESSION_ID'), query: input.query })
-  if (typeof input.serverId !== 'string' || typeof input.toolId !== 'string') return textResult('serverId and toolId are required for load and run actions', { ok: false })
-  if (input.action === 'load') return callSubpolarBackend('/mcp/load', { agentId, sessionId: requiredEnv('SUBPOLAR_SESSION_ID'), serverId: input.serverId, toolId: input.toolId })
-  if (input.action === 'run') return callSubpolarBackend('/mcp/run', { agentId, sessionId: requiredEnv('SUBPOLAR_SESSION_ID'), serverId: input.serverId, toolId: input.toolId, input: input.input ?? {} })
-  return textResult('action must be one of: search, load, run', { ok: false })
-}
-
-async function callSubpolarOpenApi(params: unknown): Promise<ExtensionToolResult> {
-  const input = params && typeof params === 'object' ? params as { action?: unknown; serverId?: unknown; toolId?: unknown; query?: unknown; input?: unknown } : {}
-  const agentId = requiredEnv('SUBPOLAR_AGENT_ID')
-  if (input.action === 'search') return callSubpolarBackend('/openapi/search', { agentId, sessionId: requiredEnv('SUBPOLAR_SESSION_ID'), query: input.query })
-  if (typeof input.serverId !== 'string' || typeof input.toolId !== 'string') return textResult('serverId and toolId are required for load and run actions', { ok: false })
-  if (input.action === 'load') return callSubpolarBackend('/openapi/load', { agentId, sessionId: requiredEnv('SUBPOLAR_SESSION_ID'), serverId: input.serverId, toolId: input.toolId })
-  if (input.action === 'run') return callSubpolarBackend('/openapi/run', { agentId, sessionId: requiredEnv('SUBPOLAR_SESSION_ID'), serverId: input.serverId, toolId: input.toolId, input: input.input ?? {} })
-  return textResult('action must be one of: search, load, run', { ok: false })
-}
-
-function discoverSkills(params: SkillDiscoverParams): ExtensionToolResult {
+async function discoverSkills(params: SkillDiscoverParams): Promise<ExtensionToolResult> {
   const query = params.query?.trim().toLowerCase()
   const limit = Number.isFinite(params.limit) && params.limit && params.limit > 0 ? Math.floor(params.limit) : undefined
   const skills = getSkills()
     .filter(skill => !query || skill.name.toLowerCase().includes(query) || skill.description.toLowerCase().includes(query))
     .slice(0, limit)
-    .map(skill => ({ name: skill.name, description: skill.description }))
+    .map(skill => ({
+      name: skill.name,
+      description: skill.description,
+      type: skill.source === 'auto-generated' ? 'Auto-generated' : 'Skill',
+      ...(skill.source === 'auto-generated' && skill.toolId ? {
+        toolId: skill.toolId,
+        inputSchema: skill.inputSchema,
+      } : {}),
+    }))
 
   return textResult(JSON.stringify({ skills }, null, 2), { count: skills.length, query })
 }
 
-function loadSkill(params: SkillLoadParams): ExtensionToolResult {
+async function loadSkill(params: SkillLoadParams): Promise<ExtensionToolResult> {
   const skill = getSkills().find(item => item.name === params.name)
   if (!skill) {
     return textResult(`Skill not found: ${params.name}`, { found: false, name: params.name })
   }
 
+  if (skill.source === 'auto-generated' && skill.toolId) return loadGeneratedToolSkill(skill)
+
   const body = stripFrontmatter(readFileSync(skill.filePath, 'utf-8')).trim()
   return textResult(
     `<skill name="${skill.name}" location="${skill.filePath}">\nReferences are relative to ${skill.baseDir}.\n\n${body}\n</skill>`,
     { found: true, name: skill.name, location: skill.filePath, baseDir: skill.baseDir },
+  )
+}
+
+async function loadGeneratedToolSkill(skill: SkillInfo): Promise<ExtensionToolResult> {
+  const result = await callSubpolarBackend('/tools/describe', {
+    agentId: requiredEnv('SUBPOLAR_AGENT_ID'),
+    toolId: skill.toolId,
+  })
+  const details = result.details as { status?: unknown }
+  if (details.status !== 200) return result
+  return textResult(
+    `<skill name="${skill.name}" type="Auto-generated" tool-id="${skill.toolId}">\nUse this skill whenever the user needs ${skill.description.replace(/^Auto-generated skill for [^:]+:\s*/, '')}\n\nCall subpolar-tools with action "call", toolId "${skill.toolId}", and an input object that matches this tool definition:\n\n${result.content.map(item => typeof item === 'object' && item !== null && 'text' in item ? String(item.text) : '').join('')}\n</skill>`,
+    { found: true, name: skill.name, type: 'Auto-generated', toolId: skill.toolId },
   )
 }
 
@@ -326,7 +306,7 @@ function registerSkillTools(pi: ExtensionApi): void {
     promptGuidelines: ['Use skill-discover before loading a skill when you are unsure which skill applies.', 'Use skill-load with an exact skill name to load full skill instructions.'],
     parameters: skillDiscoverParameters,
     async execute(_toolCallId, params) {
-      return discoverSkills(params as SkillDiscoverParams)
+      return await discoverSkills(params as SkillDiscoverParams)
     },
   })
 
@@ -338,7 +318,7 @@ function registerSkillTools(pi: ExtensionApi): void {
     promptGuidelines: ['Call skill-load before applying a skill, then follow the loaded instructions.'],
     parameters: skillLoadParameters,
     async execute(_toolCallId, params) {
-      return loadSkill(params as SkillLoadParams)
+      return await loadSkill(params as SkillLoadParams)
     },
   })
 }
@@ -356,30 +336,6 @@ function registerSubpolarTools(pi: ExtensionApi): void {
     async execute(_toolCallId, params) {
       return callSubpolarTools(params)
     },
-  })
-}
-
-function registerMcpTool(pi: ExtensionApi): void {
-  if (!pi.registerTool) return
-  pi.registerTool({
-    name: 'subpolar-mcp', label: 'Subpolar MCP',
-    description: 'Search, inspect, and run permissioned Model Context Protocol tools managed by Subpolar.',
-    promptSnippet: 'Use subpolar-mcp to access MCP servers. Search and load unfamiliar tools before running them.',
-    promptGuidelines: ['Use search before load or run.', 'Use load before running an unfamiliar MCP tool.', 'Run only exact stable tool ids with JSON object input.'],
-    parameters: subpolarMcpParameters,
-    async execute(_toolCallId, params) { return callSubpolarMcp(params) },
-  })
-}
-
-function registerOpenApiTool(pi: ExtensionApi): void {
-  if (!pi.registerTool) return
-  pi.registerTool({
-    name: 'subpolar-openapi', label: 'Subpolar OpenAPI',
-    description: 'Search, inspect, and run permissioned OpenAPI operations managed by Subpolar.',
-    promptSnippet: 'Use subpolar-openapi to access configured API providers. Search and load unfamiliar operations before running them.',
-    promptGuidelines: ['Use search before load or run.', 'Use load before running an unfamiliar OpenAPI operation.', 'Run only exact stable tool ids with JSON object input.'],
-    parameters: subpolarOpenApiParameters,
-    async execute(_toolCallId, params) { return callSubpolarOpenApi(params) },
   })
 }
 
@@ -404,8 +360,6 @@ export default function subpolarPiExtension(pi: ExtensionApi) {
   if (!register) return
   registerSkillTools(pi)
   registerSubpolarTools(pi)
-  registerMcpTool(pi)
-  registerOpenApiTool(pi)
   registerBashTool(pi)
   register.call(pi, 'project_trust', () => ({ trusted: 'no' }))
   register.call(pi, 'tool_call', (event) => authorizeToolCall(event as PiToolCall))

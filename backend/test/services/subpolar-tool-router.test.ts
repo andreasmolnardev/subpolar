@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '../../src/db/schema'
-import { callTool } from '../../src/services/subpolar-tool-router'
+import { callTool, describeToolForAgent, listToolsForAgent } from '../../src/services/subpolar-tool-router'
 import { resolveCalDavDateRange } from '../../src/services/caldav'
 
 const getEvents = vi.fn()
@@ -97,7 +97,7 @@ function createDb(): Database {
   } as unknown as Database
 }
 
-function createResearchDb(): Database {
+function createResearchDb(skillAccessOnly = false): Database {
   const now = Date.now()
   const records: Record<string, Array<Record<string, unknown>>> = {
     agents: [{
@@ -108,6 +108,7 @@ function createResearchDb(): Database {
       prompt: '',
       permission: {},
       skills: [],
+      skill_access: skillAccessOnly ? [{ id: 'tool-web-search', discovery: 'name', source: 'tool-default' }] : [],
       enabled: true,
       source: 'system',
       sort_order: 0,
@@ -150,7 +151,7 @@ function createResearchDb(): Database {
         updated_at: now,
       },
     ],
-    agent_tool_policies: [
+    agent_tool_policies: skillAccessOnly ? [] : [
       { id: 'policy-search', agent_id: 'research', tool_id: 'web.search', effect: 'allow' },
       { id: 'policy-scrape', agent_id: 'research', tool_id: 'web.scrape', effect: 'allow' },
     ],
@@ -206,6 +207,15 @@ describe('subpolar tool router', () => {
     const range = resolveCalDavDateRange({ range: 'next week' }, new Date('2026-06-28T12:00:00.000Z'))
     expect([range.start.getFullYear(), range.start.getMonth(), range.start.getDate(), range.start.getHours()]).toEqual([2026, 5, 29, 0])
     expect([range.end.getFullYear(), range.end.getMonth(), range.end.getDate(), range.end.getHours()]).toEqual([2026, 6, 6, 0])
+  })
+
+  it('exposes an explicitly selected generated tool skill without a separate policy', async () => {
+    const db = createResearchDb(true)
+
+    await expect(listToolsForAgent(db, 'research')).resolves.toEqual([
+      expect.objectContaining({ id: 'web.search' }),
+    ])
+    await expect(describeToolForAgent(db, 'research', 'web.search')).resolves.toMatchObject({ id: 'web.search' })
   })
 
   it('returns CalDAV events for calendar.get', async () => {

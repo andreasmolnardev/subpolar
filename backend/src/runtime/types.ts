@@ -1,3 +1,5 @@
+import type { AgentSkillAccess } from '@subpolar/shared'
+
 export type RuntimeId = 'pi'
 
 export type RuntimeMessage = {
@@ -16,6 +18,7 @@ export type RuntimeRunInput = {
   cwd?: string
   messages: RuntimeMessage[]
   systemPrompt?: string
+  skillAccess?: AgentSkillAccess[]
   model?: Record<string, unknown>
   tools?: RuntimeToolDefinition[]
   workspace?: Record<string, unknown>

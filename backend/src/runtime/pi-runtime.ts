@@ -10,6 +10,7 @@ import { getAuthPath, getPiModelsPath } from '@subpolar/shared/config/env'
 import fs from 'fs/promises'
 import path from 'path'
 import type { RuntimeAdapter, RuntimeEvent, RuntimeRunInput } from './types'
+import type { SkillFileInfo } from '@subpolar/shared'
 import { buildAgentPrompt } from '../services/agent-prompt'
 import { closeMcpSession } from '../services/mcp'
 import { runWithPiContext, type PiRunContext } from '../pi/run-context'
@@ -30,7 +31,21 @@ type ActivePiProcess = {
   sessionId: string
 }
 
-type RuntimeSkill = { name: string; description: string; filePath: string; baseDir: string }
+type RuntimeSkill = {
+  name: string
+  description: string
+  filePath: string
+  baseDir: string
+  source?: 'auto-generated'
+  toolId?: string
+  inputSchema?: Record<string, unknown>
+}
+
+type ListedTool = {
+  id: string
+  description: string
+  inputSchema: Record<string, unknown>
+}
 
 const defaultExtensionPath = new URL('../pi/extension.ts', import.meta.url).pathname
 
@@ -158,7 +173,7 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
   private async createSession(input: RuntimeRunInput, queue: RuntimeEventQueue) {
     const cwd = input.cwd ?? process.cwd()
     const projectSkillPaths = await this.getProjectSkillPaths(cwd)
-    const systemPrompt = await this.getSystemPrompt(input.systemPrompt, cwd)
+    const generatedToolSkills = await this.getGeneratedToolSkills(input.agentId)
     const authStorage = AuthStorage.create(getAuthPath())
     const modelRegistry = ModelRegistry.create(authStorage, getPiModelsPath())
     const modelId = this.getModelArg(input.model)
@@ -173,7 +188,12 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
     })
 
     await loader.reload()
-    const skills = await this.getRuntimeSkills(cwd, loader.getSkills().skills)
+    const skills = [
+      ...await this.getRuntimeSkills(cwd, loader.getSkills().skills),
+      ...generatedToolSkills,
+    ]
+    const systemPrompt = await this.getSystemPrompt(input.systemPrompt, input.skillAccess, cwd, skills)
+    await loader.reload()
     const sessionManager = SessionManager.inMemory(cwd)
     this.seedSessionHistory(sessionManager, input)
 
@@ -225,12 +245,23 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
     return undefined
   }
 
-  private async getSystemPrompt(systemPrompt: string | undefined, cwd: string): Promise<string | undefined> {
+  private async getSystemPrompt(systemPrompt: string | undefined, skillAccess: RuntimeRunInput['skillAccess'], cwd: string, skills: RuntimeSkill[]): Promise<string | undefined> {
     const agentsMdPath = path.join(cwd, 'AGENTS.md')
     const agentsMd = await fs.readFile(agentsMdPath, 'utf8').catch(() => '')
     return buildAgentPrompt({
       agentPrompt: systemPrompt,
       projectInstructions: agentsMd,
+      skillAccess,
+      skills: skills.map((skill): SkillFileInfo => ({
+        name: skill.name,
+        description: skill.description,
+        body: skill.source === 'auto-generated'
+          ? `Load ${skill.name} with skill-load for the tool's full instructions and schema.`
+          : '',
+        scope: skill.source === 'auto-generated' ? 'global' : 'project',
+        location: skill.filePath,
+        source: skill.source === 'auto-generated' ? 'auto' : 'project',
+      })),
     }).prompt
   }
 
@@ -259,6 +290,38 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
       if (!disabled.has(skill.name)) skillsByName.set(skill.name, skill)
     }
     return [...skillsByName.values()]
+  }
+
+  private async getGeneratedToolSkills(agentId: string): Promise<RuntimeSkill[]> {
+    try {
+      const response = await fetch(`${this.options.baseUrl.replace(/\/+$/, '')}/api/subpolar-cli/tools/list`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${this.options.internalToken}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ agentId }),
+      })
+      if (!response.ok) return []
+      const result = await response.json() as { ok?: unknown; tools?: unknown }
+      if (!result.ok || !Array.isArray(result.tools)) return []
+      return result.tools.flatMap((tool): RuntimeSkill[] => {
+        if (!tool || typeof tool !== 'object') return []
+        const { id, description, inputSchema } = tool as Partial<ListedTool>
+        if (typeof id !== 'string' || typeof description !== 'string' || !inputSchema || typeof inputSchema !== 'object' || Array.isArray(inputSchema)) return []
+        return [{
+          name: `tool-${id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,
+          description: `Auto-generated skill for ${id}: ${description}`,
+          filePath: `subpolar-tool://${id}`,
+          baseDir: '',
+          source: 'auto-generated',
+          toolId: id,
+          inputSchema,
+        }]
+      })
+    } catch {
+      return []
+    }
   }
 
   private async getDisabledProjectSkills(cwd: string): Promise<Set<string>> {

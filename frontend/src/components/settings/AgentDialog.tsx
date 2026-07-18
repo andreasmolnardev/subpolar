@@ -32,9 +32,6 @@ const agentFormSchema = z.object({
   name: z.string().min(1, 'Agent name is required').regex(/^[a-z0-9-]+$/, 'Must be lowercase letters, numbers, and hyphens only'),
   description: z.string().optional(),
   prompt: z.string().min(1, 'Prompt is required'),
-  mode: z.enum(['subagent', 'primary', 'all']),
-  temperature: z.number().min(0).max(2),
-  topP: z.number().min(0).max(1),
   disable: z.boolean(),
   icon: z.string().optional(),
   skills: z.array(z.string()).optional(),
@@ -47,6 +44,7 @@ type AgentFormValues = z.infer<typeof agentFormSchema>
 type ToolAccess = z.infer<typeof toolAccessSchema>
 
 interface Agent {
+  id?: string
   prompt?: string
   description?: string
   mode?: 'subagent' | 'primary' | 'all'
@@ -75,8 +73,25 @@ const BUILTIN_TOOL_LABELS: Record<string, string> = {
   'other-bash': 'Other Bash Commands',
 }
 
+const CLI_TOOL_SELECTION = 'other:cli'
+
 const EMPTY_TOOL_ACCESS: ToolAccess[] = []
 const EMPTY_SKILL_ACCESS: AgentSkillAccess[] = []
+
+function generatedToolSkillName(toolId: string): string {
+  return `tool-${toolId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
+}
+
+function generatedToolSkill(tool: SubpolarTool): SkillFileInfo {
+  return {
+    name: generatedToolSkillName(tool.tool_id),
+    description: `Auto-generated skill for ${tool.tool_id}: ${tool.description}`,
+    body: '',
+    scope: 'global',
+    location: `subpolar-tool://${tool.tool_id}`,
+    source: 'auto',
+  }
+}
 
 function permissionFrom(value: unknown, fallback: 'allow' | 'ask' | 'deny' = 'deny'): 'allow' | 'ask' | 'deny' {
   return value === 'allow' || value === 'ask' || value === 'deny' ? value : fallback
@@ -134,8 +149,8 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
   })
 
   const { data: policyResponse } = useQuery({
-    queryKey: ['agent-tool-policies', editingAgent?.name],
-    queryFn: () => settingsApi.listAgentToolPolicies(editingAgent!.name),
+    queryKey: ['agent-tool-policies', editingAgent?.agent.id ?? editingAgent?.name],
+    queryFn: () => settingsApi.listAgentToolPolicies(editingAgent!.agent.id ?? editingAgent!.name),
     enabled: open && !!editingAgent?.name,
   })
 
@@ -145,15 +160,18 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
   const nativeSubpolarTools = useMemo(() => subpolarTools.filter(tool => tool.adapter !== 'mcp' && tool.namespace !== 'mcp' && tool.adapter !== 'openapi' && tool.namespace !== 'openapi'), [subpolarTools])
   const policies = useMemo(() => policyResponse?.policies ?? [], [policyResponse?.policies])
   const availableSkillNames = useMemo(() => availableSkills.map(skill => skill.name), [availableSkills])
+  const generatedToolSkills = useMemo(() => subpolarTools.map(generatedToolSkill), [subpolarTools])
+  const promptSkills = useMemo(() => {
+    const skillsByName = new Map(availableSkills.map(skill => [skill.name, skill]))
+    for (const skill of generatedToolSkills) skillsByName.set(skill.name, skill)
+    return [...skillsByName.values()]
+  }, [availableSkills, generatedToolSkills])
 
   const getDefaultValues = useCallback((agent?: { name: string; agent: Agent } | null): AgentFormValues => {
     return {
       name: agent?.name || '',
       description: agent?.agent.description || '',
       prompt: agent?.agent.prompt || '',
-      mode: agent?.agent.mode || 'subagent',
-      temperature: agent?.agent.temperature ?? 0.7,
-      topP: agent?.agent.topP ?? agent?.agent.top_p ?? 1,
       disable: agent?.agent.disable ?? false,
       icon: agent?.agent.icon || '',
       skills: agent?.agent.skills || [],
@@ -182,7 +200,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
   const promptValue = form.watch('prompt')
   const selectedTool = toolAccess[selectedToolIndex]
   const selectedSkill = skillAccess[selectedSkillIndex]
-  const promptPreview = useMemo(() => buildAgentPromptPreview({ prompt: promptValue, toolAccess, skillAccess, skills: availableSkills }), [promptValue, toolAccess, skillAccess, availableSkills])
+  const promptPreview = useMemo(() => buildAgentPromptPreview({ prompt: promptValue, skillAccess, skills: promptSkills }), [promptValue, skillAccess, promptSkills])
 
   const addToolAccess = () => {
     const defaultTool = subpolarTools[0]?.tool_id ?? 'calendar.get'
@@ -200,6 +218,20 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
   const updateSelectedTool = (patch: Partial<ToolAccess>) => {
     const next = toolAccess.map((tool, index) => index === selectedToolIndex ? { ...tool, ...patch } : tool)
     form.setValue('toolAccess', next, { shouldDirty: true, shouldValidate: true })
+  }
+
+  const selectTool = (value: string) => {
+    if (value === CLI_TOOL_SELECTION) {
+      updateSelectedTool({ type: 'cli', id: selectedTool?.command ?? '', command: selectedTool?.command ?? '' })
+      return
+    }
+
+    const [type, ...idParts] = value.split(':')
+    updateSelectedTool({
+      type: type as 'builtin' | 'subpolar',
+      id: idParts.join(':'),
+      command: undefined,
+    })
   }
 
   const addSkillAccess = (source: AgentSkillAccess['source'] = 'manual') => {
@@ -229,16 +261,59 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
     }
   }, [availableSkillNames, form, skillAccess, toolAccess])
 
+  useEffect(() => {
+    const selectedToolSkillIds = new Set(toolAccess
+      .filter(tool => tool.type === 'subpolar' && tool.permission !== 'deny')
+      .map(tool => generatedToolSkillName(tool.id)))
+    const retainedSkills = skillAccess.filter(skill => skill.source !== 'tool-default' || !skill.id.startsWith('tool-') || selectedToolSkillIds.has(skill.id))
+    const existingSkillIds = new Set(retainedSkills.map(skill => skill.id))
+    const addedSkills = [...selectedToolSkillIds]
+      .filter(id => !existingSkillIds.has(id))
+      .map(id => ({ id, discovery: 'name' as const, source: 'tool-default' as const }))
+    const next = [...retainedSkills, ...addedSkills]
+    if (next.length !== skillAccess.length || next.some((skill, index) => skill.id !== skillAccess[index]?.id || skill.discovery !== skillAccess[index]?.discovery || skill.source !== skillAccess[index]?.source)) {
+      form.setValue('skillAccess', next, { shouldDirty: true, shouldValidate: true })
+    }
+  }, [form, skillAccess, toolAccess])
+
   const handleSubmit = async (values: AgentFormValues) => {
+    const selectedGeneratedToolIds = new Set((values.skillAccess ?? []).flatMap((skill) => {
+      const tool = subpolarTools.find((item) => generatedToolSkillName(item.tool_id) === skill.id)
+      return tool ? [tool.tool_id] : []
+    }))
+    const configuredToolIds = new Set((values.toolAccess ?? [])
+      .filter((tool) => tool.type === 'subpolar')
+      .map((tool) => tool.id))
+    const effectiveToolAccess = [
+      ...(values.toolAccess ?? []).map((tool) =>
+        tool.type === 'subpolar' && selectedGeneratedToolIds.has(tool.id)
+          ? { ...tool, permission: 'allow' as const }
+          : tool,
+      ),
+      ...[...selectedGeneratedToolIds]
+        .filter((toolId) => !configuredToolIds.has(toolId))
+        .map((toolId) => ({ type: 'subpolar' as const, id: toolId, permission: 'allow' as const })),
+    ]
     const agent: Agent = {
       prompt: values.prompt,
       description: values.description || undefined,
-      mode: values.mode,
-      temperature: values.temperature,
-      topP: values.topP,
       disable: values.disable,
       tools: {},
       permission: {}
+    }
+
+    if (editingAgent?.agent.mode) {
+      agent.mode = editingAgent.agent.mode
+    }
+
+    if (editingAgent?.agent.temperature !== undefined) {
+      agent.temperature = editingAgent.agent.temperature
+    }
+
+    if (editingAgent?.agent.topP !== undefined) {
+      agent.topP = editingAgent.agent.topP
+    } else if (editingAgent?.agent.top_p !== undefined) {
+      agent.top_p = editingAgent.agent.top_p
     }
 
     if (values.icon) {
@@ -258,15 +333,15 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
       agent.allowedCommands = values.allowedCommands
     }
 
-    if (values.toolAccess && values.toolAccess.length > 0) {
-      agent.toolAccess = values.toolAccess
-      const builtinTools = Object.fromEntries(values.toolAccess.filter(tool => tool.type === 'builtin').map(tool => [tool.id, tool]))
+    if (effectiveToolAccess.length > 0) {
+      agent.toolAccess = effectiveToolAccess
+      const builtinTools = Object.fromEntries(effectiveToolAccess.filter(tool => tool.type === 'builtin').map(tool => [tool.id, tool]))
       const editPermission = builtinTools.edit?.permission || 'deny'
       const webfetchPermission = builtinTools.webfetch?.permission || 'deny'
       const otherBashPermission = builtinTools['other-bash']?.permission || 'deny'
       agent.tools = {
         edit: editPermission !== 'deny',
-        bash: otherBashPermission !== 'deny' || values.toolAccess.some(tool => tool.type === 'cli'),
+        bash: otherBashPermission !== 'deny' || effectiveToolAccess.some(tool => tool.type === 'cli'),
         webfetch: webfetchPermission !== 'deny',
       }
       agent.permission = {
@@ -274,8 +349,8 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
         webfetch: webfetchPermission,
         bash: otherBashPermission,
       }
-      agent.allowedCommands = Array.from(new Set(values.toolAccess.filter(tool => tool.type === 'cli').map(tool => tool.command || tool.id)))
-      const cliTools = values.toolAccess.filter(tool => tool.type === 'cli')
+      agent.allowedCommands = Array.from(new Set(effectiveToolAccess.filter(tool => tool.type === 'cli').map(tool => tool.command || tool.id)))
+      const cliTools = effectiveToolAccess.filter(tool => tool.type === 'cli')
       if (cliTools.length > 0 || otherBashPermission !== 'deny') {
         agent.permission = {
           ...agent.permission,
@@ -308,8 +383,8 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
 
         <div className="flex-1 overflow-y-auto p-2 sm:p-4">
           <Form {...form}>
-            <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-            <div className="space-y-4">
+            <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <div className="min-w-0 space-y-4">
               <div className="grid grid-cols-[minmax(3.25rem,auto)_1fr] gap-3 items-start">
                 <FormField
                   control={form.control}
@@ -390,86 +465,22 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
               />
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="mode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Mode</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select mode" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="subagent">Subagent</SelectItem>
-                          <SelectItem value="primary">Primary</SelectItem>
-                          <SelectItem value="all">All</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="temperature"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Temperature</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type="number"
-                          min="0"
-                          max="2"
-                          step="0.1"
-                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="topP"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Top P</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type="number"
-                          min="0"
-                          max="1"
-                          step="0.1"
-                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
 
               <div className="space-y-3 rounded-lg border p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <div className="text-sm font-medium">Agent Tools</div>
+                    <div className="text-sm font-medium">Tool Permissions</div>
                     <p className="text-xs text-muted-foreground">Configure direct CLI utilities and Subpolar backend-routed tool calls.</p>
                   </div>
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-1">
+                <div className="min-w-0 flex gap-2 overflow-x-auto pb-1">
                   {toolAccess.map((tool, index) => (
                     <button
                       key={`${tool.type}-${tool.id}-${index}`}
                       type="button"
                       onClick={() => setSelectedToolIndex(index)}
-                      className={`min-w-36 rounded-md border p-3 text-left text-sm transition-colors ${selectedToolIndex === index ? 'border-primary bg-primary/10' : 'bg-card hover:bg-muted'}`}
+                      className={`min-w-36 shrink-0 rounded-md border p-3 text-left text-sm transition-colors ${selectedToolIndex === index ? 'border-primary bg-primary/10' : 'bg-card hover:bg-muted'}`}
                     >
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">{tool.type}</div>
                       <div className="truncate font-medium">{tool.id}</div>
@@ -479,64 +490,50 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                   <button
                     type="button"
                     onClick={addToolAccess}
-                    className="min-w-24 rounded-md border border-dashed p-3 text-sm text-muted-foreground hover:bg-muted flex items-center justify-center"
+                    className="min-w-24 shrink-0 rounded-md border border-dashed p-3 text-sm text-muted-foreground hover:bg-muted flex items-center justify-center"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
 
                 {selectedTool ? (
-                  <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+                  <div className="grid gap-3 sm:grid-cols-[1fr_auto] items-end">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Tool Type</label>
-                      <Select value={selectedTool.type} onValueChange={(value) => updateSelectedTool({ type: value as 'builtin' | 'cli' | 'subpolar' })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="builtin">Built-in Tool</SelectItem>
-                          <SelectItem value="cli">CLI Utility</SelectItem>
-                          <SelectItem value="subpolar">Subpolar Tool</SelectItem>
+                      <label className="text-sm font-medium">Tool</label>
+                      <Select value={selectedTool.type === 'cli' ? CLI_TOOL_SELECTION : `${selectedTool.type}:${selectedTool.id}`} onValueChange={selectTool}>
+                        <SelectTrigger><SelectValue placeholder="Select a tool" /></SelectTrigger>
+                        <SelectContent className="max-h-80 overflow-y-auto">
+                          <SelectGroup>
+                            <SelectLabel>Built-in tools</SelectLabel>
+                            {Object.entries(BUILTIN_TOOL_LABELS).map(([id, label]) => <SelectItem key={id} value={`builtin:${id}`}>{label}</SelectItem>)}
+                          </SelectGroup>
+                          {nativeSubpolarTools.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel>Subpolar tools</SelectLabel>
+                              {nativeSubpolarTools.map((tool: SubpolarTool) => <SelectItem key={tool.tool_id} value={`subpolar:${tool.tool_id}`}>{tool.tool_id}</SelectItem>)}
+                            </SelectGroup>
+                          )}
+                          {mcpTools.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel>MCP server tools</SelectLabel>
+                              {mcpTools.map((tool: SubpolarTool) => {
+                                const serverName = typeof tool.metadata?.serverName === 'string' ? tool.metadata.serverName : 'Configured MCP server'
+                                return <SelectItem key={tool.tool_id} value={`subpolar:${tool.tool_id}`}>{serverName} · {tool.tool_id}</SelectItem>
+                              })}
+                            </SelectGroup>
+                          )}
+                          {openApiTools.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel>OpenAPI provider tools</SelectLabel>
+                              {openApiTools.map((tool: SubpolarTool) => <SelectItem key={tool.tool_id} value={`subpolar:${tool.tool_id}`}>{typeof tool.metadata?.providerName === 'string' ? tool.metadata.providerName : 'OpenAPI'} · {tool.tool_id}</SelectItem>)}
+                            </SelectGroup>
+                          )}
+                          <SelectGroup>
+                            <SelectLabel>Other</SelectLabel>
+                            <SelectItem value={CLI_TOOL_SELECTION}>CLI utility</SelectItem>
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">{selectedTool.type === 'builtin' ? 'Tool' : selectedTool.type === 'cli' ? 'Command' : 'Tool ID'}</label>
-                      {selectedTool.type === 'builtin' ? (
-                        <Select value={selectedTool.id} onValueChange={(value) => updateSelectedTool({ id: value })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(BUILTIN_TOOL_LABELS).map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      ) : selectedTool.type === 'subpolar' && subpolarTools.length > 0 ? (
-                        <Select value={selectedTool.id} onValueChange={(value) => updateSelectedTool({ id: value })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent className="max-h-80">
-                            {nativeSubpolarTools.length > 0 && (
-                              <SelectGroup>
-                                <SelectLabel>Subpolar tools</SelectLabel>
-                                {nativeSubpolarTools.map((tool: SubpolarTool) => <SelectItem key={tool.tool_id} value={tool.tool_id}>{tool.tool_id}</SelectItem>)}
-                              </SelectGroup>
-                            )}
-                            {mcpTools.length > 0 && (
-                              <SelectGroup>
-                                <SelectLabel>MCP server tools</SelectLabel>
-                                {mcpTools.map((tool: SubpolarTool) => {
-                                  const serverName = typeof tool.metadata?.serverName === 'string' ? tool.metadata.serverName : 'Configured MCP server'
-                                  return <SelectItem key={tool.tool_id} value={tool.tool_id}>{serverName} · {tool.tool_id}</SelectItem>
-                                })}
-                              </SelectGroup>
-                            )}
-                            {openApiTools.length > 0 && (
-                              <SelectGroup>
-                                <SelectLabel>OpenAPI provider tools</SelectLabel>
-                                {openApiTools.map((tool: SubpolarTool) => <SelectItem key={tool.tool_id} value={tool.tool_id}>{typeof tool.metadata?.providerName === 'string' ? tool.metadata.providerName : 'OpenAPI'} · {tool.tool_id}</SelectItem>)}
-                              </SelectGroup>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Input value={selectedTool.id} placeholder={selectedTool.type === 'subpolar' ? 'calendar.get' : 'rg'} onChange={(event) => updateSelectedTool({ id: event.target.value, command: selectedTool.type === 'cli' ? event.target.value : selectedTool.command })} />
-                      )}
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={() => removeToolAccess(selectedToolIndex)}>
                       <Trash2 className="h-4 w-4" />
@@ -552,11 +549,13 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <label className="text-sm font-medium">CLI Pattern</label>
-                      <Input value={selectedTool.command || ''} placeholder="rg *" disabled={selectedTool.type === 'subpolar'} onChange={(event) => updateSelectedTool({ command: event.target.value })} />
-                      <p className="text-xs text-muted-foreground">For CLI utilities this documents required bash permissions. Subpolar tools use the dot-based tool ID above.</p>
-                    </div>
+                    {selectedTool.type === 'cli' && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Command pattern</label>
+                        <Input value={selectedTool.command || ''} placeholder="rg *" onChange={(event) => updateSelectedTool({ id: event.target.value, command: event.target.value })} />
+                        <p className="text-xs text-muted-foreground">Use a supported CLI permission pattern, for example <code>rg *</code>.</p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">Add a tool to configure agent access.</div>
@@ -567,23 +566,23 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <div className="text-sm font-medium">Skills</div>
-                    <p className="text-xs text-muted-foreground">Configure instruction access separately from tool capability.</p>
+                    <p className="text-xs text-muted-foreground">Explain capabilities (such as tools) to the agent.</p>
                   </div>
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-1">
+                <div className="min-w-0 flex gap-2 overflow-x-auto pb-1">
                   {skillAccess.map((skill, index) => (
                     <button
                       key={`${skill.id}-${index}`}
                       type="button"
                       onClick={() => setSelectedSkillIndex(index)}
-                      className={`min-w-36 rounded-md border p-3 text-left text-sm transition-colors ${selectedSkillIndex === index ? 'border-primary bg-primary/10' : 'bg-card hover:bg-muted'}`}
+                      className={`min-w-36 shrink-0 rounded-md border p-3 text-left text-sm transition-colors ${selectedSkillIndex === index ? 'border-primary bg-primary/10' : 'bg-card hover:bg-muted'}`}
                     >
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">{skill.source ?? 'manual'}</div>
                       <div className="truncate font-medium">{skill.id}</div>
                       <div className="text-xs text-muted-foreground">{skill.discovery}</div>
                     </button>
                   ))}
-                  <button type="button" onClick={() => addSkillAccess()} className="min-w-24 rounded-md border border-dashed p-3 text-sm text-muted-foreground hover:bg-muted flex items-center justify-center">
+                  <button type="button" onClick={() => addSkillAccess()} className="min-w-24 shrink-0 rounded-md border border-dashed p-3 text-sm text-muted-foreground hover:bg-muted flex items-center justify-center">
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
@@ -592,11 +591,11 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                   <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Skill</label>
-                      {availableSkillNames.length > 0 ? (
+                      {promptSkills.length > 0 ? (
                         <Select value={selectedSkill.id} onValueChange={(value) => updateSelectedSkill({ id: value })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {availableSkillNames.map(skill => <SelectItem key={skill} value={skill}>{skill}</SelectItem>)}
+                            {promptSkills.map(skill => <SelectItem key={skill.name} value={skill.name}>{skill.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       ) : (

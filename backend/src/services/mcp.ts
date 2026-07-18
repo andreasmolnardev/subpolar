@@ -2,6 +2,7 @@ import type { Database } from '../db/schema'
 import { getEnabledIntegrationForTool, listEnabledIntegrationsByType, updateIntegration } from '../db/integrations'
 import { upsertTool } from '../db/subpolar-tools'
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
+import { normalizeToolName, qualifiedToolId } from './tool-naming'
 
 export type McpTransportKind = 'stdio' | 'streamable-http'
 
@@ -29,8 +30,8 @@ function initializationTimeoutFor(config: McpServerConfig): number {
   return Math.max(timeoutFor(config), 60_000)
 }
 
-function toolId(serverId: string, name: string): string {
-  return `mcp.${encodeURIComponent(serverId)}.${encodeURIComponent(name)}`
+function toolId(toolName: string, name: string): string {
+  return qualifiedToolId(toolName, name)
 }
 
 function riskFor(name: string): 'read' | 'write' | 'delete' | 'external' {
@@ -255,7 +256,7 @@ export async function discoverMcpTools(db: Database, serverId: string, sessionId
   const config = { ...integration.config, ...(await loadMcpSecrets(db, integration.id)) } as McpServerConfig
   assertConfig(config)
   const tools = await managerFor(sessionId).listTools(integration.id, config, signal)
-  const activeToolIds = new Set(tools.map(tool => toolId(integration.id, tool.name)))
+  const activeToolIds = new Set(tools.map(tool => toolId(integration.name, tool.name)))
   const registeredTools = await db.collection('tool_registry').getFullList({ filter: `namespace = "mcp" && target = "${integration.id.replaceAll('"', '\\"')}"` })
   for (const registeredTool of registeredTools) {
     if (!activeToolIds.has(String((registeredTool as unknown as { tool_id: string }).tool_id))) {
@@ -265,7 +266,7 @@ export async function discoverMcpTools(db: Database, serverId: string, sessionId
   for (const tool of tools) {
     const risk = riskFor(tool.name)
     await upsertTool(db, {
-      tool_id: toolId(integration.id, tool.name), namespace: 'mcp', description: tool.description ?? tool.name,
+      tool_id: toolId(integration.name, tool.name), namespace: 'mcp', description: tool.description ?? tool.name,
       adapter: 'mcp', target: integration.id, operation: tool.name, input_schema: tool.inputSchema ?? { type: 'object', additionalProperties: true }, output_schema: {},
       risk, requires_approval: risk !== 'read', enabled: true,
       metadata: { serverId: integration.id, serverName: integration.name, discovered: true },
@@ -279,7 +280,7 @@ export async function discoverConfiguredMcpTools(db: Database, missingOnly = fal
   for (const server of servers) {
     if (missingOnly) {
       const registeredTools = await db.collection('tool_registry').getFullList({ filter: `namespace = "mcp" && target = "${server.id.replaceAll('"', '\\"')}" && enabled = true` })
-      if (registeredTools.length > 0) continue
+      if (registeredTools.some(tool => String((tool as unknown as { tool_id: string }).tool_id).startsWith(`${normalizeToolName(server.name)}.`))) continue
     }
     try {
       const tools = await discoverMcpTools(db, server.id)

@@ -181,7 +181,7 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
   const isFileTool = ['read', 'write', 'edit'].includes(part.tool)
   const isCompactTool = part.tool === 'bash' || part.tool === 'glob' || part.tool === 'read'
   const isActiveToolStep = part.state.status === 'pending' || part.state.status === 'running'
-  const isSkillLoadTool = part.tool === 'skill-load'
+  const isSkillTool = part.tool === 'skill-load' || part.tool === 'skill-discover'
 
   const getCompactToolLabel = () => {
     if (!isCompactTool) return part.tool
@@ -253,21 +253,23 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
     return null
   }
 
-  if (isSkillLoadTool) {
-    const skillName = part.state.status !== 'pending' && part.state.input && typeof part.state.input.name === 'string'
+  if (isSkillTool) {
+    const isSkillDiscoverTool = part.tool === 'skill-discover'
+    const skillName = !isSkillDiscoverTool && part.state.status !== 'pending' && part.state.input && typeof part.state.input.name === 'string'
       ? part.state.input.name
       : undefined
     const label = part.state.status === 'running'
-      ? 'Loading skill'
+      ? isSkillDiscoverTool ? 'Discovering Skills' : 'Loading skill'
       : part.state.status === 'completed'
-        ? `Loaded skill${skillName ? ` ${skillName}` : ''}`
+        ? isSkillDiscoverTool ? 'Discovered Skills' : `Loaded skill${skillName ? ` ${skillName}` : ''}`
         : part.state.status === 'error'
-          ? `Skill load failed${skillName ? ` ${skillName}` : ''}`
-          : 'Preparing skill load'
+          ? isSkillDiscoverTool ? 'Skill discovery failed' : `Skill load failed${skillName ? ` ${skillName}` : ''}`
+          : isSkillDiscoverTool ? 'Preparing skill discovery' : 'Preparing skill load'
 
     return (
       <details className="group my-2 text-sm text-muted-foreground">
         <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md py-1 text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+          {isSkillDiscoverTool && <Search className="mr-1 h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
           {part.state.status === 'running' && <Loader2 className="mr-1 h-3.5 w-3.5 shrink-0 animate-spin text-yellow-600 dark:text-yellow-400" />}
           {part.state.status === 'error' && <span className="mr-1 text-red-600 text-sm font-medium">✗</span>}
           <span className={part.state.status === 'running' ? 'reasoning-text-trail font-medium' : 'font-medium text-muted-foreground'}>{label}</span>

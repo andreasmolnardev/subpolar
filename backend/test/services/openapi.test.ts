@@ -23,11 +23,11 @@ const document = JSON.stringify({
 })
 
 describe('OpenAPI discovery', () => {
-  it('creates stable provider-qualified tool IDs and grouped parameter schemas', () => {
+  it('creates adapter-neutral tool IDs and grouped parameter schemas', () => {
     const tools = discoverOpenApiDocument({ providerName: 'Example API', document })
     expect(tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({ toolId: 'openapi.example-api.getUser', method: 'get', path: '/users/{id}' }),
-      expect.objectContaining({ toolId: 'openapi.example-api.createUser', method: 'post', path: '/users' }),
+      expect.objectContaining({ toolId: 'example-api.getUser', method: 'get', path: '/users/{id}' }),
+      expect.objectContaining({ toolId: 'example-api.createUser', method: 'post', path: '/users' }),
     ]))
     expect(tools.find(tool => tool.subtool === 'getUser')?.inputSchema).toMatchObject({ required: ['path'], properties: { path: { required: ['id'] } } })
     expect(tools.find(tool => tool.subtool === 'createUser')?.inputSchema).toMatchObject({ required: ['body'], properties: { body: { required: ['name'] } } })
