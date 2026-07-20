@@ -78,6 +78,13 @@ export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
     number('updated_at'),
   ], ['CREATE UNIQUE INDEX idx_openapi_secrets_server ON openapi_secrets (server_id)'])
 
+  await ensureCollection(pb, 'provider_logins', [
+    text('provider_id'),
+    json('credential'),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE UNIQUE INDEX idx_provider_logins_provider ON provider_logins (provider_id)'])
+
   await ensureCollection(pb, 'agents', [
     text('name'),
     text('description'),

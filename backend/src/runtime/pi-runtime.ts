@@ -1,17 +1,18 @@
 import {
-  AuthStorage,
   createAgentSession,
   DefaultResourceLoader,
   getAgentDir,
   ModelRegistry,
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
-import { getAuthPath, getPiModelsPath } from '@subpolar/shared/config/env'
+import { getPiModelsPath } from '@subpolar/shared/config/env'
 import fs from 'fs/promises'
 import path from 'path'
 import type { RuntimeAdapter, RuntimeEvent, RuntimeRunInput } from './types'
 import { closeMcpSession } from '../services/mcp'
 import { runWithPiContext, type PiRunContext } from '../pi/run-context'
+import { AuthService } from '../services/auth'
+import type { Database } from '../db/schema'
 
 type SessionManagerMessage = Parameters<SessionManager['appendMessage']>[0]
 
@@ -20,6 +21,7 @@ type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
 type PiRuntimeAdapterOptions = {
   baseUrl: string
   internalToken: string
+  db: Database
   extensionPath?: string
 }
 
@@ -172,7 +174,7 @@ export class PiRuntimeAdapter implements RuntimeAdapter {
     const cwd = input.cwd ?? process.cwd()
     const projectSkillPaths = await this.getProjectSkillPaths(cwd)
     const generatedToolSkills = await this.getGeneratedToolSkills(input.agentId)
-    const authStorage = AuthStorage.create(getAuthPath())
+    const authStorage = await new AuthService(this.options.db).createStorage()
     const modelRegistry = ModelRegistry.create(authStorage, getPiModelsPath())
     const modelId = this.getModelArg(input.model)
     const model = modelId ? this.findModel(modelRegistry, modelId) : undefined

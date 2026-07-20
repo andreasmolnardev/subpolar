@@ -30,6 +30,7 @@ export async function createRuntimeRegistry(deps: { db: Database; settingsServic
   registry.register(new PiRuntimeAdapter({
     baseUrl: `http://localhost:${ENV.SERVER.PORT}`,
     internalToken,
+    db: deps.db,
   }))
   return registry
 }
