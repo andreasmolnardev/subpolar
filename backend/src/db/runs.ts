@@ -50,6 +50,14 @@ export async function createMessage(db: PocketBase, input: { sessionId: string; 
   return toMessage(record as unknown as Record<string, unknown>)
 }
 
+export async function updateMessage(db: PocketBase, messageId: string, input: { content: string; metadata: Record<string, unknown> }): Promise<RuntimeMessage> {
+  const record = await db.collection('messages').update(messageId, {
+    content: input.content,
+    metadata: input.metadata,
+  })
+  return toMessage(record as unknown as Record<string, unknown>)
+}
+
 export async function listMessages(db: PocketBase, sessionId: string): Promise<RuntimeMessage[]> {
   const escaped = sessionId.replaceAll('"', '\\"')
   const records = await db.collection('messages').getFullList({ filter: `session_id = "${escaped}"`, sort: 'created_at' })

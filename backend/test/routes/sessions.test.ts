@@ -63,6 +63,15 @@ function createMockPocketBase(): PocketBase {
         }
         return record
       },
+      getOne: async (id: string) => {
+        const record = getCollection(name).find((item) => item.id === id)
+        if (!record) {
+          const error = new Error('Not found') as Error & { status?: number }
+          error.status = 404
+          throw error
+        }
+        return record
+      },
       getFullList: async (options?: { filter?: string }) => getCollection(name).filter((item) => matchFilter(item, options?.filter)),
     }),
   } as unknown as PocketBase
@@ -131,5 +140,60 @@ describe('session title generation', () => {
 
     const session = await db.collection('sessions').getFirstListItem(`session_id = "${sessionId}"`)
     expect(session.title).toBe('My Session')
+  })
+})
+
+describe('streaming assistant messages', () => {
+  it('persists and finalizes one assistant message while output is streaming', async () => {
+    const db = createMockPocketBase()
+    let releaseSecondDelta: (() => void) | undefined
+    const secondDelta = new Promise<void>((resolve) => {
+      releaseSecondDelta = resolve
+    })
+    const adapter: RuntimeAdapter = {
+      id: 'pi',
+      run: async function * (): AsyncIterable<RuntimeEvent> {
+        yield { type: 'message.delta', content: 'First' }
+        await secondDelta
+        yield { type: 'message.delta', content: ' second' }
+        yield { type: 'message.completed', messageId: 'runtime-message-1', model: 'test-model', reason: 'stop', usage: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } } }
+        yield { type: 'run.completed' }
+      },
+      cancel: async () => {},
+    }
+    const runtimeRegistry = {
+      get: () => adapter,
+      register: () => {},
+      list: () => ['pi'],
+    } as unknown as RuntimeRegistry
+    const app = new Hono()
+    app.route('/sessions', createSessionRoutes(db, runtimeRegistry))
+
+    const response = await app.request('/sessions/session-1/runs', {
+      method: 'POST',
+      body: JSON.stringify({ agentId: 'default' }),
+      headers: { 'content-type': 'application/json' },
+    })
+
+    expect(response.status).toBe(201)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const partialResponse = await app.request('/sessions/session-1/messages')
+    const partial = await partialResponse.json() as { messages: Array<{ id: string; content: string; metadata: Record<string, unknown> }> }
+    expect(partial.messages).toHaveLength(1)
+    expect(partial.messages[0]).toMatchObject({ content: 'First', metadata: { streaming: true } })
+    const assistantMessageId = partial.messages[0].id
+
+    releaseSecondDelta?.()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const completedResponse = await app.request('/sessions/session-1/messages')
+    const completed = await completedResponse.json() as { messages: Array<{ id: string; content: string; metadata: Record<string, unknown> }> }
+    expect(completed.messages).toHaveLength(1)
+    expect(completed.messages[0]).toMatchObject({
+      id: assistantMessageId,
+      content: 'First second',
+      metadata: { streaming: false, completedAt: expect.any(Number) },
+    })
   })
 })

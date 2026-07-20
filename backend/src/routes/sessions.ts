@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Database } from '../db/schema'
 import { deleteSessionRecord, getSessionRecord, listSessionRecords, listSessionRecordsByDirectory, upsertSessionRecord } from '../db/sessions'
-import { createMessage, createRun, getRun, getSessionStatuses, listMessages, updateRunStatus, writeRuntimeEvent } from '../db/runs'
+import { createMessage, createRun, getRun, getSessionStatuses, listMessages, updateMessage, updateRunStatus, writeRuntimeEvent } from '../db/runs'
 import type { RuntimeId, RuntimeUsage } from '../runtime/types'
 import type { RuntimeRegistry } from '../runtime/registry'
 import { sseAggregator } from '../services/sse-aggregator'
@@ -284,7 +284,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
 
   await updateRunStatus(db, runId, 'running')
   const messages = await listMessages(db, run.sessionId)
-  const assistantMessageId = crypto.randomUUID()
+  let assistantMessageId = ''
   const assistantCreatedAt = requestedAt ?? Date.now()
   let assistantCompletedAt: number | null = null
   let assistantModelId = getModelId(model)
@@ -309,8 +309,36 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
     if (directory) sseAggregator.publish(directory, event)
   }
 
-  const publishAssistantMessageStarted = () => {
+  const assistantMetadata = (completedAt?: number) => ({
+    runId,
+    reasoning: reasoningContent,
+    assistantParts,
+    ...(completedAt ? { completedAt } : {}),
+    modelID: assistantModelId,
+    finishReason: assistantFinishReason,
+    usage: assistantUsage,
+    tools: [...toolParts.values()],
+    streaming: !completedAt,
+  })
+
+  const persistAssistantMessage = async (completedAt?: number) => {
+    if (!assistantMessageId) return
+    await updateMessage(db, assistantMessageId, {
+      content: assistantContent,
+      metadata: assistantMetadata(completedAt),
+    })
+  }
+
+  const publishAssistantMessageStarted = async () => {
     if (assistantMessageStarted) return
+    const message = await createMessage(db, {
+      sessionId: run.sessionId,
+      role: 'assistant',
+      content: assistantContent,
+      metadata: assistantMetadata(),
+      createdAt: assistantCreatedAt,
+    })
+    assistantMessageId = message.id
     assistantMessageStarted = true
     publish({
       type: 'message.updated',
@@ -335,7 +363,10 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
   }
 
   const openTextPart = () => {
-    currentTextPartId = `${assistantMessageId}-text-${assistantTextPartIndex++}`
+    currentTextPartId = assistantTextPartIndex === 0
+      ? `${assistantMessageId}-text`
+      : `${assistantMessageId}-text-${assistantTextPartIndex}`
+    assistantTextPartIndex += 1
     currentTextSegmentContent = ''
     assistantTextPartNeedsSplit = false
     const part = {
@@ -355,7 +386,10 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
   }
 
   const openReasoningPart = () => {
-    currentReasoningPartId = `${assistantMessageId}-reasoning-${reasoningPartIndex++}`
+    currentReasoningPartId = reasoningPartIndex === 0
+      ? `${assistantMessageId}-reasoning`
+      : `${assistantMessageId}-reasoning-${reasoningPartIndex}`
+    reasoningPartIndex += 1
     currentReasoningSegmentContent = ''
     reasoningPartNeedsSplit = false
     currentReasoningPartStart = Date.now()
@@ -377,23 +411,9 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
   }
 
   const finishAssistantMessage = async () => {
-    if (!assistantContent && !reasoningContent && toolParts.size === 0) return
-    await createMessage(db, {
-      sessionId: run.sessionId,
-      role: 'assistant',
-      content: assistantContent,
-      metadata: {
-        runId,
-        reasoning: reasoningContent,
-        assistantParts,
-        completedAt: assistantCompletedAt ?? Date.now(),
-        modelID: assistantModelId,
-        finishReason: assistantFinishReason,
-        usage: assistantUsage,
-        tools: [...toolParts.values()],
-      },
-    })
     if (!assistantMessageStarted) return
+    const completedAt = assistantCompletedAt ?? Date.now()
+    await persistAssistantMessage(completedAt)
     publish({
       type: 'message.updated',
       properties: {
@@ -401,16 +421,17 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
           id: assistantMessageId,
           sessionID: run.sessionId,
           role: 'assistant',
-          time: { created: assistantCreatedAt, completed: assistantCompletedAt ?? Date.now() },
+          time: { created: assistantCreatedAt, completed: completedAt },
           modelID: assistantModelId,
         },
       },
     })
-    publishStepFinishPart()
+    await publishStepFinishPart()
   }
 
-  const publishToolPart = (toolPart: StoredToolPart) => {
-    publishAssistantMessageStarted()
+  const publishToolPart = async (toolPart: StoredToolPart) => {
+    await publishAssistantMessageStarted()
+    await persistAssistantMessage()
     publish({
       type: 'message.part.updated',
       properties: {
@@ -432,7 +453,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
     reasoningPartNeedsSplit = true
   }
 
-  const publishStepFinishPart = () => {
+  const publishStepFinishPart = async () => {
     publish({
       type: 'message.part.updated',
       properties: {
@@ -474,7 +495,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       await writeRuntimeEvent(db, { runId, sessionId: run.sessionId, event })
       if (event.type === 'message.delta') {
         assistantContent += event.content
-        publishAssistantMessageStarted()
+        await publishAssistantMessageStarted()
         if (currentTextPartId === null || assistantTextPartNeedsSplit) {
           openTextPart()
         }
@@ -482,6 +503,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
         if (!textPartId) continue
         currentTextSegmentContent += event.content
         upsertAssistantPart({ type: 'text', id: textPartId, text: currentTextSegmentContent })
+        await persistAssistantMessage()
         publish({
           type: 'message.part.delta',
           properties: {
@@ -495,7 +517,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       }
       if (event.type === 'message.reasoning.delta') {
         reasoningContent += event.content
-        publishAssistantMessageStarted()
+        await publishAssistantMessageStarted()
         if (currentReasoningPartId === null || reasoningPartNeedsSplit) {
           openReasoningPart()
         }
@@ -503,6 +525,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
         if (!reasoningPartId) continue
         currentReasoningSegmentContent += event.content
         upsertAssistantPart({ type: 'reasoning', id: reasoningPartId, text: currentReasoningSegmentContent, time: { start: currentReasoningPartStart } })
+        await persistAssistantMessage()
         publish({
           type: 'message.part.delta',
           properties: {
@@ -522,6 +545,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       }
       if (event.type === 'tool.requested') {
         markContentBoundary()
+        await publishAssistantMessageStarted()
         const state = {
           status: 'running',
           input: asRecord(event.input),
@@ -536,7 +560,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
           tool: toolPart.tool,
           state: toolPart.state,
         })
-        publishToolPart(toolPart)
+        await publishToolPart(toolPart)
       }
       if (event.type === 'tool.updated') {
         markContentBoundary()
@@ -556,7 +580,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
             tool: existing.tool,
             state: existing.state,
           })
-          publishToolPart(existing)
+          await publishToolPart(existing)
         }
       }
       if (event.type === 'tool.completed') {
@@ -578,7 +602,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
           tool: existing.tool,
           state: existing.state,
         })
-        publishToolPart(existing)
+        await publishToolPart(existing)
       }
       if (event.type === 'tool.failed') {
         markContentBoundary()
@@ -598,7 +622,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
           tool: existing.tool,
           state: existing.state,
         })
-        publishToolPart(existing)
+        await publishToolPart(existing)
       }
       if (event.type === 'run.failed') {
         await finishAssistantMessage()
