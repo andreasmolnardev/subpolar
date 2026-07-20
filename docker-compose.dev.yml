@@ -41,7 +41,6 @@ services:
       - ./backend/src:/app/backend/src
       - ./backend/scripts:/app/backend/scripts
       - ./shared/src:/app/shared/src
-      - ./backend/node_modules:/app/backend/node_modules
       - opencode-workspace:/workspace
       - opencode-data:/app/data
     depends_on:
@@ -74,7 +73,6 @@ services:
       - ./frontend/tsconfig.sw.json:/app/frontend/tsconfig.sw.json
       - ./frontend/components.json:/app/frontend/components.json
       - ./shared/src:/app/shared/src
-      - ./frontend/node_modules:/app/frontend/node_modules
     working_dir: /app/frontend
     command: ["bun", "run", "vite", "--host", "0.0.0.0"]
     depends_on:
