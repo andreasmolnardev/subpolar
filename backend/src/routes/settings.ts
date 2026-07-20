@@ -24,7 +24,7 @@ import {
   toSettingsIntegrationType,
   updateIntegration,
 } from '../db/integrations'
-import { listEnabledTools, listPoliciesForAgent, replacePoliciesForAgent } from '../db/subpolar-tools'
+import { listEnabledTools, replacePoliciesForAgent } from '../db/subpolar-tools'
 import { closeMcpSession, discoverConfiguredMcpTools, discoverMcpTools, saveMcpSecrets } from '../services/mcp'
 import { discoverOpenApiDocument, discoverOpenApiTools, normalizeProviderName, saveOpenApiSecrets } from '../services/openapi'
 
@@ -288,11 +288,6 @@ export function createSettingsRoutes(db: Database) {
     const config = await settingsService.setDefaultPiConfig(decodeURIComponent(c.req.param('configName')))
     if (!config) return c.json({ error: 'Pi config not found' }, 404)
     return c.json(config)
-  })
-
-  app.get('/agents/:agentId/tool-policies', async (c) => {
-    const policies = await listPoliciesForAgent(db, c.req.param('agentId'))
-    return c.json({ policies })
   })
 
   app.put('/agents/:agentId/tool-policies', async (c) => {

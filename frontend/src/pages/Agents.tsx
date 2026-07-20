@@ -120,7 +120,7 @@ export function Agents() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
-      queryClient.invalidateQueries({ queryKey: ['agent-tool-policies'] })
+      queryClient.invalidateQueries({ queryKey: ['agent'] })
     },
   })
 
@@ -360,9 +360,7 @@ export function Agents() {
       <AgentDialog
         open={!!editingAgent}
         onOpenChange={() => setEditingAgent(null)}
-        onSubmit={(name, agent) => {
-          handleUpdate(name, { ...agent, id: editingAgent!.agent.id })
-        }}
+        onSubmit={(name, agent) => handleUpdate(name, { ...agent, id: editingAgent!.agent.id })}
         editingAgent={editingAgent}
         availableSkills={subpolarSkills || []}
       />

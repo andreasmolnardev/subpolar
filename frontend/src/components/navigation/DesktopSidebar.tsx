@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDesktop } from "@/hooks/useDesktop";
@@ -6,13 +6,14 @@ import { useSidebarCollapsed } from "@/hooks/useSidebarCollapsed";
 import { useAuth } from "@/hooks/useAuth";
 import { useUrlParams } from "@/hooks/useUrlParams";
 import { createProject, getProject, hasProjectId, listProjects } from "@/api/projects";
-import { listStoredSessions } from "@/api/sessions";
+import { listStoredSessions, updateStoredSession } from "@/api/sessions";
 import { settingsApi, type AgentToolPolicyEffect } from "@/api/settings";
 import { DEFAULT_USER_PREFERENCES } from "@/api/types/settings";
 import { useAgents } from "@/hooks/usePiHarness";
 import { useSettings } from "@/hooks/useSettings";
 import { SUBPOLAR_API_BASE_URL } from "@/config";
 import { GENERAL_CHAT_PROJECT_ID } from "@subpolar/shared/utils";
+import type { AgentSkillAccess } from "@subpolar/shared";
 import {
   Bot,
   ChevronDown,
@@ -104,18 +105,21 @@ function SidebarNavItem({
   label,
   active,
   onClick,
+  onDoubleClick,
   indent,
 }: {
   icon?: React.ElementType;
   label: string;
   active?: boolean;
   onClick?: () => void;
+  onDoubleClick?: () => void;
   indent?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       className={cn(
         "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors w-full text-left",
         active
@@ -184,6 +188,7 @@ function SidebarAgentItem({
 
 interface Agent {
   prompt?: string;
+  systemPrompt?: string;
   description?: string;
   mode?: "subagent" | "primary" | "all";
   temperature?: number;
@@ -198,6 +203,7 @@ interface Agent {
   };
   icon?: string;
   skills?: string[];
+  skillAccess?: AgentSkillAccess[];
   allowedCommands?: string[];
   toolAccess?: Array<{ type: "builtin" | "skill" | "cli" | "subpolar"; id: string; permission: "allow" | "ask" | "deny"; command?: string }>;
   disable?: boolean;
@@ -233,6 +239,8 @@ export function DesktopSidebar() {
   const [selectedSidebarProjectId, setSelectedSidebarProjectId] = useState<string>(String(GENERAL_CHAT_PROJECT_ID));
   const [isCreateAgentDialogOpen, setIsCreateAgentDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<{ name: string; agent: Agent } | null>(null);
+  const [editingSession, setEditingSession] = useState<{ id: string; title: string } | null>(null);
+  const sessionInputRef = useRef<HTMLInputElement>(null);
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] = useState(false);
   const { data: projects } = useQuery({
     queryKey: ["projects"],
@@ -282,76 +290,96 @@ export function DesktopSidebar() {
       .slice(0, 5);
   }, [generalChatDirectory, selectedSidebarDirectory, selectedSidebarProjectId, storedSessions]);
 
-  const { data: configs } = useQuery({
-    queryKey: ["subpolar-configs"],
-    queryFn: () => settingsApi.getPiConfigs(),
-  });
-
   const { data: subpolarSkills } = useQuery({
     queryKey: ["managed-skills"],
     queryFn: () => settingsApi.listManagedSkills(),
     staleTime: 5 * 60 * 1000,
   });
 
-  const defaultConfig = configs?.defaultConfig;
-  const rawContent = defaultConfig?.rawContent;
-  const parsedConfig = rawContent ? tryParseJson(rawContent) : null;
-
   const queryClient = useQueryClient();
+  const editingSessionId = editingSession?.id;
 
-  const updateConfigMutation = useMutation({
-    mutationFn: async ({ agents, changedAgent }: { agents: Record<string, Agent>; changedAgent?: { name: string; agent: Agent } }) => {
-      if (!defaultConfig) throw new Error("No default config found");
-      const updatedContent = { ...parsedConfig, agent: agents };
-      await settingsApi.updatePiConfig("default", {
-        content: JSON.stringify(updatedContent, null, 2),
-      });
-      if (changedAgent) {
-        await settingsApi.replaceAgentToolPolicies(changedAgent.name, subpolarPolicies(changedAgent.agent));
-      }
-      return { success: true };
-    },
+  const updateSessionMutation = useMutation({
+    mutationFn: ({ sessionId, title }: { sessionId: string; title: string }) =>
+      updateStoredSession(sessionId, { title }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["subpolar-configs"] });
-      queryClient.invalidateQueries({
-      queryKey: ["subpolar", "agents", SUBPOLAR_API_BASE_URL, generalChatDirectory],
-      });
-      queryClient.invalidateQueries({ queryKey: ["agent-tool-policies"] });
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    },
+    onError: (error) => {
+      showToast.error(error instanceof Error ? error.message : "Failed to update session name");
     },
   });
 
-  const handleCreateAgent = (name: string, agent: Agent) => {
-    const updatedAgents = { ...(parsedConfig?.agent as Record<string, Agent> || {}), [name]: agent };
-    updateConfigMutation.mutate({ agents: updatedAgents, changedAgent: { name, agent } }, {
-      onSuccess: () => {
-        setIsCreateAgentDialogOpen(false);
-      },
-    });
+  useEffect(() => {
+    if (editingSessionId) {
+      sessionInputRef.current?.focus();
+      sessionInputRef.current?.select();
+    }
+  }, [editingSessionId]);
+
+  const handleCreateAgent = async (name: string, agent: Agent) => {
+    try {
+      const savedAgent = await settingsApi.createAgent({
+        name,
+        description: agent.description ?? "",
+        mode: agent.mode === "all" ? "primary" : agent.mode ?? "subagent",
+        prompt: agent.prompt ?? "",
+        systemPrompt: agent.systemPrompt ?? "",
+        permission: agent.permission ?? {},
+        skills: agent.skills ?? [],
+        skillAccess: agent.skillAccess ?? [],
+        enabled: !agent.disable,
+        sort_order: 0,
+      });
+      await settingsApi.replaceAgentToolPolicies(savedAgent.id, subpolarPolicies(agent));
+      await queryClient.invalidateQueries({ queryKey: ["agents"] });
+      await queryClient.invalidateQueries({ queryKey: ["subpolar", "agents"] });
+      await queryClient.invalidateQueries({ queryKey: ["agent"] });
+      setIsCreateAgentDialogOpen(false);
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : "Failed to create agent");
+      throw error;
+    }
   };
 
-  const handleSaveAgent = (name: string, agent: Agent) => {
+  const handleSaveAgent = async (name: string, agent: Agent) => {
     if (!editingAgent) {
       handleCreateAgent(name, agent);
       return;
     }
 
-    const currentAgents = { ...(parsedConfig?.agent as Record<string, Agent> || {}) };
-    if (editingAgent.name !== name) {
-      delete currentAgents[editingAgent.name];
+    try {
+      const savedAgent = await settingsApi.updateAgent(editingAgent.name, {
+        name,
+        description: agent.description ?? "",
+        mode: agent.mode === "all" ? "primary" : agent.mode ?? "subagent",
+        prompt: agent.prompt ?? "",
+        systemPrompt: agent.systemPrompt ?? "",
+        permission: agent.permission ?? {},
+        skills: agent.skills ?? [],
+        skillAccess: agent.skillAccess ?? [],
+        enabled: !agent.disable,
+        sort_order: 0,
+      });
+      await settingsApi.replaceAgentToolPolicies(savedAgent.id, subpolarPolicies(agent));
+      await queryClient.invalidateQueries({ queryKey: ["agents"] });
+      await queryClient.invalidateQueries({ queryKey: ["subpolar", "agents"] });
+      await queryClient.invalidateQueries({ queryKey: ["agent"] });
+      setEditingAgent(null);
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : "Failed to update agent");
+      throw error;
     }
-    const updatedAgents = { ...currentAgents, [name]: { ...currentAgents[name], ...agent } };
-    updateConfigMutation.mutate({ agents: updatedAgents, changedAgent: { name, agent } }, {
-      onSuccess: () => {
-        setEditingAgent(null);
-      },
-    });
   };
 
-  const handleDeleteAgent = (name: string) => {
-    if (!defaultConfig) return;
-    const updatedAgents = { ...(parsedConfig?.agent as Record<string, Agent> || {}) };
-    delete updatedAgents[name];
-    updateConfigMutation.mutate({ agents: updatedAgents });
+  const handleDeleteAgent = async (name: string) => {
+    try {
+      await settingsApi.deleteAgent(name);
+      await queryClient.invalidateQueries({ queryKey: ["agents"] });
+      await queryClient.invalidateQueries({ queryKey: ["subpolar", "agents"] });
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : "Failed to delete agent");
+    }
   };
 
   const handleCreateProject = async (data: { name: string; directory?: string; agentNames?: string[] }) => {
@@ -390,6 +418,15 @@ export function DesktopSidebar() {
 
   const isSessionActive = (sessionId: string) => {
     return location.pathname.endsWith(`/sessions/${encodeURIComponent(sessionId)}`);
+  };
+
+  const saveSessionTitle = () => {
+    if (!editingSession) return;
+    const title = editingSession.title.trim();
+    if (title) {
+      updateSessionMutation.mutate({ sessionId: editingSession.id, title });
+    }
+    setEditingSession(null);
   };
 
   return (
@@ -487,13 +524,11 @@ onValueChange={(value) => {
           >
 {visibleProjectAgents.map((agent) => {
                const name = agent.name;
-               const configuredAgent = (parsedConfig?.agent as Record<string, Agent> | undefined)?.[name];
                const editableAgent: Agent = {
                  prompt: agent.prompt,
                  description: agent.description,
                  mode: agent.mode,
                  model: agent.model ? `${agent.model.providerID}/${agent.model.modelID}` : undefined,
-                 ...configuredAgent,
                };
                return (
                  <SidebarAgentItem
@@ -523,13 +558,37 @@ onValueChange={(value) => {
 {selectedProjectSessions.map((session) => {
                 const projectId = getSessionProjectId(session.directory, session.projectId);
                 return (
-                  <SidebarNavItem
-                    key={session.id}
-                    label={session.title || session.id}
-                    active={isSessionActive(session.id)}
-                    onClick={() => navigate(`/projects/${projectId}/sessions/${encodeURIComponent(session.id)}`)}
-                    indent
-                  />
+                  editingSession?.id === session.id ? (
+                    <input
+                      key={session.id}
+                      ref={sessionInputRef}
+                      type="text"
+                      value={editingSession.title}
+                      onChange={(event) => setEditingSession({ ...editingSession, title: event.target.value })}
+                      onBlur={saveSessionTitle}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          saveSessionTitle();
+                        }
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          setEditingSession(null);
+                        }
+                      }}
+                      aria-label="Session name"
+                      className="w-full rounded-md border border-primary bg-background px-3 py-2 text-sm text-foreground outline-none ring-2 ring-primary/20"
+                    />
+                  ) : (
+                    <SidebarNavItem
+                      key={session.id}
+                      label={session.title || session.id}
+                      active={isSessionActive(session.id)}
+                      onClick={() => navigate(`/projects/${projectId}/sessions/${encodeURIComponent(session.id)}`)}
+                      onDoubleClick={() => setEditingSession({ id: session.id, title: session.title || session.id })}
+                      indent
+                    />
+                  )
                 );
               })}
 
@@ -604,12 +663,4 @@ onValueChange={(value) => {
       />
     </>
   );
-}
-
-function tryParseJson(raw: string): Record<string, unknown> | null {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
 }

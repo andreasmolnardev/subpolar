@@ -53,6 +53,7 @@ import {
   ToolAdapterTypeSchema,
   ToolRiskSchema,
   AgentToolPolicySchema,
+  AgentToolAccessSchema,
   ToolListRequestSchema,
   ToolDescribeRequestSchema,
   ToolCallRequestSchema,
@@ -109,6 +110,7 @@ export type AssistantNotificationResponse = z.infer<typeof AssistantNotification
 export type AssistantSettingsPatch = z.infer<typeof AssistantSettingsPatchSchema>
 
 export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>
+export type AgentToolAccess = z.infer<typeof AgentToolAccessSchema>
 export type AgentMode = z.infer<typeof AgentModeSchema>
 export type AgentSource = z.infer<typeof AgentSourceSchema>
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>

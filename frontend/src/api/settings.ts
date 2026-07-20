@@ -23,6 +23,8 @@ const DEFAULT_USER_ID = 'default'
 export const settingsApi = {
   listAgents: async (): Promise<AgentDefinition[]> => fetchWrapper(`${API_BASE_URL}/api/agents`),
 
+  getAgent: async (identifier: string): Promise<AgentDefinition> => fetchWrapper(`${API_BASE_URL}/api/agents/${encodeURIComponent(identifier)}`),
+
   createAgent: async (agent: Omit<AgentDefinition, 'id' | 'created_at' | 'updated_at' | 'source'>): Promise<AgentDefinition> => fetchWrapper(`${API_BASE_URL}/api/agents`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -293,10 +295,6 @@ export const settingsApi = {
 
   discoverOpenApi: async (integration: IntegrationConfig & { type: 'openapi' }): Promise<{ providerName: string; tools: Array<{ toolId: string; method: string; path: string; description: string }> }> => {
     return fetchWrapper(`${API_BASE_URL}/api/settings/openapi/discover`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(integration) })
-  },
-
-  listAgentToolPolicies: async (agentId: string): Promise<{ policies: AgentToolPolicy[] }> => {
-    return fetchWrapper(`${API_BASE_URL}/api/settings/agents/${encodeURIComponent(agentId)}/tool-policies`)
   },
 
   replaceAgentToolPolicies: async (agentId: string, policies: Array<{ toolId: string; effect: AgentToolPolicyEffect }>): Promise<{ policies: AgentToolPolicy[] }> => {

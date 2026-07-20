@@ -3,6 +3,12 @@ import { AgentSkillAccessSchema } from './skills'
 
 export const AgentModeSchema = z.enum(['primary', 'subagent'])
 export const AgentSourceSchema = z.enum(['system', 'user'])
+export const AgentToolAccessSchema = z.object({
+  type: z.enum(['builtin', 'skill', 'cli', 'subpolar']),
+  id: z.string(),
+  permission: z.enum(['allow', 'ask', 'deny']),
+  command: z.string().optional(),
+})
 
 export const AgentDefinitionSchema = z.object({
   id: z.string(),
@@ -12,6 +18,7 @@ export const AgentDefinitionSchema = z.object({
   prompt: z.string(),
   systemPrompt: z.string().default(''),
   permission: z.record(z.string(), z.unknown()),
+  toolAccess: z.array(AgentToolAccessSchema).optional(),
   skills: z.array(z.string()),
   skillAccess: z.array(AgentSkillAccessSchema).default([]),
   enabled: z.boolean(),

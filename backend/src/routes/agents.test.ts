@@ -71,4 +71,38 @@ describe('agent routes', () => {
       { id: 'agent-1', name: 'researcher', prompt: 'Research the requested topic.' },
     ])
   })
+
+  it('persists agent updates by id', async () => {
+    const app = createAgentRoutes(createDatabase())
+
+    await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'researcher',
+        mode: 'primary',
+        prompt: 'Research the requested topic.',
+      }),
+    })
+
+    const updateResponse = await app.request('/agent-1', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        description: 'Investigates technical topics',
+        prompt: 'Investigate the requested technical topic.',
+        systemPrompt: 'You are a technical research agent.',
+        enabled: false,
+      }),
+    })
+
+    expect(updateResponse.status).toBe(200)
+    await expect(updateResponse.json()).resolves.toMatchObject({
+      id: 'agent-1',
+      description: 'Investigates technical topics',
+      prompt: 'Investigate the requested technical topic.',
+      systemPrompt: 'You are a technical research agent.',
+      enabled: false,
+    })
+  })
 })

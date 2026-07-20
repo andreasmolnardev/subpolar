@@ -1,19 +1,21 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { settingsApi, type AgentToolPolicy, type SubpolarTool } from '@/api/settings'
+import { settingsApi, type SubpolarTool } from '@/api/settings'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Trash2 } from 'lucide-react'
+import { Code2, FileText, ListChecks, Plus, Search, Trash2 } from 'lucide-react'
 import type { AgentSkillAccess, SkillDiscoveryMode, SkillFileInfo } from '@subpolar/shared'
 import { buildAgentPromptPreview } from '@/lib/agentPromptPreview'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const toolAccessSchema = z.object({
   type: z.enum(['builtin', 'cli', 'subpolar']),
@@ -80,6 +82,115 @@ const CLI_TOOL_SELECTION = 'other:cli'
 const EMPTY_TOOL_ACCESS: ToolAccess[] = []
 const EMPTY_SKILL_ACCESS: AgentSkillAccess[] = []
 
+interface AgentTemplate {
+  id: string
+  name: string
+  description: string
+  icon: string
+  iconComponent: typeof Search
+  tags: string[]
+  values: Pick<AgentFormValues, 'name' | 'description' | 'prompt' | 'systemPrompt' | 'icon' | 'skills' | 'skillAccess' | 'allowedCommands' | 'toolAccess' | 'disable'>
+}
+
+const AGENT_TEMPLATES: AgentTemplate[] = [
+  {
+    id: 'research',
+    name: 'Research agent',
+    description: 'Search the web, gather reliable sources, and turn findings into a clear brief.',
+    icon: '🔎',
+    iconComponent: Search,
+    tags: ['Web search', 'Source synthesis'],
+    values: {
+      name: 'research-agent',
+      description: 'Researches a topic using web search and produces a concise, sourced brief.',
+      prompt: 'You are a research agent. Investigate the user\'s question using web search, compare reliable sources, and clearly separate facts from inferences. Include source links in your answer.',
+      systemPrompt: '',
+      icon: '🔎',
+      skills: ['research'],
+      skillAccess: [{ id: 'research', discovery: 'description', source: 'manual' }],
+      allowedCommands: [],
+      toolAccess: [
+        { type: 'builtin', id: 'edit', permission: 'deny' },
+        { type: 'builtin', id: 'webfetch', permission: 'allow' },
+        { type: 'builtin', id: 'other-bash', permission: 'deny' },
+      ],
+      disable: false,
+    },
+  },
+  {
+    id: 'coding',
+    name: 'Coding agent',
+    description: 'Plan, implement, and review changes in a codebase with a practical workflow.',
+    icon: '💻',
+    iconComponent: Code2,
+    tags: ['Code changes', 'Reviews'],
+    values: {
+      name: 'coding-agent',
+      description: 'Implements focused code changes and explains the tradeoffs.',
+      prompt: 'You are a pragmatic coding agent. Inspect the existing code before changing it, make the smallest complete implementation, and verify your work with relevant tests or checks.',
+      systemPrompt: '',
+      icon: '💻',
+      skills: [],
+      skillAccess: [],
+      allowedCommands: [],
+      toolAccess: [
+        { type: 'builtin', id: 'edit', permission: 'allow' },
+        { type: 'builtin', id: 'webfetch', permission: 'allow' },
+        { type: 'builtin', id: 'other-bash', permission: 'ask' },
+      ],
+      disable: false,
+    },
+  },
+  {
+    id: 'writer',
+    name: 'Writing agent',
+    description: 'Shape rough ideas into polished, audience-aware writing.',
+    icon: '✍️',
+    iconComponent: FileText,
+    tags: ['Drafting', 'Editing'],
+    values: {
+      name: 'writing-agent',
+      description: 'Turns rough ideas into clear, polished writing for the intended audience.',
+      prompt: 'You are a thoughtful writing agent. Clarify the goal and audience, preserve the author\'s intent, and produce concise, polished writing. When useful, offer a stronger structure before drafting.',
+      systemPrompt: '',
+      icon: '✍️',
+      skills: [],
+      skillAccess: [],
+      allowedCommands: [],
+      toolAccess: [
+        { type: 'builtin', id: 'edit', permission: 'deny' },
+        { type: 'builtin', id: 'webfetch', permission: 'deny' },
+        { type: 'builtin', id: 'other-bash', permission: 'deny' },
+      ],
+      disable: false,
+    },
+  },
+  {
+    id: 'project-planner',
+    name: 'Project planner',
+    description: 'Break ambiguous goals into milestones, decisions, and next actions.',
+    icon: '✅',
+    iconComponent: ListChecks,
+    tags: ['Planning', 'Next steps'],
+    values: {
+      name: 'project-planner',
+      description: 'Creates practical project plans with milestones and next actions.',
+      prompt: 'You are a project planning agent. Turn broad goals into an ordered plan with milestones, dependencies, risks, and concrete next actions. Ask only for information that materially changes the plan.',
+      systemPrompt: '',
+      icon: '✅',
+      skills: [],
+      skillAccess: [],
+      allowedCommands: [],
+      toolAccess: [
+        { type: 'builtin', id: 'edit', permission: 'deny' },
+        { type: 'builtin', id: 'webfetch', permission: 'allow' },
+        { type: 'builtin', id: 'other-bash', permission: 'deny' },
+      ],
+      disable: false,
+    },
+  },
+]
+
 function generatedToolSkillName(toolId: string): string {
   return `tool-${toolId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
 }
@@ -100,31 +211,17 @@ function permissionFrom(value: unknown, fallback: 'allow' | 'ask' | 'deny' = 'de
   return value === 'allow' || value === 'ask' || value === 'deny' ? value : fallback
 }
 
-function policyPermission(effect: AgentToolPolicy['effect']): 'allow' | 'ask' | 'deny' {
-  if (effect === 'approval') return 'ask'
-  return effect
-}
-
-function buildToolAccess(agent?: Agent, policies: AgentToolPolicy[] = []): ToolAccess[] {
-  const configured = agent?.toolAccess?.length ? agent.toolAccess.filter(tool => tool.type !== 'subpolar' && tool.type !== 'skill') as ToolAccess[] : undefined
+function buildToolAccess(agent?: Agent): ToolAccess[] {
+  const configured = agent?.toolAccess?.length ? agent.toolAccess.filter(tool => tool.type !== 'skill') as ToolAccess[] : undefined
   const bashPermission = agent?.permission?.bash
-  const piBashPolicy = policies.find(policy => policy.tool_id === 'pi.bash')
   const fallback = [
     { type: 'builtin' as const, id: 'edit', permission: permissionFrom(agent?.permission?.edit, 'allow') },
     { type: 'builtin' as const, id: 'webfetch', permission: permissionFrom(agent?.permission?.webfetch, 'allow') },
-    { type: 'builtin' as const, id: 'other-bash', permission: piBashPolicy ? policyPermission(piBashPolicy.effect) : typeof bashPermission === 'string' ? permissionFrom(bashPermission, 'ask') : 'deny' },
+    { type: 'builtin' as const, id: 'other-bash', permission: typeof bashPermission === 'string' ? permissionFrom(bashPermission, 'ask') : 'deny' },
     ...(agent?.allowedCommands || []).map((command): ToolAccess => ({ type: 'cli', id: command, command, permission: 'allow' })),
   ]
   const base = configured ?? fallback
-  const subpolar = policies.filter(policy => !policy.tool_id.startsWith('pi.')).map((policy): ToolAccess => ({
-    type: 'subpolar',
-    id: policy.tool_id,
-    permission: policyPermission(policy.effect),
-  }))
-  return [
-    ...base,
-    ...subpolar,
-  ]
+  return base
 }
 
 function buildSkillAccess(agent?: Agent): AgentSkillAccess[] {
@@ -143,6 +240,8 @@ interface AgentDialogProps {
 export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availableSkills = [] }: AgentDialogProps) {
   const [selectedToolIndex, setSelectedToolIndex] = useState(0)
   const [selectedSkillIndex, setSelectedSkillIndex] = useState(0)
+  const [creationTab, setCreationTab] = useState('from-scratch')
+  const initializedAgentKey = useRef<string | null>(null)
 
   const { data: subpolarToolsResponse } = useQuery({
     queryKey: ['subpolar-tools'],
@@ -151,9 +250,9 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data: policyResponse } = useQuery({
-    queryKey: ['agent-tool-policies', editingAgent?.agent.id ?? editingAgent?.name],
-    queryFn: () => settingsApi.listAgentToolPolicies(editingAgent!.agent.id ?? editingAgent!.name),
+  const { data: agentResponse } = useQuery({
+    queryKey: ['agent', editingAgent?.agent.id ?? editingAgent?.name],
+    queryFn: () => settingsApi.getAgent(editingAgent!.agent.id ?? editingAgent!.name),
     enabled: open && !!editingAgent?.name,
   })
 
@@ -161,7 +260,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
   const mcpTools = useMemo(() => subpolarTools.filter(tool => tool.adapter === 'mcp' || tool.namespace === 'mcp'), [subpolarTools])
   const openApiTools = useMemo(() => subpolarTools.filter(tool => tool.adapter === 'openapi' || tool.namespace === 'openapi'), [subpolarTools])
   const nativeSubpolarTools = useMemo(() => subpolarTools.filter(tool => tool.adapter !== 'mcp' && tool.namespace !== 'mcp' && tool.adapter !== 'openapi' && tool.namespace !== 'openapi'), [subpolarTools])
-  const policies = useMemo(() => policyResponse?.policies ?? [], [policyResponse?.policies])
+  const loadedAgent = useMemo(() => agentResponse && editingAgent ? { name: editingAgent.name, agent: agentResponse } : editingAgent, [agentResponse, editingAgent])
   const availableSkillNames = useMemo(() => availableSkills.map(skill => skill.name), [availableSkills])
   const generatedToolSkills = useMemo(() => subpolarTools.map(generatedToolSkill), [subpolarTools])
   const promptSkills = useMemo(() => {
@@ -181,23 +280,31 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
       skills: agent?.agent.skills || [],
       skillAccess: buildSkillAccess(agent?.agent),
       allowedCommands: agent?.agent.allowedCommands || [],
-      toolAccess: buildToolAccess(agent?.agent, policies),
+      toolAccess: buildToolAccess(agent?.agent),
     }
-  }, [policies])
+  }, [])
 
   const form = useForm<AgentFormValues>({
     resolver: zodResolver(agentFormSchema),
     mode: 'onChange',
-    defaultValues: getDefaultValues(editingAgent)
+    defaultValues: getDefaultValues(loadedAgent)
   })
 
   useEffect(() => {
-    if (open) {
-      form.reset(getDefaultValues(editingAgent))
-      setSelectedToolIndex(0)
-      setSelectedSkillIndex(0)
+    if (!open) {
+      initializedAgentKey.current = null
+      return
     }
-  }, [open, editingAgent, form, getDefaultValues])
+
+    const agentKey = loadedAgent?.agent.id ?? loadedAgent?.name ?? 'new'
+    if (initializedAgentKey.current === agentKey) return
+
+    form.reset(getDefaultValues(loadedAgent))
+    setSelectedToolIndex(0)
+    setSelectedSkillIndex(0)
+    setCreationTab('from-scratch')
+    initializedAgentKey.current = agentKey
+  }, [open, loadedAgent, form, getDefaultValues])
 
   const toolAccess = form.watch('toolAccess') ?? EMPTY_TOOL_ACCESS
   const skillAccess = form.watch('skillAccess') ?? EMPTY_SKILL_ACCESS
@@ -206,6 +313,13 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
   const selectedTool = toolAccess[selectedToolIndex]
   const selectedSkill = skillAccess[selectedSkillIndex]
   const promptPreview = useMemo(() => buildAgentPromptPreview({ prompt: promptValue, skillAccess, skills: promptSkills }), [promptValue, skillAccess, promptSkills])
+
+  const applyTemplate = (template: AgentTemplate) => {
+    form.reset(template.values)
+    setSelectedToolIndex(0)
+    setSelectedSkillIndex(0)
+    setCreationTab('from-scratch')
+  }
 
   const addToolAccess = () => {
     const defaultTool = subpolarTools[0]?.tool_id ?? 'calendar.get'
@@ -355,13 +469,13 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
         webfetch: webfetchPermission,
         bash: otherBashPermission,
       }
-      agent.allowedCommands = Array.from(new Set(effectiveToolAccess.filter(tool => tool.type === 'cli').map(tool => tool.command || tool.id)))
+      agent.allowedCommands = Array.from(new Set(effectiveToolAccess.filter(tool => tool.type === 'cli').map(tool => 'command' in tool && tool.command ? tool.command : tool.id)))
       const cliTools = effectiveToolAccess.filter(tool => tool.type === 'cli')
       if (cliTools.length > 0 || otherBashPermission !== 'deny') {
         agent.permission = {
           ...agent.permission,
           bash: Object.fromEntries([
-            ...cliTools.map(tool => [`${tool.command || tool.id} *`, tool.permission]),
+            ...cliTools.map(tool => [`${'command' in tool && tool.command ? tool.command : tool.id} *`, tool.permission]),
             ['*', otherBashPermission],
           ]),
         }
@@ -388,8 +502,21 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-2 sm:p-4">
-          <Form {...form}>
-            <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <Tabs
+            value={editingAgent ? 'from-scratch' : creationTab}
+            onValueChange={setCreationTab}
+            className="flex min-h-full flex-col"
+          >
+            {!editingAgent && (
+              <TabsList className="mx-auto mb-4 grid h-auto w-full max-w-xl grid-cols-2">
+                <TabsTrigger value="from-scratch">From scratch</TabsTrigger>
+                <TabsTrigger value="template">Use a template</TabsTrigger>
+              </TabsList>
+            )}
+
+            <TabsContent value="from-scratch" className="mt-0 flex-1">
+              <Form {...form}>
+                <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <div className="min-w-0 space-y-4">
               <div className="grid grid-cols-[minmax(3.25rem,auto)_1fr] gap-3 items-start">
                 <FormField
@@ -676,7 +803,49 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
               <pre className="whitespace-pre-wrap break-words text-xs font-mono text-muted-foreground">{systemPromptValue.trim() || promptPreview}</pre>
             </div>
             </div>
-          </Form>
+              </Form>
+            </TabsContent>
+
+            {!editingAgent && (
+              <TabsContent value="template" className="mt-0 flex-1">
+                <div className="mx-auto max-w-4xl space-y-5">
+                  <div>
+                    <h3 className="text-lg font-semibold">Start with a template</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Choose a starting point. You can customize every field before creating the agent.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {AGENT_TEMPLATES.map((template) => {
+                      const Icon = template.iconComponent
+                      return (
+                        <Card key={template.id} className="group transition-colors hover:border-primary/60">
+                          <CardContent className="flex h-full flex-col p-5">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-xl" aria-hidden="true">
+                                {template.icon}
+                              </div>
+                              <Icon className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div className="mt-4">
+                              <h4 className="font-semibold">{template.name}</h4>
+                              <p className="mt-1 text-sm leading-6 text-muted-foreground">{template.description}</p>
+                            </div>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              {template.tags.map((tag) => (
+                                <span key={tag} className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{tag}</span>
+                              ))}
+                            </div>
+                            <Button type="button" className="mt-5 w-full" onClick={() => applyTemplate(template)}>
+                              Use this template
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </div>
+                </div>
+              </TabsContent>
+            )}
+          </Tabs>
         </div>
 
         <DialogFooter className="p-3 sm:p-4 border-t gap-2 pb-4">

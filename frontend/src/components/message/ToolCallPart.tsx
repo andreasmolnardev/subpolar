@@ -182,6 +182,26 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
   const isCompactTool = part.tool === 'bash' || part.tool === 'glob' || part.tool === 'read'
   const isActiveToolStep = part.state.status === 'pending' || part.state.status === 'running'
   const isSkillTool = part.tool === 'skill-load' || part.tool === 'skill-discover'
+  const isSubpolarTool = part.tool === 'subpolar-tools'
+  const toolInput = part.state.input as Record<string, unknown> | undefined
+  const subpolarAction = typeof toolInput?.action === 'string' ? toolInput.action : undefined
+  const subpolarToolId = typeof toolInput?.toolId === 'string' ? toolInput.toolId : undefined
+
+  const getSubpolarToolLabel = () => {
+    if (subpolarAction === 'list') {
+      return { label: 'Retrieving Tools', name: undefined }
+    }
+
+    if (subpolarAction === 'call') {
+      return { label: 'Calling tool', name: subpolarToolId }
+    }
+
+    if (subpolarAction === 'describe') {
+      return { label: 'Retrieving tool', name: subpolarToolId }
+    }
+
+    return { label: 'Using tool', name: undefined }
+  }
 
   const getCompactToolLabel = () => {
     if (!isCompactTool) return part.tool
@@ -198,6 +218,8 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
     if (part.state.status === 'error') return part.tool === 'glob' ? 'Glob Failed' : 'Command Failed'
     return part.tool === 'glob' ? 'Preparing glob' : 'Preparing command'
   }
+
+  const subpolarToolLabel = getSubpolarToolLabel()
 
   if (part.tool === 'task') {
     const sessionId = taskSessionId
@@ -342,9 +364,19 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
         className="flex w-full min-w-0 items-center gap-2 rounded-md py-1 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         {getToolIcon()}
-        {!isCompactTool && <span className={getStatusColor()}>{getStatusIcon()}</span>}
-        <span className={isActiveToolStep ? 'reasoning-text-trail font-medium' : 'font-medium text-muted-foreground'}>{getCompactToolLabel()}</span>
-        {isCompactTool && <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />}
+        {isSubpolarTool ? (
+          <>
+            <span className={isActiveToolStep ? 'reasoning-text-trail font-medium' : 'font-medium text-muted-foreground'}>{subpolarToolLabel.label}</span>
+            {subpolarToolLabel.name && <span className="font-medium text-muted-foreground/60 truncate">{subpolarToolLabel.name}</span>}
+            <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+          </>
+        ) : (
+          <>
+            {!isCompactTool && <span className={getStatusColor()}>{getStatusIcon()}</span>}
+            <span className={isActiveToolStep ? 'reasoning-text-trail font-medium' : 'font-medium text-muted-foreground'}>{getCompactToolLabel()}</span>
+            {isCompactTool && <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />}
+          </>
+        )}
 
         {previewText && isFileTool && !isCompactTool ? (
           <span
@@ -380,7 +412,7 @@ export function ToolCallPart({ part, onFileClick, onChildSessionClick }: ToolCal
           ) : null
         })()}
          {!isCompactTool && <span className="ml-auto text-xs text-muted-foreground">{isWaitingPermission ? 'awaiting permission' : isWaitingQuestion ? 'awaiting answer' : part.state.status}</span>}
-         {!isCompactTool && <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />}
+         {!isCompactTool && !isSubpolarTool && <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />}
       </button>
 
       {expanded && (

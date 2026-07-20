@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { AgentSkillAccessSchema } from '@subpolar/shared'
+import { AgentSkillAccessSchema, type AgentToolAccess } from '@subpolar/shared'
 import type { Database } from '../db/schema'
 import { logger } from '../utils/logger'
 import {
@@ -10,6 +10,27 @@ import {
   listAgents,
   updateAgent,
 } from '../db/subpolar-agents'
+import { listPoliciesForAgent } from '../db/subpolar-tools'
+
+function normalizePermission(value: unknown, fallback: AgentToolAccess['permission'] = 'deny'): AgentToolAccess['permission'] {
+  return value === 'allow' || value === 'ask' || value === 'deny' ? value : fallback
+}
+
+function withToolAccess(agent: Awaited<ReturnType<typeof getAgentByIdOrSlug>>, policies: Awaited<ReturnType<typeof listPoliciesForAgent>>): (NonNullable<typeof agent> & { toolAccess: AgentToolAccess[] }) | null {
+  if (!agent) return null
+  const permission = agent.permission
+  const bashPermissions = permission.bash && typeof permission.bash === 'object' ? permission.bash as Record<string, unknown> : {}
+  const bashPolicy = policies.find(policy => policy.tool_id === 'pi.bash')
+  const bashPermission = bashPolicy ? normalizePermission(bashPolicy.effect === 'approval' ? 'ask' : bashPolicy.effect) : normalizePermission(permission.bash, 'deny')
+  const toolAccess: AgentToolAccess[] = [
+    { type: 'builtin', id: 'edit', permission: normalizePermission(permission.edit, 'allow') },
+    { type: 'builtin', id: 'webfetch', permission: normalizePermission(permission.webfetch, 'allow') },
+    { type: 'builtin', id: 'other-bash', permission: bashPermission },
+    ...Object.keys(bashPermissions).filter(command => command !== '*').map(command => ({ type: 'cli' as const, id: command.replace(/ \*$/, ''), command: command.replace(/ \*$/, ''), permission: normalizePermission(bashPermissions[command], 'allow') })),
+    ...policies.filter(policy => policy.tool_id !== 'pi.bash').map(policy => ({ type: 'subpolar' as const, id: policy.tool_id, permission: policy.effect === 'approval' ? 'ask' as const : policy.effect })),
+  ]
+  return { ...agent, toolAccess }
+}
 
 const AgentRequestSchema = z.object({
   name: z.string().min(1).regex(/^[a-z0-9-]+$/),
@@ -50,7 +71,7 @@ export function createAgentRoutes(db: Database) {
   app.get('/:identifier', async (c) => {
     const agent = await getAgentByIdOrSlug(db, c.req.param('identifier'))
     if (!agent) return c.json({ error: 'Agent not found' }, 404)
-    return c.json(agent)
+    return c.json(withToolAccess(agent, await listPoliciesForAgent(db, agent.id)))
   })
 
   app.post('/', async (c) => {
