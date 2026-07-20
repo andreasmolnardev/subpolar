@@ -37,6 +37,7 @@ import { createRuntimeRoutes } from './routes/runtime'
 import { createPiRoutes } from './pi/routes'
 import { createInternalRoutes } from './routes/internal'
 import { createSubpolarCliRoutes } from './routes/subpolar-cli'
+import { createMcpOauthProxyRoutes } from './routes/mcp-oauth-proxy'
 import { sseAggregator } from './services/sse-aggregator'
 import { ensureDirectoryExists, writeFileContent, fileExists } from './services/file-operations'
 import { SettingsService } from './services/settings'
@@ -196,6 +197,7 @@ app.route('/api/internal', createInternalRoutes(db!, automationService!, notific
 app.route('/api/pi', createPiRoutes(db!))
 app.route('/api/projects', createProjectRoutes(db!))
 app.route('/api/subpolar-cli', createSubpolarCliRoutes(db!))
+app.route('/api/mcp-oauth-proxy', createMcpOauthProxyRoutes(piInternalClient!, requireAuth!))
 
 const protectedApi = new Hono()
 protectedApi.use('/*', requireAuth!)
@@ -203,7 +205,7 @@ protectedApi.use('/*', requireAuth!)
 protectedApi.route('/settings', createSettingsRoutes(db!))
 protectedApi.route('/files', createFileRoutes())
 protectedApi.route('/providers', createProvidersRoutes(db!))
-protectedApi.route('/oauth', createOAuthRoutes())
+protectedApi.route('/oauth', createOAuthRoutes(db!))
 protectedApi.route('/tts', createTTSRoutes(db!))
 protectedApi.route('/stt', createSTTRoutes(db!))
 protectedApi.route('/sse', createSSERoutes())
