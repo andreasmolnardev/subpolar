@@ -53,6 +53,17 @@ export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
     number('updated_at'),
   ], ['CREATE INDEX idx_notes_user_updated ON notes (user_id, updated_at)'])
 
+  await ensureCollection(pb, 'calendar_events', [
+    text('user_id'),
+    text('title'),
+    text('start'),
+    text('end'),
+    text('location', false),
+    text('description', false),
+    number('created_at'),
+    number('updated_at'),
+  ], ['CREATE INDEX idx_calendar_events_user_start ON calendar_events (user_id, start)'])
+
   await ensureCollection(pb, 'integrations', [
     text('name'),
     select('type', ['mcp', 'openapi', 'caldav', 'imap_smtp']),

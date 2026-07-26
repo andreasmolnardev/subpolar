@@ -29,6 +29,18 @@ export interface Note {
   updated_at: number
 }
 
+export interface CalendarEvent {
+  id: string
+  user_id: string
+  title: string
+  start: string
+  end: string
+  location?: string
+  description?: string
+  created_at: number
+  updated_at: number
+}
+
 export interface MailAccount {
   id: string
   name: string
@@ -79,6 +91,20 @@ function toNote(record: Record<string, unknown>): Note {
     title: String(record.title),
     tags: toStringArray(record.tags),
     text: String(record.text ?? ''),
+    created_at: Number(record.created_at ?? Date.now()),
+    updated_at: Number(record.updated_at ?? Date.now()),
+  }
+}
+
+function toCalendarEvent(record: Record<string, unknown>): CalendarEvent {
+  return {
+    id: String(record.id),
+    user_id: String(record.user_id),
+    title: String(record.title),
+    start: String(record.start),
+    end: String(record.end),
+    ...(typeof record.location === 'string' && record.location ? { location: record.location } : {}),
+    ...(typeof record.description === 'string' && record.description ? { description: record.description } : {}),
     created_at: Number(record.created_at ?? Date.now()),
     updated_at: Number(record.updated_at ?? Date.now()),
   }
@@ -152,6 +178,25 @@ export async function updateNote(pb: PocketBase, id: string, data: { title: stri
 
 export async function deleteNote(pb: PocketBase, id: string): Promise<void> {
   await pb.collection('notes').delete(id)
+}
+
+export async function listCalendarEvents(pb: PocketBase, userId: string): Promise<CalendarEvent[]> {
+  const records = await pb.collection('calendar_events').getFullList({
+    filter: `user_id = "${escapeFilterValue(userId)}"`,
+    sort: 'start',
+  })
+  return records.map(record => toCalendarEvent(record as unknown as Record<string, unknown>))
+}
+
+export async function createCalendarEvent(pb: PocketBase, userId: string, data: Omit<CalendarEvent, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<CalendarEvent> {
+  const now = Date.now()
+  const record = await pb.collection('calendar_events').create({ user_id: userId, ...data, created_at: now, updated_at: now })
+  return toCalendarEvent(record as unknown as Record<string, unknown>)
+}
+
+export async function updateCalendarEvent(pb: PocketBase, id: string, data: Partial<Omit<CalendarEvent, 'id' | 'user_id' | 'created_at' | 'updated_at'>>): Promise<CalendarEvent> {
+  const record = await pb.collection('calendar_events').update(id, { ...data, updated_at: Date.now() })
+  return toCalendarEvent(record as unknown as Record<string, unknown>)
 }
 
 export async function listMailAccounts(pb: PocketBase): Promise<MailAccount[]> {

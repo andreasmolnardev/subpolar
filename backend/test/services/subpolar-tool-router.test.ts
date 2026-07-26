@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '../../src/db/schema'
 import { callTool, describeToolForAgent, listToolsForAgent } from '../../src/services/subpolar-tool-router'
-import { resolveCalDavDateRange } from '../../src/services/caldav'
+import { createCalDavEvent, resolveCalDavDateRange, updateCalDavEvent } from '../../src/services/caldav'
 
 const getEvents = vi.fn()
 const getCalendars = vi.fn()
+const createEvent = vi.fn()
+const updateEvent = vi.fn()
 const originalFetch = globalThis.fetch
 
 vi.mock('ts-caldav', () => ({
@@ -12,6 +14,8 @@ vi.mock('ts-caldav', () => ({
     create: vi.fn(async () => ({
       getCalendars,
       getEvents,
+      createEvent,
+      updateEvent,
     })),
   },
 }))
@@ -191,6 +195,8 @@ describe('subpolar tool router', () => {
     globalThis.fetch = originalFetch
     getCalendars.mockReset()
     getEvents.mockReset()
+    createEvent.mockReset()
+    updateEvent.mockReset()
     getEvents.mockResolvedValue([{
       summary: 'Planning',
       start: new Date('2026-07-06T09:00:00.000Z'),
@@ -252,6 +258,53 @@ describe('subpolar tool router', () => {
       start: new Date('2026-07-06T00:00:00.000Z'),
       end: new Date('2026-07-13T00:00:00.000Z'),
     })
+  })
+
+  it('creates a CalDAV event in the configured calendar', async () => {
+    await expect(createCalDavEvent(createDb(), {
+      title: 'Planning',
+      start: '2026-07-06T09:00:00.000Z',
+      end: '2026-07-06T10:00:00.000Z',
+      location: 'Office',
+      description: 'Quarterly planning',
+    })).resolves.toMatchObject({
+      calendar: 'Personal',
+      title: 'Planning',
+      start: '2026-07-06T09:00:00.000Z',
+      end: '2026-07-06T10:00:00.000Z',
+    })
+    expect(createEvent).toHaveBeenCalledWith('https://calendar.example.com/calendars/andrew/personal/', {
+      summary: 'Planning',
+      start: new Date('2026-07-06T09:00:00.000Z'),
+      end: new Date('2026-07-06T10:00:00.000Z'),
+      location: 'Office',
+      description: 'Quarterly planning',
+    })
+  })
+
+  it('updates a CalDAV event in the configured calendar', async () => {
+    getEvents.mockResolvedValue([{
+      uid: 'event-1',
+      href: 'https://calendar.example.com/calendars/andrew/personal/event-1.ics',
+      etag: 'etag-1',
+      summary: 'Planning',
+      start: new Date('2026-07-06T09:00:00.000Z'),
+      end: new Date('2026-07-06T10:00:00.000Z'),
+    }])
+
+    await expect(updateCalDavEvent(createDb(), {
+      calendarId: 'integration-1:https://calendar.example.com/calendars/andrew/personal/',
+      uid: 'event-1',
+      title: 'Updated planning',
+      start: '2026-07-06T10:00:00.000Z',
+      end: '2026-07-06T11:00:00.000Z',
+    })).resolves.toMatchObject({ uid: 'event-1', title: 'Updated planning' })
+    expect(updateEvent).toHaveBeenCalledWith('https://calendar.example.com/calendars/andrew/personal/', expect.objectContaining({
+      uid: 'event-1',
+      summary: 'Updated planning',
+      start: new Date('2026-07-06T10:00:00.000Z'),
+      end: new Date('2026-07-06T11:00:00.000Z'),
+    }))
   })
 
   it('searches the web for web.search', async () => {

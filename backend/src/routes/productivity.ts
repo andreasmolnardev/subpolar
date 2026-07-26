@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { Database } from '../db/schema'
 import {
+  createCalendarEvent,
   createNote,
   createTodoItem,
   createTodoList,
@@ -9,10 +10,12 @@ import {
   deleteTodoItem,
   deleteTodoList,
   listMailAccounts,
+  listCalendarEvents,
   listNotes,
   listTodoItems,
   listTodoLists,
   updateNote,
+  updateCalendarEvent,
   updateTodoItem,
 } from '../db/productivity'
 import { logger } from '../utils/logger'
@@ -27,6 +30,14 @@ const NoteSchema = z.object({
   tags: z.array(z.string().min(1).max(48)).max(12),
   text: z.string().max(100_000),
 })
+const CalendarEventSchema = z.object({
+  title: z.string().min(1).max(500),
+  start: z.string().min(1),
+  end: z.string().min(1),
+  location: z.string().max(500).optional(),
+  description: z.string().max(100_000).optional(),
+})
+const UpdateCalendarEventSchema = CalendarEventSchema.partial().refine(data => Object.keys(data).length > 0)
 
 function getUserId(queryValue: string | undefined): string {
   return queryValue || DEFAULT_USER_ID
@@ -108,6 +119,28 @@ export function createProductivityRoutes(db: Database) {
   app.delete('/notes/:id', async (c) => {
     await deleteNote(db, c.req.param('id'))
     return c.json({ success: true })
+  })
+
+  app.get('/calendar/events', async (c) => c.json({ events: await listCalendarEvents(db, getUserId(c.req.query('userId'))) }))
+
+  app.post('/calendar/events', async (c) => {
+    try {
+      return c.json(await createCalendarEvent(db, getUserId(c.req.query('userId')), CalendarEventSchema.parse(await c.req.json())))
+    } catch (error) {
+      if (error instanceof z.ZodError) return c.json({ error: 'Invalid calendar event data', details: error.issues }, 400)
+      logger.error('Failed to create calendar event:', error)
+      return c.json({ error: 'Failed to create calendar event' }, 500)
+    }
+  })
+
+  app.patch('/calendar/events/:id', async (c) => {
+    try {
+      return c.json(await updateCalendarEvent(db, c.req.param('id'), UpdateCalendarEventSchema.parse(await c.req.json())))
+    } catch (error) {
+      if (error instanceof z.ZodError) return c.json({ error: 'Invalid calendar event data', details: error.issues }, 400)
+      logger.error('Failed to update calendar event:', error)
+      return c.json({ error: 'Failed to update calendar event' }, 500)
+    }
   })
 
   app.get('/mail/accounts', async (c) => c.json({ accounts: await listMailAccounts(db) }))

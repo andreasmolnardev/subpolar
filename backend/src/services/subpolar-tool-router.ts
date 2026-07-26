@@ -4,7 +4,7 @@ import { getAgentByIdOrSlug } from '../db/subpolar-agents'
 import type { Database } from '../db/schema'
 import { getEnabledIntegrationForTool } from '../db/integrations'
 import type { IntegrationType } from '@subpolar/shared/types'
-import { getUpcomingCalDavEvents, type CalDavEventQuery } from './caldav'
+import { createCalDavEvent, getUpcomingCalDavEvents, type CalDavEventQuery, type CreateCalDavEventInput } from './caldav'
 import { webScrape, webSearch } from './web-research'
 import { callMcpTool } from './mcp'
 import { callOpenApiTool } from './openapi'
@@ -84,6 +84,7 @@ async function callIntegrationTool(db: Database, tool: ToolDefinition, input: un
 
   if (tool.target === 'caldav') {
     if (tool.operation === 'get_events') return getUpcomingCalDavEvents(db, inputObject as CalDavEventQuery)
+    if (tool.operation === 'create_event') return createCalDavEvent(db, inputObject as CreateCalDavEventInput)
     return { toolId: tool.tool_id, integrationId: integration.id, provider: 'caldav', operation: tool.operation, status: 'configured', input }
   }
 

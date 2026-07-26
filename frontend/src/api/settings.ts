@@ -99,6 +99,66 @@ export const settingsApi = {
     return fetchWrapper(`${API_BASE_URL}/api/settings/calendar/upcoming`)
   },
 
+  createCalendarEvent: async (event: {
+    calendarId?: string
+    title: string
+    start: string
+    end: string
+    location?: string
+    description?: string
+  }): Promise<{ calendarId: string; calendar: string; title: string; start: string; end: string }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/calendar/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    })
+  },
+
+  updateCalendarEvent: async (event: {
+    calendarId: string
+    uid: string
+    title: string
+    start: string
+    end: string
+    location?: string
+    description?: string
+  }): Promise<{ calendarId: string; uid: string; title: string; start: string; end: string }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/calendar/events`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    })
+  },
+
+  getCalendarTodos: async (): Promise<{
+    lists: Array<{ id: string; name: string }>
+    items: Array<{ id: string; calendarId: string; uid: string; listId: string; text: string; completed: boolean }>
+  }> => fetchWrapper(`${API_BASE_URL}/api/settings/calendar/todos`),
+
+  createCalendarTodo: async (todo: { calendarId?: string; text: string }): Promise<{ id: string; calendarId: string; uid: string; text: string; completed: boolean }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/calendar/todos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(todo),
+    })
+  },
+
+  updateCalendarTodo: async (todo: { calendarId: string; uid: string; completed: boolean }): Promise<{ calendarId: string; uid: string; completed: boolean }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/calendar/todos`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(todo),
+    })
+  },
+
+  deleteCalendarTodo: async (todo: { calendarId: string; uid: string }): Promise<{ success: boolean }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/calendar/todos`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(todo),
+    })
+  },
+
   getPiConfigs: async (userId = DEFAULT_USER_ID): Promise<PiConfigResponse> => {
     return fetchWrapper(`${API_BASE_URL}/api/settings/pi-settings`, {
       params: { userId },

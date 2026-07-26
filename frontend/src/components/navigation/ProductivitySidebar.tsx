@@ -12,6 +12,7 @@ import {
   Mail,
   MoreVertical,
   NotebookPen,
+  Pencil,
   Plus,
   Search,
   Trash2,
@@ -67,15 +68,23 @@ export function ProductivitySidebar() {
   const [activeTab, setActiveTab] = useState<ProductivityTab>('calendar')
   const activeApp = tabs.find((tab) => tab.id === activeTab) ?? tabs[0]
   const ActiveAppIcon = activeApp.icon
-  const { data, isLoading, isError, error } = useQuery({
+  const { data: calDavData, isLoading: isCalDavLoading, isError: isCalDavError, error: calDavError } = useQuery({
     queryKey: ['productivity-calendar-upcoming'],
     queryFn: settingsApi.getUpcomingCalendarEvents,
     enabled: expanded && activeTab === 'calendar',
     staleTime: 60_000,
   })
+  const { data: localCalendarData, isLoading: isLocalCalendarLoading, isError: isLocalCalendarError, error: localCalendarError } = useQuery({
+    queryKey: ['productivity-local-calendar'],
+    queryFn: productivityApi.getCalendarEvents,
+    enabled: expanded && activeTab === 'calendar',
+  })
 
-  const calendars = data?.calendars ?? []
-  const events = data?.events ?? []
+  const calendars = [{ id: 'local', name: 'Local', url: '' }, ...(calDavData?.calendars ?? [])]
+  const events = [
+    ...(localCalendarData?.events ?? []).map((event) => ({ ...event, calendarId: 'local', uid: event.id, calendar: 'Local', source: 'local' as const })),
+    ...(calDavData?.events ?? []).map((event) => ({ ...event, source: 'caldav' as const })),
+  ]
 
   return (
     <aside
@@ -128,9 +137,9 @@ export function ProductivitySidebar() {
               <CalendarPanel
                 calendars={calendars}
                 events={events}
-                isLoading={isLoading}
-                isError={isError}
-                error={error}
+                isLoading={isCalDavLoading || isLocalCalendarLoading}
+                isError={isCalDavError && isLocalCalendarError}
+                error={calDavError ?? localCalendarError}
               />
             )}
             {activeTab === 'todos' && <TodoPanel />}
@@ -171,15 +180,88 @@ function CalendarPanel({
   error,
 }: {
   calendars: Array<{ id: string; name: string; url: string }>
-  events: Array<{ title: string; calendar: string; start: string; end: string | null; location?: string }>
+  events: Array<{ id: string; calendarId: string; uid: string; title: string; calendar: string; start: string; end: string | null; location?: string; description?: string; source: 'local' | 'caldav' }>
   isLoading: boolean
   isError: boolean
   error: unknown
 }) {
+  const queryClient = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [calendarId, setCalendarId] = useState('local')
+  const [start, setStart] = useState(() => toDateTimeLocal(new Date()))
+  const [end, setEnd] = useState(() => toDateTimeLocal(new Date(Date.now() + 60 * 60 * 1000)))
+  const [location, setLocation] = useState('')
+  const [description, setDescription] = useState('')
+  const [editingEvent, setEditingEvent] = useState<typeof events[number] | null>(null)
+  const createEvent = useMutation({
+    mutationFn: (event: { calendarId?: string; title: string; start: string; end: string; location?: string; description?: string }) => event.calendarId === 'local'
+      ? productivityApi.createCalendarEvent({ title: event.title, start: event.start, end: event.end, location: event.location, description: event.description })
+      : settingsApi.createCalendarEvent(event),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['productivity-calendar-upcoming'] })
+      await queryClient.invalidateQueries({ queryKey: ['productivity-local-calendar'] })
+      setOpen(false)
+      setTitle('')
+      setLocation('')
+      setDescription('')
+    },
+  })
+  const updateEvent = useMutation({
+    mutationFn: (event: { source: 'local' | 'caldav'; id: string; calendarId: string; uid: string; title: string; start: string; end: string; location?: string; description?: string }) => event.source === 'local'
+      ? productivityApi.updateCalendarEvent(event.id, { title: event.title, start: event.start, end: event.end, location: event.location, description: event.description })
+      : settingsApi.updateCalendarEvent(event),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['productivity-calendar-upcoming'] })
+      await queryClient.invalidateQueries({ queryKey: ['productivity-local-calendar'] })
+      setEditingEvent(null)
+    },
+  })
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    createEvent.mutate({
+      calendarId: calendarId || undefined,
+      title,
+      start: new Date(start).toISOString(),
+      end: new Date(end).toISOString(),
+      location: location || undefined,
+      description: description || undefined,
+    })
+  }
+
+  function openEditor(event: typeof events[number]) {
+    setEditingEvent(event)
+    setTitle(event.title)
+    setStart(toDateTimeLocal(new Date(event.start)))
+    setEnd(toDateTimeLocal(new Date(event.end ?? event.start)))
+    setLocation(event.location ?? '')
+    setDescription(event.description ?? '')
+  }
+
+  function submitEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!editingEvent) return
+    updateEvent.mutate({
+      source: editingEvent.source,
+      id: editingEvent.id,
+      calendarId: editingEvent.calendarId,
+      uid: editingEvent.uid,
+      title,
+      start: new Date(start).toISOString(),
+      end: new Date(end).toISOString(),
+      location: location || undefined,
+      description: description || undefined,
+    })
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <Input placeholder="Search events" className="h-9" />
+        <Button type="button" size="icon" onClick={() => setOpen((value) => !value)} aria-label="Create event" aria-expanded={open}>
+          <Plus className="h-4 w-4" />
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="outline" size="icon">
@@ -197,6 +279,27 @@ function CalendarPanel({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {open && (
+        <div className="animate-in fade-in slide-in-from-top-2 duration-200 rounded-lg border border-border bg-card p-3">
+            <form onSubmit={submit} className="flex flex-col gap-3">
+              <h2 className="text-sm font-semibold">New event</h2>
+              <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Event title" required autoFocus />
+              <select value={calendarId} onChange={(event) => setCalendarId(event.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+                <option value="">Default calendar</option>
+                {calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.name}</option>)}
+              </select>
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">Start<Input type="datetime-local" value={start} onChange={(event) => setStart(event.target.value)} required /></label>
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">End<Input type="datetime-local" value={end} onChange={(event) => setEnd(event.target.value)} required /></label>
+              <Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Location" />
+              <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Notes" className="min-h-20 rounded-md border border-input bg-background px-3 py-2 text-sm" />
+              {createEvent.isError && <p className="text-sm text-destructive">{createEvent.error instanceof Error ? createEvent.error.message : 'Failed to create event'}</p>}
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={createEvent.isPending}>{createEvent.isPending ? 'Creating...' : 'Create event'}</Button>
+              </div>
+            </form>
+        </div>
+      )}
       <div className="flex flex-col gap-2">
         {isLoading && <p className="px-1 text-sm text-muted-foreground">Loading upcoming events...</p>}
         {isError && <p className="px-1 text-sm text-destructive">{error instanceof Error ? error.message : 'Failed to load upcoming events'}</p>}
@@ -204,7 +307,7 @@ function CalendarPanel({
           <p className="px-1 text-sm text-muted-foreground">No upcoming events found.</p>
         )}
         {events.map((event) => (
-          <article key={`${event.title}-${event.start}`} className="rounded-lg border border-border bg-card p-3">
+          <article key={event.id} className="rounded-lg border border-border bg-card p-3">
             <div className="flex items-start gap-3">
               <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
@@ -212,7 +315,25 @@ function CalendarPanel({
                 <p className="truncate text-xs text-muted-foreground">{event.calendar}</p>
                 <time className="mt-2 block text-xs text-muted-foreground">{formatEventTime(event.start)}</time>
               </div>
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label={`Edit ${event.title}`} onClick={() => editingEvent === event ? setEditingEvent(null) : openEditor(event)}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
             </div>
+            {editingEvent === event && (
+              <form onSubmit={submitEdit} className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200 border-t border-border pt-3 flex flex-col gap-3">
+                <h2 className="text-sm font-semibold">Edit event</h2>
+                <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Event title" required autoFocus />
+                <label className="flex flex-col gap-1 text-xs text-muted-foreground">Start<Input type="datetime-local" value={start} onChange={(event) => setStart(event.target.value)} required /></label>
+                <label className="flex flex-col gap-1 text-xs text-muted-foreground">End<Input type="datetime-local" value={end} onChange={(event) => setEnd(event.target.value)} required /></label>
+                <Input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Location" />
+                <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Notes" className="min-h-20 rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                {updateEvent.isError && <p className="text-sm text-destructive">{updateEvent.error instanceof Error ? updateEvent.error.message : 'Failed to update event'}</p>}
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="ghost" onClick={() => setEditingEvent(null)}>Cancel</Button>
+                  <Button type="submit" disabled={updateEvent.isPending}>{updateEvent.isPending ? 'Saving...' : 'Save changes'}</Button>
+                </div>
+              </form>
+            )}
           </article>
         ))}
       </div>
@@ -220,50 +341,48 @@ function CalendarPanel({
   )
 }
 
+function toDateTimeLocal(date: Date) {
+  const offset = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
+}
+
 function TodoPanel() {
   const queryClient = useQueryClient()
-  const [listName, setListName] = useState('')
   const [itemText, setItemText] = useState('')
   const [selectedListId, setSelectedListId] = useState('')
-  const [isListDialogOpen, setIsListDialogOpen] = useState(false)
-  const [isItemDialogOpen, setIsItemDialogOpen] = useState(false)
-  const { data, isLoading } = useQuery({ queryKey: ['productivity-todos'], queryFn: productivityApi.getTodos })
-  const lists = data?.lists ?? []
-  const items = data?.items ?? []
+  const [isTodoFormOpen, setIsTodoFormOpen] = useState(false)
+  const { data: calDavData, isLoading: isCalDavLoading, isError: isCalDavError, error: calDavError } = useQuery({ queryKey: ['calendar-todos'], queryFn: settingsApi.getCalendarTodos })
+  const { data: localData, isLoading: isLocalLoading, isError: isLocalError, error: localError } = useQuery({ queryKey: ['productivity-todos'], queryFn: productivityApi.getTodos })
+  const lists = [
+    ...(localData?.lists ?? []).map((list) => ({ id: `local:${list.id}`, name: list.name, source: 'local' as const })),
+    ...(calDavData?.lists ?? []).map((list) => ({ id: `caldav:${list.id}`, name: list.name, source: 'caldav' as const })),
+  ]
+  const items = [
+    ...(localData?.items ?? []).map((item) => ({ id: `local:${item.id}`, listId: `local:${item.list_id}`, text: item.text, completed: item.completed, source: 'local' as const, localId: item.id })),
+    ...(calDavData?.items ?? []).map((item) => ({ ...item, id: `caldav:${item.id}`, listId: `caldav:${item.listId}`, source: 'caldav' as const })),
+  ]
   const selectedList = lists.find((list) => list.id === selectedListId) ?? lists[0]
-  const selectedItems = selectedList ? items.filter((item) => item.list_id === selectedList.id) : []
-  const invalidateTodos = () => queryClient.invalidateQueries({ queryKey: ['productivity-todos'] })
-  const createList = useMutation({
-    mutationFn: productivityApi.createTodoList,
-    onSuccess: (list) => {
-      setListName('')
-      setSelectedListId(list.id)
-      setIsListDialogOpen(false)
-      invalidateTodos()
-    },
-  })
-  const deleteList = useMutation({
-    mutationFn: productivityApi.deleteTodoList,
-    onSuccess: () => {
-      setSelectedListId('')
-      invalidateTodos()
-    },
-  })
+  const selectedItems = selectedList ? items.filter((item) => item.listId === selectedList.id) : []
+  const invalidateTodos = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['calendar-todos'] })
+    await queryClient.invalidateQueries({ queryKey: ['productivity-todos'] })
+  }
   const createItem = useMutation({
-    mutationFn: ({ listId, text }: { listId: string; text: string }) => productivityApi.createTodoItem(listId, text),
+    mutationFn: ({ listId, text }: { listId: string; text: string }) => listId.startsWith('local:')
+      ? productivityApi.createTodoItem(listId.slice(6), text)
+      : settingsApi.createCalendarTodo({ calendarId: listId.slice(7), text }),
     onSuccess: () => {
       setItemText('')
-      setIsItemDialogOpen(false)
+      setIsTodoFormOpen(false)
       invalidateTodos()
     },
   })
-  const updateItem = useMutation({ mutationFn: ({ id, completed }: { id: string; completed: boolean }) => productivityApi.updateTodoItem(id, { completed }), onSuccess: invalidateTodos })
-  const removeItem = useMutation({ mutationFn: productivityApi.deleteTodoItem, onSuccess: invalidateTodos })
-
-  const submitList = (event: FormEvent) => {
-    event.preventDefault()
-    if (listName.trim()) createList.mutate(listName.trim())
-  }
+  const updateItem = useMutation({ mutationFn: (item: typeof items[number] & { completed: boolean }) => item.source === 'local'
+    ? productivityApi.updateTodoItem(item.localId, { completed: item.completed })
+    : settingsApi.updateCalendarTodo({ calendarId: item.calendarId, uid: item.uid, completed: item.completed }), onSuccess: invalidateTodos })
+  const removeItem = useMutation({ mutationFn: (item: typeof items[number]) => item.source === 'local'
+    ? productivityApi.deleteTodoItem(item.localId)
+    : settingsApi.deleteCalendarTodo({ calendarId: item.calendarId, uid: item.uid }), onSuccess: invalidateTodos })
 
   const submitItem = (event: FormEvent) => {
     event.preventDefault()
@@ -289,65 +408,31 @@ function TodoPanel() {
             {lists.length === 0 && <DropdownMenuItem disabled>No lists</DropdownMenuItem>}
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button type="button" size="icon" onClick={() => setIsItemDialogOpen(true)} disabled={!selectedList}>
+        <Button type="button" size="icon" onClick={() => setIsTodoFormOpen((open) => !open)} disabled={!selectedList} aria-label="Create task">
           <Plus className="h-4 w-4" />
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setIsListDialogOpen(true)}>New list</DropdownMenuItem>
-            {selectedList && (
-              <DropdownMenuItem onClick={() => deleteList.mutate(selectedList.id)} className="text-destructive">
-                Delete list
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
+      {isTodoFormOpen && (
+        <form onSubmit={submitItem} className="animate-in fade-in slide-in-from-top-2 duration-200 flex gap-2 rounded-lg border border-border bg-card p-3">
+          <Input value={itemText} onChange={(event) => setItemText(event.target.value)} placeholder="Task" autoFocus />
+          <Button type="submit" disabled={createItem.isPending}>{createItem.isPending ? 'Adding...' : 'Add'}</Button>
+        </form>
+      )}
       <div className="flex flex-col gap-2">
-        {isLoading && <p className="px-1 text-sm text-muted-foreground">Loading todos...</p>}
-        {!isLoading && lists.length === 0 && <p className="px-1 text-sm text-muted-foreground">Create a list to start tracking todos.</p>}
+        {(isCalDavLoading || isLocalLoading) && <p className="px-1 text-sm text-muted-foreground">Loading todos...</p>}
+        {isCalDavError && isLocalError && <p className="px-1 text-sm text-destructive">{calDavError instanceof Error ? calDavError.message : localError instanceof Error ? localError.message : 'Failed to load tasks'}</p>}
+        {!isCalDavLoading && !isLocalLoading && lists.length === 0 && <p className="px-1 text-sm text-muted-foreground">No task lists found.</p>}
         {selectedItems.map((item) => (
           <div key={item.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
-            <Checkbox checked={item.completed} onCheckedChange={(checked) => updateItem.mutate({ id: item.id, completed: checked === true })} />
+            <Checkbox checked={item.completed} onCheckedChange={(checked) => updateItem.mutate({ ...item, completed: checked === true })} />
             <span className={cn('min-w-0 flex-1 text-sm', item.completed && 'text-muted-foreground line-through')}>{item.text}</span>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={() => removeItem.mutate(item.id)}>
+            <Button type="button" variant="ghost" size="icon-sm" onClick={() => removeItem.mutate(item)}>
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         ))}
         {selectedList && selectedItems.length === 0 && <p className="px-1 text-sm text-muted-foreground">No todos in this list yet.</p>}
       </div>
-      <Dialog open={isListDialogOpen} onOpenChange={setIsListDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>New list</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={submitList} className="grid gap-4">
-            <Input value={listName} onChange={(event) => setListName(event.target.value)} placeholder="List name" />
-            <DialogFooter>
-              <Button type="submit" disabled={createList.isPending}>Create</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={isItemDialogOpen} onOpenChange={setIsItemDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>New todo</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={submitItem} className="grid gap-4">
-            <Input value={itemText} onChange={(event) => setItemText(event.target.value)} placeholder="Todo" />
-            <DialogFooter>
-              <Button type="submit" disabled={createItem.isPending}>Add</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
