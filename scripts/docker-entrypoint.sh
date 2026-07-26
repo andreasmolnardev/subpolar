@@ -54,5 +54,14 @@ fi
 mkdir -p /app/data /workspace /home/node/.cache
 chown -R node:node /app/data /workspace /home/node
 
-exec runuser -u node -- "$@"
+if [ -S /var/run/docker.sock ]; then
+  DOCKER_SOCKET_GID=$(stat -c '%g' /var/run/docker.sock)
+  DOCKER_SOCKET_GROUP=$(getent group "$DOCKER_SOCKET_GID" | cut -d: -f1)
+  if [ -z "$DOCKER_SOCKET_GROUP" ]; then
+    DOCKER_SOCKET_GROUP=docker-host
+    groupadd --gid "$DOCKER_SOCKET_GID" "$DOCKER_SOCKET_GROUP"
+  fi
+  exec runuser -u node -G "$DOCKER_SOCKET_GROUP" -- "$@"
+fi
 
+exec runuser -u node -- "$@"

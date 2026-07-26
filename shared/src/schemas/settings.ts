@@ -113,7 +113,10 @@ export const IntegrationConfigSchema = z.discriminatedUnion('type', [
   IntegrationBaseSchema.extend({
     type: z.literal('mcp'),
     transport: z.enum(['stdio', 'streamable-http']),
+    execution: z.enum(['local', 'docker']).optional(),
     command: z.array(z.string()).optional(),
+    image: z.string().optional(),
+    args: z.array(z.string()).optional(),
     cwd: z.string().optional(),
     environment: z.record(z.string(), z.string()).optional(),
     serverUrl: z.string().optional(),

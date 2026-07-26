@@ -8,7 +8,10 @@ export type McpTransportKind = 'stdio' | 'streamable-http'
 
 export type McpServerConfig = {
   transport: McpTransportKind
+  execution?: 'local' | 'docker'
   command?: string[]
+  image?: string
+  args?: string[]
   cwd?: string
   environment?: Record<string, string>
   url?: string
@@ -44,12 +47,21 @@ function riskFor(name: string): 'read' | 'write' | 'delete' | 'external' {
 
 function assertConfig(config: McpServerConfig): void {
   if (config.transport === 'stdio') {
+    if (config.execution === 'docker') {
+      if (!config.image?.trim()) throw new Error('A Docker image is required for Docker stdio MCP servers')
+      return
+    }
     if (!config.command?.length || config.command.some(value => !value.trim())) throw new Error('A non-empty argv command is required for stdio MCP servers')
     return
   }
   if (!config.url) throw new Error('A URL is required for Streamable HTTP MCP servers')
   const url = new URL(config.url)
   if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('MCP URL must use HTTP or HTTPS')
+}
+
+export function dockerCommand(config: McpServerConfig): string[] {
+  if (config.execution !== 'docker' || !config.image) throw new Error('Docker MCP configuration is required')
+  return ['docker', 'run', '-i', '--rm', ...Object.keys(config.environment ?? {}).flatMap(key => ['-e', key]), config.image, ...(config.args ?? [])]
 }
 
 function secretKey(): Buffer {
@@ -72,10 +84,16 @@ function decryptSecrets(value: string): McpSecretValues {
   return JSON.parse(Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString('utf8')) as McpSecretValues
 }
 
-export async function saveMcpSecrets(db: Database, serverId: string, values: McpSecretValues): Promise<void> {
-  if (!Object.keys(values.environment ?? {}).length && !Object.keys(values.headers ?? {}).length) return
+export async function saveMcpSecrets(db: Database, serverId: string, values: McpSecretValues, preserveBlankValues = false): Promise<void> {
   const existing = await db.collection('mcp_secrets').getFirstListItem(`server_id = "${serverId.replaceAll('"', '\\"')}"`).catch(() => null)
-  const data = { server_id: serverId, ciphertext: encryptSecrets(values), updated_at: Date.now() }
+  const previous = existing ? decryptSecrets(String((existing as unknown as { ciphertext: string }).ciphertext)) : {}
+  const merge = (next: Record<string, string> | undefined, current: Record<string, string> | undefined) => Object.fromEntries(Object.entries(next ?? {}).map(([key, value]) => [key, preserveBlankValues && !value && current?.[key] ? current[key] : value]))
+  const secrets = { environment: merge(values.environment, previous.environment), headers: merge(values.headers, previous.headers) }
+  if (!Object.keys(secrets.environment).length && !Object.keys(secrets.headers).length) {
+    if (existing) await db.collection('mcp_secrets').delete(String((existing as unknown as { id: string }).id))
+    return
+  }
+  const data = { server_id: serverId, ciphertext: encryptSecrets(secrets), updated_at: Date.now() }
   if (existing) await db.collection('mcp_secrets').update(String((existing as unknown as { id: string }).id), data)
   else await db.collection('mcp_secrets').create({ ...data, created_at: Date.now() })
 }
@@ -90,18 +108,35 @@ class StdioConnection {
   private readonly pending = new Map<number, { resolve: (value: JsonRpcResponse) => void; reject: (reason: Error) => void }>()
   private nextId = 1
   private buffer = ''
+  private stderr = ''
   private process: ReturnType<typeof Bun.spawn> | null = null
 
   constructor(private readonly config: McpServerConfig) {}
 
   async initialize(signal?: AbortSignal): Promise<void> {
     assertConfig(this.config)
-    const [command, ...args] = this.config.command!
     const env = { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', LANG: process.env.LANG ?? 'en_US.UTF-8', ...this.config.environment }
-    this.process = Bun.spawn([command!, ...args], { cwd: this.config.cwd, env, stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' })
+    const command = this.config.execution === 'docker' ? dockerCommand(this.config) : this.config.command!
+    this.process = Bun.spawn(command, { cwd: this.config.cwd, env, stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' })
     void this.consume()
-    await this.request('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'subpolar', version: '1.0.0' } }, signal, initializationTimeoutFor(this.config))
+    void this.consumeStderr()
+    try {
+      await this.request('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'subpolar', version: '1.0.0' } }, signal, initializationTimeoutFor(this.config))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'MCP initialization failed'
+      throw new Error(this.stderr ? `${message}: ${this.stderr}` : message, { cause: error })
+    }
     this.notify('notifications/initialized', {})
+  }
+
+  private async consumeStderr(): Promise<void> {
+    if (!this.process?.stderr) return
+    const reader = (this.process.stderr as ReadableStream<Uint8Array>).getReader()
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) return
+      this.stderr = `${this.stderr}${this.decoder.decode(chunk.value, { stream: true })}`.slice(-8_192)
+    }
   }
 
   private async consume(): Promise<void> {
