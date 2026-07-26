@@ -48,6 +48,7 @@ type ToolAccess = z.infer<typeof toolAccessSchema>
 
 interface Agent {
   id?: string
+  updated_at?: number
   prompt?: string
   systemPrompt?: string
   description?: string
@@ -297,7 +298,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
       return
     }
 
-    const agentKey = loadedAgent?.agent.id ?? loadedAgent?.name ?? 'new'
+    const agentKey = `${loadedAgent?.agent.id ?? loadedAgent?.name ?? 'new'}:${loadedAgent?.agent.updated_at ?? ''}`
     if (initializedAgentKey.current === agentKey) return
 
     form.reset(getDefaultValues(loadedAgent))
