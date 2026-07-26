@@ -118,7 +118,7 @@ export function SettingsDialog() {
                   <button
                     key={item.id}
                     onClick={() => { setActiveTab(item.id as SettingsView); setMobileView(item.id as SettingsView); pushSectionHistory(item.id as SettingsView); }}
-                    className={`w-full text-left px-3 py-2 rounded-md mb-2 flex items-center gap-2 ${activeTab === item.id ? 'bg-blue-600 text-white' : 'text-muted-foreground hover:bg-gray-200'} transition-colors`}
+                    className={`w-full text-left px-3 py-2 rounded-md mb-2 flex items-center gap-2 ${activeTab === item.id ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50'} transition-colors`}
                   >
                     <item.icon className="w-5 h-5" />
                     <span>{item.label}</span>
@@ -178,7 +178,7 @@ export function SettingsDialog() {
                     >
                      <div className="flex items-center gap-4">
                        <div className="p-3 bg-accent rounded-lg">
-                         <item.icon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                         <item.icon className="w-6 h-6 text-accent-foreground" />
                        </div>
                        <div className="flex-1 min-w-0">
                          <h3 className="font-semibold text-foreground mb-1">{item.label}</h3>
