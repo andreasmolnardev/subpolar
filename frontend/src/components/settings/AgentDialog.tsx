@@ -112,6 +112,7 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
       toolAccess: [
         { type: 'builtin', id: 'edit', permission: 'deny' },
         { type: 'builtin', id: 'webfetch', permission: 'allow' },
+        { type: 'subpolar', id: 'web.search', permission: 'allow' },
         { type: 'builtin', id: 'other-bash', permission: 'deny' },
       ],
       disable: false,
