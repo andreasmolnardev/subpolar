@@ -1,6 +1,7 @@
 import { useSettings } from '@/hooks/useSettings'
 import { useVersionCheck } from '@/hooks/useVersionCheck'
 import { Loader2 } from 'lucide-react'
+import { DefaultModelsSettings } from '@/components/settings/DefaultModelsSettings'
 
 export function GeneralSettings() {
   const { isLoading } = useSettings()
@@ -44,9 +45,9 @@ export function GeneralSettings() {
           )}
         </div>
 
-        <p className="text-sm text-muted-foreground">
-          Chat display options moved to Chat. Theme selection moved to Appearance.
-        </p>
+        <DefaultModelsSettings />
+
+        <p className="text-sm text-muted-foreground">Chat display options moved to Chat. Theme selection moved to Appearance.</p>
       </div>
     </div>
   )

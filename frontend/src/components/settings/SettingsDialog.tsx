@@ -68,14 +68,14 @@ export function SettingsDialog() {
 
   const menuItems = [
     { id: 'account', icon: User, label: 'Account', description: 'Profile, passkeys, and sign out' },
-    { id: 'general', icon: Settings2, label: 'General Settings', description: 'App preferences and behavior' },
+    { id: 'general', icon: Settings2, label: 'General Settings', description: 'App preferences, behavior, and default models' },
     { id: 'chat', icon: MessageSquare, label: 'Chat', description: 'Message display and chat behavior' },
     { id: 'appearance', icon: Palette, label: 'Appearance', description: 'Theme and visual preferences' },
     { id: 'notifications', icon: Bell, label: 'Notifications', description: 'Push notification preferences' },
     { id: 'voice', icon: Volume2, label: 'Voice', description: 'Text-to-speech and speech-to-text settings' },
     { id: 'shortcuts', icon: Keyboard, label: 'Keyboard Shortcuts', description: 'Customize keyboard shortcuts' },
     { id: 'integrations', icon: Plug, label: 'Integrations', description: 'Configure MCP, calendars, and mail' },
-    { id: 'providers', icon: Key, label: 'Models', description: 'Manage AI providers and default models' },
+    { id: 'providers', icon: Key, label: 'Model Providers', description: 'Manage AI model providers' },
   ]
 
   const handleOpenMobileView = useCallback((view: SettingsView) => {
