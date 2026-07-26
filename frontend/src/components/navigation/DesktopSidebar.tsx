@@ -382,7 +382,7 @@ export function DesktopSidebar() {
     }
   };
 
-  const handleCreateProject = async (data: { name: string; directory?: string; agentNames?: string[] }) => {
+  const handleCreateProject = async (data: { name: string; mode: 'existing' | 'workspace'; directory?: string; agentNames?: string[] }) => {
     const created = await createProject(data);
     queryClient.invalidateQueries({ queryKey: ["projects"] });
     setSelectedSidebarProjectId(String(created.id));
