@@ -7,6 +7,10 @@ import type { RuntimeRegistry } from '../runtime/registry'
 import { sseAggregator } from '../services/sse-aggregator'
 import { logger } from '../utils/logger'
 import { getAgentByIdOrSlug } from '../db/subpolar-agents'
+import { createGeneralChatSessionDirectory } from '../services/general-chat'
+import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
+import path from 'path'
+import fs from 'fs/promises'
 
 type StoredToolState = Record<string, unknown>
 
@@ -21,7 +25,7 @@ type StoredAssistantPart =
   | { type: 'reasoning'; id: string; text: string; time: { start: number } }
   | { type: 'tool'; id: string; callID: string; tool: string; state: StoredToolState }
 
-export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegistry) {
+export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegistry, options?: { apiBaseUrl?: string }) {
   const app = new Hono()
 
   app.get('/', async (c) => {
@@ -57,11 +61,17 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
   app.post('/', async (c) => {
     const body = await c.req.json().catch(() => ({})) as { directory?: unknown; title?: unknown; projectId?: unknown; runtime?: unknown; runtimeSessionId?: unknown }
     const sessionId = crypto.randomUUID()
+    const projectId = typeof body.projectId === 'number' || typeof body.projectId === 'string' ? String(body.projectId) : undefined
+    const requestedDirectory = typeof body.directory === 'string' ? body.directory : null
+    const isGeneralChat = projectId === String(GENERAL_CHAT_PROJECT_ID) || requestedDirectory?.endsWith(`${path.sep}general-chat`) || requestedDirectory?.endsWith('/general-chat')
+    const directory = isGeneralChat
+      ? await createGeneralChatSessionDirectory(sessionId, { db, apiBaseUrl: options?.apiBaseUrl ?? `http://localhost:${process.env.PORT ?? 5003}/api/internal` })
+      : requestedDirectory
     await upsertSessionRecord(db, {
       sessionId,
-      directory: typeof body.directory === 'string' ? body.directory : null,
+      directory,
       title: typeof body.title === 'string' ? body.title : null,
-      projectId: typeof body.projectId === 'number' || typeof body.projectId === 'string' ? String(body.projectId) : undefined,
+      projectId,
     })
     return c.json({ session: { id: sessionId, runtime: 'pi', runtimeSessionId: null } }, 201)
   })
@@ -73,12 +83,31 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
   })
 
   app.delete('/:id', async (c) => {
+    const session = await getSessionRecord(db, c.req.param('id'))
     await deleteSessionRecord(db, c.req.param('id'))
+    if (session?.projectId === GENERAL_CHAT_PROJECT_ID && session.directory?.includes(`${path.sep}subpolar-general-chat${path.sep}`)) {
+      await fs.rm(session.directory, { recursive: true, force: true }).catch(() => {})
+    }
     return c.body(null, 204)
   })
 
   app.get('/:id/messages', async (c) => {
     return c.json({ messages: await listMessages(db, c.req.param('id')) })
+  })
+
+  app.get('/:id/context', async (c) => {
+    const messages = await listMessages(db, c.req.param('id'))
+    const messageId = c.req.query('messageID')
+    const message = messages.find(item => item.id === messageId)
+    if (!message) return c.json({ error: 'Message not found' }, 404)
+
+    const agentId = typeof message.metadata?.agent === 'string' ? message.metadata.agent : 'default'
+    const agent = await getAgentByIdOrSlug(db, agentId)
+    return c.json({
+      agent: agentId,
+      systemPrompt: agent?.systemPrompt || agent?.prompt || '',
+      messages,
+    })
   })
 
   app.post('/:id/messages', async (c) => {
@@ -88,7 +117,8 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
     const metadata = body.metadata && typeof body.metadata === 'object' ? body.metadata as Record<string, unknown> : {}
     const createdAt = typeof body.createdAt === 'number' && Number.isFinite(body.createdAt) ? body.createdAt : undefined
     const message = await createMessage(db, { sessionId: c.req.param('id'), role, content, metadata, createdAt })
-    const directory = c.req.query('directory')
+    const session = await getSessionRecord(db, c.req.param('id'))
+    const directory = session?.directory ?? c.req.query('directory')
     if (directory) {
       sseAggregator.publish(directory, {
         type: 'message.updated',
@@ -131,7 +161,8 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
       ? body.permissionOverride
       : undefined
     const runtime: RuntimeId = 'pi'
-    const directory = c.req.query('directory')
+    const session = await getSessionRecord(db, c.req.param('id'))
+    const directory = session?.directory ?? c.req.query('directory')
     const metadata = {
       ...(permissionOverride ? { permissionOverride } : {}),
       ...(directory ? { directory } : {}),

@@ -442,12 +442,3 @@ export const PiConfigResponseSchema = z.object({
   configs: z.array(PiConfigMetadataSchema),
   defaultConfig: PiConfigMetadataSchema.nullable(),
 });
-
-export const OpenCodePluginOptionsSchema = PiPluginOptionsSchema;
-export const OpenCodePluginSpecSchema = PiPluginSpecSchema;
-export const OpenCodeConfigSchema = PiConfigSchema;
-export type OpenCodeConfigContent = PiConfigContent;
-export const OpenCodeConfigMetadataSchema = PiConfigMetadataSchema;
-export const CreateOpenCodeConfigRequestSchema = CreatePiConfigRequestSchema;
-export const UpdateOpenCodeConfigRequestSchema = UpdatePiConfigRequestSchema;
-export const OpenCodeConfigResponseSchema = PiConfigResponseSchema;

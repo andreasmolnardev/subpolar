@@ -45,7 +45,7 @@ import { NotificationService } from './services/notification'
 import { AutomationRunner, AutomationService } from './services/automations'
 import { migrateGlobalSkills } from './services/skills'
 import { ensureGeneralChatProject } from './db/projects'
-import { installAssistantWorkspace } from './services/general-chat'
+import { cleanupGeneralChatSessionDirectories } from './services/general-chat'
 
 import { logger } from './utils/logger'
 import { seedTools } from './db/subpolar-tools'
@@ -149,12 +149,7 @@ try {
   piInternalClient = new PiNativeClient()
 
   await migrateGlobalSkills()
-
-  await installAssistantWorkspace({
-    db: db!,
-    apiBaseUrl: `http://localhost:${PORT}/api/internal`,
-  })
-  logger.info('General Chat workspace installed')
+  await cleanupGeneralChatSessionDirectories()
 
   automationService = new AutomationService(db!, piInternalClient!)
   automationRunnerInstance = new AutomationRunner(automationService)
@@ -213,7 +208,7 @@ protectedApi.route('/notifications', createNotificationRoutes(notificationServic
 protectedApi.route('/prompt-templates', createPromptTemplateRoutes(db!))
 protectedApi.route('/automations', createAutomationRoutes(automationService!))
 protectedApi.route('/productivity', createProductivityRoutes(db!))
-protectedApi.route('/sessions', createSessionRoutes(db!, runtimeRegistry))
+protectedApi.route('/sessions', createSessionRoutes(db!, runtimeRegistry, { apiBaseUrl: `http://localhost:${PORT}/api/internal` }))
 protectedApi.route('/runs', createRunRoutes(db!, runtimeRegistry))
 protectedApi.route('/agent', createAgentRoutes(db!))
 protectedApi.route('/agents', createAgentRoutes(db!))

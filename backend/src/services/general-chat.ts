@@ -1,4 +1,6 @@
 import path from 'path'
+import os from 'os'
+import fs from 'fs/promises'
 import type { AgentDefinition, Project, GeneralChatStatus, PiConfigInput } from '@subpolar/shared/types'
 import type { AgentFileInfo } from '@subpolar/shared/schemas/repo'
 import {
@@ -87,6 +89,19 @@ export function getGeneralChatDirectory(): string {
   }
 
   return resolvedGeneralChatDir
+}
+
+export async function createGeneralChatSessionDirectory(
+  sessionId: string,
+  deps: { db: Database; apiBaseUrl: string },
+): Promise<string> {
+  const directory = path.join(os.tmpdir(), 'subpolar-general-chat', sessionId)
+  await ensureGeneralChat(buildGeneralChatProject(), deps, { directory, overwriteAgentsMd: true, overwritePiConfig: true })
+  return directory
+}
+
+export async function cleanupGeneralChatSessionDirectories(): Promise<void> {
+  await fs.rm(path.join(os.tmpdir(), 'subpolar-general-chat'), { recursive: true, force: true })
 }
 
 export function buildGeneralChatProject(): Project {
@@ -809,7 +824,7 @@ Use this skill before changing or analyzing subpolar application code.
 - Subpolar is a pnpm workspace with a Bun/Hono backend, React/Vite frontend, and shared TypeScript package.
 - Backend code lives under \`backend/src\` and tests under \`backend/test\`.
 - Frontend code lives under \`frontend/src\`.
-- Shared schemas and types live under \`shared/src\`; prefer shared types from \`@opencode-manager/shared\`.
+- Shared schemas and types live under \`shared/src\`; prefer shared types from \`@subpolar/shared\`.
 
 ## Commands
 
@@ -1045,9 +1060,9 @@ async function writeAgentFiles(generalChatDir: string, agentsToWrite: AgentDefin
 export async function ensureGeneralChat(
   project: Project,
   deps: { db: Database; apiBaseUrl: string },
-  options?: { overwriteAgentsMd?: boolean; overwritePiConfig?: boolean },
+  options?: { overwriteAgentsMd?: boolean; overwritePiConfig?: boolean; directory?: string },
 ): Promise<GeneralChatStatus> {
-  const generalChatDir = getGeneralChatDirectory()
+  const generalChatDir = options?.directory ?? path.join(os.tmpdir(), 'subpolar-general-chat', crypto.randomUUID())
   await deleteSystemAgents(deps.db)
 
   await ensureDirectoryExists(generalChatDir)

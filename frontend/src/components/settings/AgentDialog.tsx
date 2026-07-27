@@ -314,7 +314,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
   const systemPromptValue = form.watch('systemPrompt')
   const selectedTool = toolAccess[selectedToolIndex]
   const selectedSkill = skillAccess[selectedSkillIndex]
-  const promptPreview = useMemo(() => buildAgentPromptPreview({ prompt: promptValue, skills: promptSkills }), [promptValue, promptSkills])
+  const promptPreview = useMemo(() => buildAgentPromptPreview({ prompt: promptValue, skillAccess, skills: promptSkills }), [promptValue, skillAccess, promptSkills])
 
   const applyTemplate = (template: AgentTemplate) => {
     form.reset(template.values)

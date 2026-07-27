@@ -129,14 +129,15 @@ export function SessionDetail() {
   const repoDirectory = repo?.fullPath;
   const sessionRouteSuffix = '';
 
-  const { isConnected, isReconnecting } = useSSE(apiUrl, repoDirectory, sessionId);
-
-  const { data: rawMessages, isLoading: messagesLoading } = useMessages(apiUrl, sessionId, repoDirectory);
   const { data: session, isLoading: sessionLoading } = useSession(
     apiUrl,
     sessionId,
     repoDirectory,
   );
+  const sessionDirectory = session?.directory ?? repoDirectory;
+  const { isConnected, isReconnecting } = useSSE(apiUrl, sessionDirectory, sessionId);
+
+  const { data: rawMessages, isLoading: messagesLoading } = useMessages(apiUrl, sessionId, sessionDirectory);
 
   const messages = useMemo(() => {
     if (!rawMessages) return undefined
@@ -154,11 +155,11 @@ export function SessionDetail() {
     contentVersion: messagesContentVersion,
     onScrollStateChange: () => {}
   });
-  const abortSession = useAbortSession(apiUrl, repoDirectory, sessionId);
+  const abortSession = useAbortSession(apiUrl, sessionDirectory, sessionId);
   const createSession = useCreateSession(apiUrl, repoDirectory);
-  const sendPendingPrompt = useSendPrompt(apiUrl, repoDirectory);
-  const { model, modelString } = useModelSelection(apiUrl, repoDirectory);
-  const sessionAgent = useSessionAgent(apiUrl, sessionId, repoDirectory);
+  const sendPendingPrompt = useSendPrompt(apiUrl, sessionDirectory);
+  const { model, modelString } = useModelSelection(apiUrl, sessionDirectory);
+  const sessionAgent = useSessionAgent(apiUrl, sessionId, sessionDirectory);
   const isEditingMessage = useUIState((state) => state.isEditingMessage);
   const setActivePromptFileBasePath = useUIState((state) => state.setActivePromptFileBasePath);
   const { isEnabled: ttsEnabled } = useTTS();
@@ -291,37 +292,37 @@ export function SessionDetail() {
     showToast.loading('Compacting session...', { id: `compact-${sessionId}` });
 
     try {
-      const client = createSubpolarClient(apiUrl, repoDirectory);
+      const client = createSubpolarClient(apiUrl, sessionDirectory);
       await client.summarizeSession(sessionId, model.providerID, model.modelID);
     } catch (error) {
       showToast.error(`Compact failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [apiUrl, sessionId, model, repoDirectory]);
+  }, [apiUrl, sessionId, model, sessionDirectory]);
 
   const handleUndo = useCallback(async () => {
     if (!apiUrl || !sessionId) return;
     try {
-      const client = createSubpolarClient(apiUrl, repoDirectory);
+      const client = createSubpolarClient(apiUrl, sessionDirectory);
       await client.sendCommand(sessionId, { command: 'undo', arguments: '' });
     } catch (error) {
       showToast.error(`Undo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [apiUrl, sessionId, repoDirectory]);
+  }, [apiUrl, sessionId, sessionDirectory]);
 
   const handleRedo = useCallback(async () => {
     if (!apiUrl || !sessionId) return;
     try {
-      const client = createSubpolarClient(apiUrl, repoDirectory);
+      const client = createSubpolarClient(apiUrl, sessionDirectory);
       await client.sendCommand(sessionId, { command: 'redo', arguments: '' });
     } catch (error) {
       showToast.error(`Redo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [apiUrl, sessionId, repoDirectory]);
+  }, [apiUrl, sessionId, sessionDirectory]);
 
   const handleFork = useCallback(async () => {
     if (!apiUrl || !sessionId) return;
     try {
-      const client = createSubpolarClient(apiUrl, repoDirectory);
+      const client = createSubpolarClient(apiUrl, sessionDirectory);
       const forkedSession = await client.forkSession(sessionId);
       if (forkedSession?.id) {
         navigate(`/repos/${repoId}/sessions/${forkedSession.id}${sessionRouteSuffix}`);
@@ -330,7 +331,7 @@ export function SessionDetail() {
     } catch (error) {
       showToast.error(`Fork failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [apiUrl, sessionId, repoDirectory, navigate, repoId, sessionRouteSuffix]);
+  }, [apiUrl, sessionId, sessionDirectory, navigate, repoId, sessionRouteSuffix]);
 
   const handleCloseSession = useCallback(() => {
     const tab = new URLSearchParams(location.search).get('repoTab') ?? undefined;
@@ -496,7 +497,7 @@ export function SessionDetail() {
                     {apiUrl && (
                       <SessionList
                         apiUrl={apiUrl}
-                        directory={repoDirectory}
+                         directory={sessionDirectory}
                         activeSessionID={sessionId || undefined}
                         onSelectSession={(selectedSessionID) => {
                           navigate(`/projects/${repoId}/sessions/${selectedSessionID}${sessionRouteSuffix}`)
@@ -516,7 +517,7 @@ export function SessionDetail() {
             <ContextUsageIndicator
               apiUrl={apiUrl}
               sessionID={sessionId}
-              directory={repoDirectory}
+              directory={sessionDirectory}
               isConnected={isConnected}
               isReconnecting={isReconnecting}
               messages={messages}
@@ -534,11 +535,11 @@ export function SessionDetail() {
         <div key={sessionId} ref={messageContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [mask-image:linear-gradient(to_bottom,transparent,black_16px,black)]" style={{ paddingBottom: promptOverlayHeight + inputBottomOffset + PROMPT_OVERLAY_CLEARANCE_PX }}>
           {repoLoading || sessionLoading || messagesLoading ? (
             <MessageSkeleton />
-          ) : apiUrl && repoDirectory ? (
+          ) : apiUrl && sessionDirectory ? (
             <MessageThread 
               apiUrl={apiUrl} 
               sessionID={sessionId} 
-              directory={repoDirectory}
+               directory={sessionDirectory}
               messages={messages}
               onFileClick={handleFileClick}
               onChildSessionClick={handleChildSessionClick}
@@ -547,7 +548,7 @@ export function SessionDetail() {
             />
           ) : null}
         </div>
-        {apiUrl && repoDirectory && !isEditingMessage && (
+        {apiUrl && sessionDirectory && !isEditingMessage && (
           <div
             ref={promptOverlayRef}
             className="absolute left-0 right-0 flex justify-center"
@@ -590,14 +591,14 @@ export function SessionDetail() {
                   pendingCount={pendingPermissionCount}
                   isFromDifferentSession={false}
                   sessionTitle={sessionTitle}
-                  repoDirectory={repoDirectory}
+                   repoDirectory={sessionDirectory}
                   onRespond={respondToPermission}
                 />
               )}
               <SessionSendErrorBanner sessionId={sessionId} />
               <ChatInputBar
                 ref={promptInputRef}
-                directory={repoDirectory}
+                 directory={sessionDirectory}
                 defaultProjectId={repoId.toString()}
                 defaultAgent={sessionAgent.agent ? sessionAgent.agent : "__default__"}
                 defaultModel={sessionAgent.model ? `${sessionAgent.model.providerID}/${sessionAgent.model.modelID}` : "__auto__"}

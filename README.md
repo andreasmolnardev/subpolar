@@ -1,114 +1,103 @@
-<p align="center">
-    <img src="frontend/public/subpolar-logo-text-dark.png" alt="Subpolar" width="600" style="border: none" />
-</p>
+# Subpolar
 
-<p align="center">
-    A workspace for agents with a chat UI and terminal-backed coding runtime
-</p>
+Subpolar is a workspace for running AI agents with clear project boundaries, configurable capabilities, and persistent chat sessions. It combines a chat interface with pi-coding-agent by extending its capabilites.
 
+## What It Does
 
-> [!IMPORTANT]  
-> This is vibecoded. Proceed with caution.
+- Organizes work into projects backed by local workspace folders.
+- Provides a `General chat` project for work not tied to a folder.
+- Lets users select an agent, model, project, and permissions before starting a session.
+- Persists conversations, tool activity, and session state.
+- Supports custom agents, reusable skills, prompt commands, provider configuration, and optional integrations.
+- Streams agent responses and tool execution to the web UI in real time.
 
-## Quick Start
+## Behind The Scenes
 
-```bash
-git clone https://github.com/chriswritescode-dev/opencode-manager.git
-cd opencode-manager
-cp .env.example .env
-echo "AUTH_SECRET=$(openssl rand -base64 32)" >> .env
-docker-compose up -d
-# Open http://localhost:5003
-```
+1. Subpolar resolves the selected project, agent, model, skills, and tool policies for each prompt.
+2. It creates a session run and starts a Pi SDK `AgentSession` in the project's workspace.
+3. Pi receives the assembled prompt and model configuration, then emits messages and tool requests during execution.
+4. Skills begin as compact descriptions and load their full instructions only when the agent needs them. Each protected tool request is checked against Subpolar's policy engine.
+5. Subpolar converts Pi runtime events into its session stream, delivers them to the UI, and persists messages, tool activity, questions, completion, and failures.
 
-On first launch, you'll be prompted to create an admin account. That's it!
+## Concepts
+- Projects:
+- Skills:
+- Tools:
 
-For local development setup, see the [Development Guide](https://chriswritescode-dev.github.io/opencode-manager/development/setup/).
+## Permissions And Skills
 
+Agents are configured independently from projects. Their configuration can include:
 
-## Features
+- System prompt and description
+- Allowed built-in tools such as file editing, web fetches, and shell commands
+- Subpolar, MCP, OpenAPI, and command-line tools
+- `allow`, `ask`, or `deny` policy for each capability
+- Skills: reusable instruction files that agents discover and load on demand
 
-- **Repositories & Git** — Multi-repo management, local discovery, SSH auth, worktrees, unified diffs, branch and commit management
-- **Chat & Sessions** — Real-time SSE streaming, slash commands, `@file` mentions, Plan/Build modes, Mermaid diagram rendering
-- **Files** — Directory browser with tree view, syntax highlighting, create/rename/delete, ZIP download
-- **Agents** — Create and manage AI agents with custom icons, descriptions, skill access, and allowed commands directly from the sidebar
-- **Automations** — Recurring repo jobs with reusable prompts, run history, linked sessions, markdown-rendered output
--- **General Chat** using global agents
-- **Projects** - Sessions tailored to workspaces on the server
-- **MCP Servers** — Add, configure, authenticate, and manage local or remote MCP servers with OAuth support
-- **AI Configuration** — Model/provider setup, API keys, OAuth for Anthropic and GitHub Copilot, custom agent definitions
-- **Skills** — Extend agent capabilities with shareable, scoped skill definitions
-- **Notifications** — Push notifications for session events, questions, errors, and completions
-- **Audio** — Text-to-speech and speech-to-text (browser native and OpenAI-compatible APIs)
-- **Mobile & PWA** — Responsive mobile-first UI, installable on any device, iOS-optimized
-
-## What Subpolar Is
-
-Subpolar is a workspace for agents. Think ChatGPT with terminal access, organized around projects, reusable agent instructions, and explicit permission boundaries.
-
-The homepage is a new chat UI where a user selects an agent, model, project, and permissions before starting work. Projects are folders the agent runs in. Each user also gets a `General chat` project for general-purpose tasks that are not tied to a specific workspace.
-
-Agents combine a system prompt with permissions, including which skills they can access. Skills are dynamically loaded instructions: the model can discover them with a get-skills flow, optionally search for the right skill, then load the full skill instructions into context before using them.
-
-Subpolar uses the `pi-coding-agent` package as its agent harness and extends it with Subpolar-specific projects, permission handling, session persistence, provider compatibility APIs, and tool authorization callbacks.
+Tool authorization remains in Subpolar. Pi asks Subpolar's authorization endpoint before executing a protected tool, allowing configured policy to approve, deny, or request user confirmation.
 
 ## Architecture
 
 Subpolar is a pnpm workspace with three TypeScript packages:
 
-- `backend/` — Bun + Hono API server with Better Auth, SQLite migrations, Pi runtime integration, SSE, automations, and push notifications.
-- `frontend/` — React + Vite SPA using React Router, TanStack Query, Radix UI/Tailwind, service worker support, and mobile-first navigation.
-- `shared/` — shared Zod schemas, config helpers, types, and utilities consumed by both backend and frontend.
+- `frontend/`: React and Vite single-page app for projects, sessions, settings, and streamed runtime activity.
+- `backend/`: Bun and Hono API server that manages authentication, PocketBase persistence, projects, sessions, tools, and Pi runtime integration.
+- `shared/`: Shared types, Zod schemas, configuration, and utilities.
 
-### Pi Runtime
+The backend uses `@earendil-works/pi-coding-agent` through its SDK rather than a subprocess RPC bridge. Pi's `ModelRegistry` provides available models; Subpolar exposes them through its provider API for the model selector. Each prompt runs in a new SDK agent session with Subpolar's extension enabled for tool authorization.
 
-Subpolar uses Pi as the native coding-agent runtime through the `@earendil-works/pi-coding-agent` SDK. Session execution is handled by the backend's native session and run APIs.
+## Quick Start
 
-- Model discovery uses the Pi SDK `ModelRegistry`, then maps available Pi models into `/api/provider` for the existing model selector.
-- Prompt execution creates an SDK `AgentSession` with Subpolar's Pi extension loaded, sends the prompt through `session.prompt()`, and maps SDK events into Subpolar runtime events for messages, tool calls, completion, and failures.
-- Selected models flow from the model selector as `providerID/modelID`, are submitted with the prompt, stored on the run request, and resolved through the Pi SDK before execution.
-- Tool authorization stays inside Subpolar: the Pi extension calls back into `/api/pi/tools/authorize` with the internal token, and the backend applies the configured tool policy before allowing work to continue.
+Requirements: Bun, pnpm, Git, and Docker for the bundled PocketBase service.
 
-A MkDocs Material site (`docs/`) provides guides, feature docs, configuration, and troubleshooting.
+```bash
+git clone <repository-url> subpolar
+cd subpolar
+cp .env.example .env
+pnpm install
+docker compose up -d pocketbase
+pnpm dev
+```
+
+Open `http://localhost:5173`. The API runs on `http://localhost:5003`; PocketBase runs on `http://localhost:8090`.
+
+Set a secure `AUTH_SECRET` in `.env` before production use:
+
+```bash
+openssl rand -base64 32
+```
+
+For a containerized deployment, configure `.env` then run:
+
+```bash
+docker compose up -d --build
+```
 
 ## Development
 
-This repo uses pnpm workspaces for `shared`, `backend`, and `frontend`.
-
 ```bash
-pnpm install
-pnpm dev
-pnpm lint
-pnpm typecheck
-pnpm test
+pnpm dev              # Start backend and frontend
+pnpm dev:backend      # Start backend only
+pnpm dev:frontend     # Start frontend only
+pnpm build            # Build all packages
+pnpm typecheck        # Type-check all packages
+pnpm test             # Run test suites
+pnpm lint             # Lint all packages
 ```
 
-See the [Development Guide](https://chriswritescode-dev.github.io/opencode-manager/development/setup/) for local setup, scripts, database notes, and testing.
+`pnpm dev` runs `scripts/setup-dev.sh`, which checks prerequisites, creates the runtime workspace if needed, installs dependencies, and creates `.env` from `.env.example` when missing.
 
 ## Configuration
 
-```bash
-# Required for production
-AUTH_SECRET=your-secure-random-secret  # Generate with: openssl rand -base64 32
+Configuration may come from environment variables, `.env`, or `config.json`, in that precedence order. Key settings include:
 
-# Pre-configured admin (optional)
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=your-secure-password
+- `WORKSPACE_PATH`: root folder for agent project workspaces
+- `POCKETBASE_URL`, `POCKETBASE_EMAIL`, `POCKETBASE_PASSWORD`: persistence service connection
+- `AUTH_SECRET`, `AUTH_TRUSTED_ORIGINS`, `AUTH_SECURE_COOKIES`: authentication and deployment settings
+- `PORT`, `HOST`, `CORS_ORIGIN`: server networking
+- `SUBPOLAR_MCP_SECRET_KEY`: required when configuring MCP environment variables or HTTP headers
 
-# For LAN/remote access
-AUTH_TRUSTED_ORIGINS=http://localhost:5003,https://yourl33tdomain.com
-AUTH_SECURE_COOKIES=false  # Set to true when using HTTPS
-```
-
-For OAuth, Passkeys, Push Notifications (VAPID), and advanced configuration, see the [Configuration Guide](https://chriswritescode-dev.github.io/opencode-manager/configuration/environment/).
-
-## Documentation
-
-- [Getting Started](https://chriswritescode-dev.github.io/opencode-manager/getting-started/installation/) — Installation and first-run setup
-- [Features](https://chriswritescode-dev.github.io/opencode-manager/features/overview/) — Deep dive on all features
-- [Configuration](https://chriswritescode-dev.github.io/opencode-manager/configuration/environment/) — Environment variables and advanced setup
-- [Troubleshooting](https://chriswritescode-dev.github.io/opencode-manager/troubleshooting/) — Common issues and solutions
-- [Development](https://chriswritescode-dev.github.io/opencode-manager/development/setup/) — Contributing and local development
+See `.env.example` for full configuration reference.
 
 ## License
 

@@ -74,11 +74,6 @@ export type PiConfigInput = z.infer<typeof PiConfigSchema>
 export type CreatePiConfigRequest = z.infer<typeof CreatePiConfigRequestSchema>
 export type UpdatePiConfigRequest = z.infer<typeof UpdatePiConfigRequestSchema>
 export type PiConfigResponse = z.infer<typeof PiConfigResponseSchema>
-export type OpenCodeConfig = PiConfig
-export type OpenCodeConfigInput = PiConfigInput
-export type CreateOpenCodeConfigRequest = CreatePiConfigRequest
-export type UpdateOpenCodeConfigRequest = UpdatePiConfigRequest
-export type OpenCodeConfigResponse = PiConfigResponse
 
 export type Project = z.infer<typeof ProjectSchema>
 export type CreateProjectRequest = z.infer<typeof CreateProjectRequestSchema>

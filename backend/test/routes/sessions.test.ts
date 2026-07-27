@@ -143,6 +143,28 @@ describe('session title generation', () => {
   })
 })
 
+describe('general chat session directories', () => {
+  it('stores each General Chat session in its own temporary directory', async () => {
+    const db = createMockPocketBase()
+    const app = new Hono()
+    app.route('/sessions', createSessionRoutes(db, createMockRuntimeRegistry([])))
+
+    const response = await app.request('/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ projectId: 0, directory: '/workspace/general-chat' }),
+      headers: { 'content-type': 'application/json' },
+    })
+    expect(response.status).toBe(201)
+
+    const created = await response.json() as { session: { id: string } }
+    const sessionResponse = await app.request(`/sessions/${created.session.id}`)
+    const session = await sessionResponse.json() as { directory: string; projectId: number }
+    expect(session.projectId).toBe(0)
+    expect(session.directory).toContain('/subpolar-general-chat/')
+    expect(session.directory).not.toContain('/workspace/general-chat')
+  })
+})
+
 describe('streaming assistant messages', () => {
   it('persists and finalizes one assistant message while output is streaming', async () => {
     const db = createMockPocketBase()
