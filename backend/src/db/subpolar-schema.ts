@@ -28,6 +28,28 @@ async function ensureCollection(pb: PocketBase, name: string, fields: Field[], i
 }
 
 export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
+  await ensureCollection(pb, 'automations', [
+    text('project_id'), text('name'), text('description', false), text('icon'), bool('enabled'), number('created_at'), number('updated_at'),
+  ], ['CREATE INDEX idx_automations_project_updated ON automations (project_id, updated_at)'])
+  await ensureCollection(pb, 'automation_triggers', [
+    text('automation_id'), select('type', ['schedule', 'cron', 'webhook']), bool('enabled'), number('position'), json('config'), text('token_hash', false), number('next_run_at', false), number('created_at'), number('updated_at'),
+  ], ['CREATE INDEX idx_automation_triggers_automation_position ON automation_triggers (automation_id, position)', 'CREATE INDEX idx_automation_triggers_enabled_next ON automation_triggers (enabled, next_run_at)', 'CREATE UNIQUE INDEX idx_automation_triggers_token ON automation_triggers (token_hash)'])
+  await ensureCollection(pb, 'automation_conditions', [
+    text('trigger_id'), number('position'), text('type'), json('config'),
+  ], ['CREATE INDEX idx_automation_conditions_trigger_position ON automation_conditions (trigger_id, position)'])
+  await ensureCollection(pb, 'automation_steps', [
+    text('automation_id'), number('position'), text('type'), json('config'),
+  ], ['CREATE INDEX idx_automation_steps_automation_position ON automation_steps (automation_id, position)'])
+  await ensureCollection(pb, 'automation_definition_runs', [
+    text('automation_id'), text('project_id'), text('trigger_id', false), select('trigger_type', ['manual', 'schedule', 'cron', 'webhook']), json('trigger_payload'), select('status', ['running', 'waiting_for_input', 'completed', 'failed', 'cancelled', 'skipped']), number('started_at'), number('finished_at', false), text('session_id', false), text('response_text', false), text('error_text', false),
+  ], ['CREATE INDEX idx_automation_definition_runs_automation_started ON automation_definition_runs (automation_id, started_at)', 'CREATE INDEX idx_automation_definition_runs_project_started ON automation_definition_runs (project_id, started_at)'])
+  await ensureCollection(pb, 'automation_run_steps', [
+    text('run_id'), text('step_id', false), number('position'), select('status', ['pending', 'running', 'completed', 'failed', 'waiting_for_input', 'cancelled', 'skipped']), number('started_at', false), number('finished_at', false), json('input'), json('output'), text('error_text', false),
+  ], ['CREATE INDEX idx_automation_run_steps_run_position ON automation_run_steps (run_id, position)'])
+  await ensureCollection(pb, 'automation_waits', [
+    text('run_id'), text('step_id'), text('token_hash'), select('status', ['waiting', 'answered', 'cancelled', 'expired']), json('input_schema'), json('answer'), number('created_at'), number('answered_at', false),
+  ], ['CREATE UNIQUE INDEX idx_automation_waits_token ON automation_waits (token_hash)', 'CREATE INDEX idx_automation_waits_run ON automation_waits (run_id)'])
+
   await ensureCollection(pb, 'todo_lists', [
     text('user_id'),
     text('name'),

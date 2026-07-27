@@ -10,6 +10,7 @@ import { createTTSRoutes, cleanupExpiredCache } from './routes/tts';
 import { createSTTRoutes } from './routes/stt'
 import { createFileRoutes } from './routes/files'
 import { createAutomationRoutes } from './routes/automations'
+import { createAutomationWebhookRoutes, createProjectAutomationRoutes } from './routes/automation-definitions'
 import { createProductivityRoutes } from './routes/productivity'
 
 async function getAppVersion(): Promise<string> {
@@ -191,6 +192,7 @@ app.route('/api/health', createHealthRoutes())
 app.route('/api/internal', createInternalRoutes(db!, automationService!, notificationService!, settingsService!, piInternalClient!))
 app.route('/api/pi', createPiRoutes(db!))
 app.route('/api/projects', createProjectRoutes(db!))
+app.route('/api/automation-webhooks', createAutomationWebhookRoutes(db!))
 app.route('/api/subpolar-cli', createSubpolarCliRoutes(db!))
 app.route('/api/mcp-oauth-proxy', createMcpOauthProxyRoutes(piInternalClient!, requireAuth!))
 
@@ -207,6 +209,7 @@ protectedApi.route('/sse', createSSERoutes())
 protectedApi.route('/notifications', createNotificationRoutes(notificationService!))
 protectedApi.route('/prompt-templates', createPromptTemplateRoutes(db!))
 protectedApi.route('/automations', createAutomationRoutes(automationService!))
+protectedApi.route('/projects/:id/automations', createProjectAutomationRoutes(db!))
 protectedApi.route('/productivity', createProductivityRoutes(db!))
 protectedApi.route('/sessions', createSessionRoutes(db!, runtimeRegistry, { apiBaseUrl: `http://localhost:${PORT}/api/internal` }))
 protectedApi.route('/runs', createRunRoutes(db!, runtimeRegistry))

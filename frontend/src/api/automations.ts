@@ -6,6 +6,7 @@ import type {
   AutomationRun,
   UpdateAutomationJobRequest,
 } from '@subpolar/shared/types'
+import type { AutomationDefinition, AutomationDefinitionRun, CreateAutomationDefinitionRequest } from '@subpolar/shared/schemas'
 
 export interface AutomationJobWithRepo extends AutomationJob {
   repoName: string
@@ -117,4 +118,32 @@ export async function cancelRepoAutomationRun(repoId: number, jobId: number, run
   return fetchWrapper(`${API_BASE_URL}/api/repos/${repoId}/automations/${jobId}/runs/${runId}/cancel`, {
     method: 'POST',
   })
+}
+
+export async function listProjectAutomationDefinitions(projectId: string): Promise<{ automations: AutomationDefinition[] }> {
+  return fetchWrapper(`${API_BASE_URL}/api/projects/${projectId}/automations`)
+}
+
+export async function getProjectAutomationDefinition(projectId: string, automationId: string): Promise<{ automation: AutomationDefinition }> {
+  return fetchWrapper(`${API_BASE_URL}/api/projects/${projectId}/automations/${automationId}`)
+}
+
+export async function createProjectAutomationDefinition(projectId: string, data: CreateAutomationDefinitionRequest): Promise<{ automation: AutomationDefinition; webhookTokens: Record<string, string> }> {
+  return fetchWrapper(`${API_BASE_URL}/api/projects/${projectId}/automations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+}
+
+export async function updateProjectAutomationDefinition(projectId: string, automationId: string, data: CreateAutomationDefinitionRequest): Promise<{ automation: AutomationDefinition; webhookTokens: Record<string, string> }> {
+  return fetchWrapper(`${API_BASE_URL}/api/projects/${projectId}/automations/${automationId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+}
+
+export async function deleteProjectAutomationDefinition(projectId: string, automationId: string): Promise<void> {
+  return fetchWrapperVoid(`${API_BASE_URL}/api/projects/${projectId}/automations/${automationId}`, { method: 'DELETE' })
+}
+
+export async function runProjectAutomationDefinition(projectId: string, automationId: string): Promise<{ run: AutomationDefinitionRun }> {
+  return fetchWrapper(`${API_BASE_URL}/api/projects/${projectId}/automations/${automationId}/run`, { method: 'POST' })
+}
+
+export async function listProjectAutomationDefinitionRuns(projectId: string, automationId: string): Promise<{ runs: AutomationDefinitionRun[] }> {
+  return fetchWrapper(`${API_BASE_URL}/api/projects/${projectId}/automations/${automationId}/runs`)
 }

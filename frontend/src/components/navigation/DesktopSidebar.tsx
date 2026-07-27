@@ -458,8 +458,8 @@ export function DesktopSidebar() {
           <SidebarNavItem
             icon={Zap}
             label="Automations"
-            onClick={() => navigate("/automations")}
-            active={location.pathname === "/automations"}
+            onClick={() => navigate(`/projects/${selectedSidebarProjectId}/automations`)}
+            active={location.pathname.startsWith(`/projects/${selectedSidebarProjectId}/automations`)}
           />
 
           {!collapsed && (

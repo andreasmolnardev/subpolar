@@ -1,331 +1,72 @@
-import { useEffect, useMemo } from 'react'
-import { useLocation, useParams } from 'react-router-dom'
-import type { CreateAutomationJobRequest, AutomationJob } from '@subpolar/shared/types'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useParams } from 'react-router-dom'
+import type { AutomationDefinition, CreateAutomationDefinitionRequest } from '@subpolar/shared/schemas'
+import { CalendarClock, ChevronLeft, CirclePlay, Plus, Trash2, Webhook, Zap } from 'lucide-react'
 import {
-  useCancelRepoAutomationRun,
-  useCreateRepoAutomation,
-  useDeleteRepoAutomation,
-  useRepoAutomation,
-  useRepoAutomationRun,
-  useRepoAutomationRuns,
-  useRepoAutomations,
-  useRunRepoAutomation,
-  useUpdateRepoAutomation,
-} from '@/hooks/useAutomations'
-import { useProjectActivity } from '@/hooks/useProjectActivity'
-import { useAutomationTarget } from '@/hooks/useAutomationTarget'
-import { useAutomationUrlState } from '@/hooks/useAutomationUrlState'
-import { AutomationJobDialog, JobsTab, JobDetailTab, RunHistoryTab, AutomationTabMenu } from '@/components/automations'
-import { toUpdateautomationRequest } from '@/components/automations/automation-utils'
-import { Header } from '@/components/ui/header'
+  createProjectAutomationDefinition,
+  deleteProjectAutomationDefinition,
+  getProjectAutomationDefinition,
+  listProjectAutomationDefinitionRuns,
+  listProjectAutomationDefinitions,
+  runProjectAutomationDefinition,
+  updateProjectAutomationDefinition,
+} from '@/api/automations'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { DeleteDialog } from '@/components/ui/delete-dialog'
-import { getReturnToPath } from '@/lib/navigation'
-import { CalendarClock, Loader2, Plus } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { showToast } from '@/lib/toast'
+
+function newDefinition(): CreateAutomationDefinitionRequest {
+  return {
+    name: 'Untitled automation', description: '', icon: 'zap', enabled: true,
+    triggers: [],
+    steps: [{ type: 'agent', position: 0, config: { prompt: 'Describe the task this automation should perform.', outputName: 'result' } }],
+  }
+}
+
+function editable(definition: AutomationDefinition): CreateAutomationDefinitionRequest {
+  return { name: definition.name, description: definition.description, icon: definition.icon, enabled: definition.enabled, triggers: definition.triggers, steps: definition.steps, updatedAt: definition.updatedAt }
+}
 
 export function Automations() {
-  const { id } = useParams<{ id: string }>()
-  const location = useLocation()
-  const repoId = id ? Number(id) : undefined
+  const { id: projectId, automationId } = useParams<{ id: string; automationId: string }>()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const list = useQuery({ queryKey: ['project-automations', projectId], queryFn: () => listProjectAutomationDefinitions(projectId!), enabled: Boolean(projectId) })
+  const selected = useQuery({ queryKey: ['project-automation', projectId, automationId], queryFn: () => getProjectAutomationDefinition(projectId!, automationId!), enabled: Boolean(projectId && automationId) })
+  const runs = useQuery({ queryKey: ['project-automation-runs', projectId, automationId], queryFn: () => listProjectAutomationDefinitionRuns(projectId!, automationId!), enabled: Boolean(projectId && automationId) })
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['project-automations', projectId] })
+  const create = useMutation({ mutationFn: () => createProjectAutomationDefinition(projectId!, newDefinition()), onSuccess: ({ automation }) => { invalidate(); navigate(`/projects/${projectId}/automations/${automation.id}`) }, onError: (error) => showToast.error(error instanceof Error ? error.message : 'Could not create automation') })
+  const save = useMutation({ mutationFn: (data: CreateAutomationDefinitionRequest) => updateProjectAutomationDefinition(projectId!, automationId!, data), onSuccess: () => { invalidate(); queryClient.invalidateQueries({ queryKey: ['project-automation', projectId, automationId] }); showToast.success('Automation saved') }, onError: (error) => showToast.error(error instanceof Error ? error.message : 'Could not save automation') })
+  const remove = useMutation({ mutationFn: () => deleteProjectAutomationDefinition(projectId!, automationId!), onSuccess: () => { invalidate(); navigate(`/projects/${projectId}/automations`) } })
+  const run = useMutation({ mutationFn: () => runProjectAutomationDefinition(projectId!, automationId!), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['project-automation-runs', projectId, automationId] }); showToast.success('Automation run started') }, onError: (error) => showToast.error(error instanceof Error ? error.message : 'Could not start automation') })
 
-  const {
-    automationTab,
-    setAutomationTab,
-    dialog,
-    jobId,
-    runId,
-    openNewJob,
-    openEditJob,
-    openDeleteJob,
-    closeDialog,
-    selectRun,
-    selectJobAndView,
-    selectJobAndCloseDialog,
-    replaceUrlParams,
-  } = useAutomationUrlState()
-
-  const repoAutomationTab = automationTab === 'prompts' ? 'jobs' : automationTab
-
-  const { automationTarget, isLoading: automationTargetLoading } = useAutomationTarget(repoId)
-
-  useProjectActivity(repoId ?? 0, Boolean(automationTarget) && automationTarget?.kind === 'project')
-
-  const { data: jobs, isLoading: jobsLoading } = useRepoAutomations(repoId)
-  const { data: selectedJob, isFetching: isJobFetching } = useRepoAutomation(repoId, jobId)
-  const { data: runs, isLoading: runsLoading } = useRepoAutomationRuns(repoId, jobId, 30)
-  const { data: selectedRunDetails, isLoading: selectedRunLoading } = useRepoAutomationRun(repoId, jobId, runId)
-
-  const createMutation = useCreateRepoAutomation()
-  const updateMutation = useUpdateRepoAutomation()
-  const deleteMutation = useDeleteRepoAutomation()
-  const runMutation = useRunRepoAutomation()
-  const cancelRunMutation = useCancelRepoAutomationRun()
-
-  useEffect(() => {
-    if (automationTab === 'prompts') {
-      setAutomationTab('jobs')
-    }
-  }, [automationTab, setAutomationTab])
-
-  const editingJob = useMemo<AutomationJob | undefined>(
-    () => (dialog === 'edit' && jobId !== null ? jobs?.find((j) => j.id === jobId) : undefined),
-    [dialog, jobId, jobs],
-  )
-
-  useEffect(() => {
-    if (jobs === undefined) return
-
-    if (!jobs.length) {
-      if (jobId !== null || automationTab !== 'jobs') {
-        replaceUrlParams((p) => {
-          p.delete('jobId')
-          p.delete('automationTab')
-        })
-      }
-      return
-    }
-
-    const stillExists = jobId !== null && jobs.some((job) => job.id === jobId)
-    if (!stillExists) {
-      const newId = jobs[0]?.id ?? null
-      if (newId !== jobId || automationTab !== 'jobs') {
-        replaceUrlParams((p) => {
-          if (newId === null) p.delete('jobId')
-          else p.set('jobId', String(newId))
-          p.delete('automationTab')
-        })
-      }
-    }
-  }, [jobs, jobId, automationTab, replaceUrlParams])
-
-  useEffect(() => {
-    if (runs === undefined) return
-
-    if (!runs.length) {
-      if (runId !== null) selectRun(null)
-      return
-    }
-
-    const stillExists = runId !== null && runs.some((run) => run.id === runId)
-    if (!stillExists) {
-      const newRunId = runs[0]?.id ?? null
-      if (newRunId !== runId) selectRun(newRunId)
-    }
-  }, [runs, runId, selectRun])
-
-  const activeRunSummary = useMemo(() => runs?.find((run) => run.id === runId) ?? null, [runs, runId])
-  const activeRun = selectedRunDetails ?? activeRunSummary
-  const runningRun = useMemo(() => runs?.find((run) => run.status === 'running') ?? null, [runs])
-
-  if (automationTargetLoading || jobsLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  if (!automationTarget || repoId === undefined) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <p className="text-muted-foreground">
-          {repoId === 0 ? 'General Chat not found' : 'Repository not found'}
-        </p>
-      </div>
-    )
-  }
-  const hasJobs = (jobs?.length ?? 0) > 0
-  const backHref = getReturnToPath(location.search, automationTarget.backHref)
-
-  const handleCreate = (data: CreateAutomationJobRequest) => {
-    createMutation.mutate({ repoId: repoId!, data }, {
-      onSuccess: (job) => {
-        selectJobAndCloseDialog(job.id)
-      },
-    })
-  }
-
-  const handleUpdate = (data: CreateAutomationJobRequest) => {
-    if (dialog !== 'edit' || jobId === null) {
-      return
-    }
-
-    updateMutation.mutate({
-      repoId: repoId!,
-      jobId,
-      data: toUpdateautomationRequest(data),
-    }, {
-      onSuccess: () => {
-        closeDialog()
-      },
-    })
-  }
-
-  const handleDelete = () => {
-    if (dialog !== 'delete' || jobId === null) {
-      return
-    }
-
-    const deletedJobId = jobId
-    deleteMutation.mutate({ repoId: repoId!, jobId: deletedJobId }, {
-      onSuccess: () => {
-        closeDialog()
-      },
-    })
-  }
-
-  const handleToggleEnabled = () => {
-    if (!selectedJob) {
-      return
-    }
-
-    updateMutation.mutate({
-      repoId: repoId!,
-      jobId: selectedJob.id,
-      data: { enabled: !selectedJob.enabled },
-    })
-  }
-
-  const handleRunNow = () => {
-    if (!selectedJob) {
-      return
-    }
-
-    runMutation.mutate({ repoId: repoId!, jobId: selectedJob.id }, {
-      onSuccess: (run) => {
-        selectRun(run.id)
-      },
-    })
-  }
-
-  const handleCancelRun = () => {
-    if (!activeRun || activeRun.status !== 'running') {
-      return
-    }
-
-    cancelRunMutation.mutate({
-      repoId: repoId!,
-      jobId: activeRun.jobId,
-      runId: activeRun.id,
-    }, {
-      onSuccess: (run) => {
-        selectRun(run.id)
-      },
-    })
-  }
-
-  const handleSelectJob = (id: number) => {
-    selectJobAndView(id)
-  }
-
-  return (
-    <div className="h-dvh max-h-dvh overflow-hidden bg-background flex flex-col pb-[calc(env(safe-area-inset-bottom)+56px)] sm:pb-0">
-      <Header>
-        <Header.BackButton to={backHref} />
-        <div className="min-w-0 flex-1 px-3">
-          <Header.Title className="truncate">{automationTarget.name}</Header.Title>
-          <p className="text-xs text-muted-foreground truncate">{automationTarget.subtitle}</p>
+  if (!projectId) return null
+  const automation = selected.data?.automation
+  return <div className="min-h-dvh bg-background p-4 sm:p-8">
+    <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className="rounded-xl border bg-card p-3 lg:min-h-[calc(100dvh-4rem)]">
+        <div className="mb-3 flex items-center justify-between px-2"><div className="flex items-center gap-2 font-semibold"><Zap className="h-4 w-4" /> Automations</div><Button aria-label="New automation" size="icon" variant="ghost" onClick={() => create.mutate()}><Plus className="h-4 w-4" /></Button></div>
+        <div className="space-y-1">
+          {list.data?.automations.map((item) => <button key={item.id} type="button" onClick={() => navigate(`/projects/${projectId}/automations/${item.id}`)} className={`w-full rounded-lg px-3 py-2 text-left ${item.id === automationId ? 'bg-accent' : 'hover:bg-muted'}`}><div className="flex items-center gap-2 text-sm font-medium"><Zap className="h-3.5 w-3.5" />{item.name}</div><p className="mt-1 truncate text-xs text-muted-foreground">{item.description || (item.enabled ? 'Enabled' : 'Disabled')}</p></button>)}
         </div>
-        <div className="flex items-center gap-2">
-          <Header.Actions>
-              <Button onClick={openNewJob} size="sm" className="hidden sm:flex">
-                <Plus className="w-4 h-4 mr-2" />
-                New Automation
-              </Button>
-            <Button onClick={openNewJob} size="sm" className="sm:hidden h-10 w-10 p-0">
-              <Plus className="w-5 h-5" />
-            </Button>
-          </Header.Actions>
-        </div>
-      </Header>
-
-      <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-2 md:px-6">
-        {!hasJobs ? (
-          <div className="flex min-h-0 flex-1 h-full items-start">
-            <Card className="max-w-3xl border-dashed border-border/70">
-              <CardContent className="flex flex-col items-start gap-4 p-8 sm:p-10">
-                <div className="rounded-full border border-border bg-muted/40 p-3">
-                  <CalendarClock className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-xl font-semibold tracking-tight">No automations yet</p>
-                  <p className="text-sm text-muted-foreground">Create an automation for this repo to automate recurring agent work, then inspect runs, logs, and sessions here.</p>
-                </div>
-                <Button onClick={openNewJob}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create First Automation
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
-          <>
-            {repoAutomationTab === 'jobs' && (
-              <JobsTab
-                jobs={jobs ?? []}
-                selectedJobId={jobId}
-                onSelectJob={handleSelectJob}
-              />
-            )}
-            {repoAutomationTab === 'detail' && (
-              <JobDetailTab
-                selectedJob={selectedJob}
-                onEdit={(job) => openEditJob(job.id)}
-                onDelete={openDeleteJob}
-                onToggleEnabled={handleToggleEnabled}
-                onRunNow={handleRunNow}
-                updatePending={updateMutation.isPending}
-                runPending={runMutation.isPending}
-                runningRun={Boolean(runningRun)}
-                isJobFetching={isJobFetching}
-              />
-            )}
-            {repoAutomationTab === 'runs' && (
-              <RunHistoryTab
-                repoId={repoId}
-                selectedJob={selectedJob}
-                runs={runs}
-                runsLoading={runsLoading}
-                onSelectRun={selectRun}
-                activeRun={activeRun}
-                selectedRunLoading={selectedRunLoading}
-                onCancelRun={handleCancelRun}
-                cancelRunPending={cancelRunMutation.isPending}
-              />
-            )}
-          </>
-        )}
-      </div>
-
-      {hasJobs && (
-        <div className="sm:block hidden">
-          <AutomationTabMenu
-            activeTab={repoAutomationTab as 'jobs' | 'detail' | 'runs'}
-            onTabChange={(tab) => setAutomationTab(tab)}
-          />
-        </div>
-      )}
-
-      <AutomationJobDialog
-        open={dialog === 'new' || dialog === 'edit'}
-        onOpenChange={(open) => {
-          if (!open) closeDialog()
-        }}
-        job={editingJob}
-        isSaving={createMutation.isPending || updateMutation.isPending}
-        onSubmit={dialog === 'edit' ? handleUpdate : handleCreate}
-      />
-
-      <DeleteDialog
-        open={dialog === 'delete'}
-        onOpenChange={(open) => !open && closeDialog()}
-        onConfirm={handleDelete}
-        onCancel={() => closeDialog()}
-        title="Delete Automation"
-        description="This removes the job definition and all recorded run history for it."
-        isDeleting={deleteMutation.isPending}
-      />
+        {!list.isLoading && !list.data?.automations.length && <p className="px-3 py-8 text-sm text-muted-foreground">No automations in this project.</p>}
+      </aside>
+      {!automation ? <Card className="border-dashed"><CardContent className="flex min-h-80 flex-col items-center justify-center gap-3 p-8 text-center"><CalendarClock className="h-8 w-8 text-muted-foreground" /><div><h1 className="font-semibold">No automation selected</h1><p className="mt-1 text-sm text-muted-foreground">Create one to add triggers and ordered steps.</p></div><Button onClick={() => create.mutate()}><Plus className="mr-2 h-4 w-4" />New automation</Button></CardContent></Card> : <AutomationEditor automation={automation} runs={runs.data?.runs ?? []} saving={save.isPending} running={run.isPending} onSave={(data) => save.mutate(data)} onRun={() => run.mutate()} onDelete={() => remove.mutate()} onBack={() => navigate(`/projects/${projectId}/automations`)} />}
     </div>
-  )
+  </div>
+}
+
+function AutomationEditor({ automation, runs, saving, running, onSave, onRun, onDelete, onBack }: { automation: AutomationDefinition; runs: Array<{ id: string; status: string; startedAt: number; errorText: string | null }>; saving: boolean; running: boolean; onSave: (data: CreateAutomationDefinitionRequest) => void; onRun: () => void; onDelete: () => void; onBack: () => void }) {
+  const data = editable(automation)
+  const update = (patch: Partial<CreateAutomationDefinitionRequest>) => onSave({ ...data, ...patch })
+  return <main className="min-w-0 space-y-5">
+    <header className="flex flex-wrap items-center gap-3"><Button variant="ghost" size="icon" className="lg:hidden" onClick={onBack}><ChevronLeft className="h-4 w-4" /></Button><div className="min-w-0 flex-1"><h1 className="text-2xl font-semibold">{automation.name}</h1><p className="text-sm text-muted-foreground">{automation.enabled ? 'Enabled' : 'Disabled'}</p></div><Button variant="outline" onClick={() => update({ enabled: !automation.enabled })}>{automation.enabled ? 'Disable' : 'Enable'}</Button><Button onClick={onRun} disabled={running}><CirclePlay className="mr-2 h-4 w-4" />Run</Button><Button variant="ghost" size="icon" onClick={onDelete} aria-label="Delete automation"><Trash2 className="h-4 w-4" /></Button></header>
+    <Card><CardContent className="grid gap-3 p-5"><label className="text-sm font-medium">Name<Input defaultValue={automation.name} onBlur={(event) => event.target.value.trim() && update({ name: event.target.value.trim() })} /></label><label className="text-sm font-medium">Description<Textarea defaultValue={automation.description} onBlur={(event) => update({ description: event.target.value })} /></label></CardContent></Card>
+    <Card><CardContent className="space-y-3 p-5"><div className="flex items-center justify-between"><h2 className="font-semibold">Triggers</h2><Button size="sm" variant="outline" onClick={() => update({ triggers: [...automation.triggers, { type: 'schedule', enabled: true, position: automation.triggers.length, config: { preset: 'daily', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', cronExpression: '0 9 * * *' }, conditions: [] }] })}><Plus className="mr-1 h-3.5 w-3.5" />Add trigger</Button></div>{automation.triggers.map((trigger) => <div key={trigger.id} className="rounded-lg border p-3 text-sm"><div className="flex items-center gap-2 font-medium"><Webhook className="h-4 w-4" />{trigger.type}</div><p className="mt-1 text-muted-foreground">{trigger.type === 'webhook' ? 'Secure endpoint token generated on creation.' : `${trigger.config.timezone} · ${trigger.type === 'cron' ? trigger.config.expression : trigger.config.cronExpression}`}</p></div>)}{!automation.triggers.length && <p className="text-sm text-muted-foreground">No triggers. Manual runs remain available.</p>}</CardContent></Card>
+    <Card><CardContent className="space-y-3 p-5"><div className="flex items-center justify-between"><h2 className="font-semibold">Automation steps</h2><Button size="sm" variant="outline" onClick={() => update({ steps: [...automation.steps, { type: 'notification', position: automation.steps.length, config: { destination: 'in-app', message: '{{result}}' } }] })}><Plus className="mr-1 h-3.5 w-3.5" />Add step</Button></div>{automation.steps.map((step, index) => <div key={step.id} className="rounded-lg border p-3"><p className="text-sm font-medium">{index + 1}. {step.type.replaceAll('_', ' ')}</p>{step.type === 'agent' && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{step.config.prompt}</p>}{step.type === 'notification' && <p className="mt-1 text-sm text-muted-foreground">{step.config.destination}</p>}</div>)}</CardContent></Card>
+    <Card><CardContent className="space-y-2 p-5"><h2 className="font-semibold">Past runs</h2>{runs.length ? runs.map((item) => <div key={item.id} className="flex justify-between border-t py-2 text-sm"><span>{item.status}</span><span className="text-muted-foreground">{new Date(item.startedAt).toLocaleString()}</span></div>) : <p className="text-sm text-muted-foreground">No runs yet.</p>}</CardContent></Card>
+    <div className="flex justify-end"><Button onClick={() => onSave(data)} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button></div>
+  </main>
 }

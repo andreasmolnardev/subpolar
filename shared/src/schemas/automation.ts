@@ -118,3 +118,48 @@ export type CreatePromptTemplateRequest = z.infer<typeof CreatePromptTemplateReq
 
 export const UpdatePromptTemplateRequestSchema = CreatePromptTemplateRequestSchema.partial()
 export type UpdatePromptTemplateRequest = z.infer<typeof UpdatePromptTemplateRequestSchema>
+
+const AutomationOutputNameSchema = z.string().min(1).max(80).regex(/^[A-Za-z][A-Za-z0-9_]*$/)
+const AutomationTemplateSchema = z.string().max(20000)
+
+export const AutomationConditionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('payload_field'), config: z.object({ field: z.string().min(1).max(200) }) }),
+  z.object({ type: z.literal('equals'), config: z.object({ field: z.string().min(1).max(200), value: z.unknown() }) }),
+  z.object({ type: z.literal('not_equals'), config: z.object({ field: z.string().min(1).max(200), value: z.unknown() }) }),
+  z.object({ type: z.literal('exists'), config: z.object({ field: z.string().min(1).max(200), exists: z.boolean().default(true) }) }),
+  z.object({ type: z.literal('matches_regex'), config: z.object({ field: z.string().min(1).max(200), pattern: z.string().min(1).max(500) }) }),
+])
+export type AutomationCondition = z.infer<typeof AutomationConditionSchema>
+
+export const AutomationTriggerSchema = z.discriminatedUnion('type', [
+  z.object({ id: z.string().optional(), type: z.literal('schedule'), enabled: z.boolean().default(true), position: z.number().int().min(0), config: z.object({ preset: z.enum(['hourly', 'daily', 'weekdays', 'weekly', 'monthly']), timezone: z.string().min(1).max(120), cronExpression: z.string().min(1).max(200) }), conditions: z.array(AutomationConditionSchema).max(30).default([]), nextRunAt: z.number().nullable().optional() }),
+  z.object({ id: z.string().optional(), type: z.literal('cron'), enabled: z.boolean().default(true), position: z.number().int().min(0), config: z.object({ expression: z.string().min(1).max(200), timezone: z.string().min(1).max(120) }), conditions: z.array(AutomationConditionSchema).max(30).default([]), nextRunAt: z.number().nullable().optional() }),
+  z.object({ id: z.string().optional(), type: z.literal('webhook'), enabled: z.boolean().default(true), position: z.number().int().min(0), config: z.object({ token: z.string().min(32).optional(), tokenCreated: z.boolean().optional() }), conditions: z.array(AutomationConditionSchema).max(30).default([]), nextRunAt: z.number().nullable().optional() }),
+])
+export type AutomationTrigger = z.infer<typeof AutomationTriggerSchema>
+
+export const AutomationStepSchema = z.discriminatedUnion('type', [
+  z.object({ id: z.string().optional(), type: z.literal('agent'), position: z.number().int().min(0), config: z.object({ agentSlug: z.string().min(1).max(100).optional(), model: z.string().min(1).max(200).optional(), prompt: AutomationTemplateSchema.min(1), skillMetadata: AutomationSkillMetadataSchema.optional(), outputName: AutomationOutputNameSchema.optional() }) }),
+  z.object({ id: z.string().optional(), type: z.literal('notification'), position: z.number().int().min(0), config: z.object({ destination: z.string().min(1).max(300), message: AutomationTemplateSchema.min(1) }) }),
+  z.object({ id: z.string().optional(), type: z.literal('wait_for_input'), position: z.number().int().min(0), config: z.object({ prompt: z.string().min(1).max(2000), inputType: z.enum(['text', 'boolean', 'choice']), choices: z.array(z.string().min(1).max(200)).max(50).optional(), outputName: AutomationOutputNameSchema }) }),
+])
+export type AutomationStep = z.infer<typeof AutomationStepSchema>
+
+export const AutomationDefinitionSchema = z.object({
+  id: z.string(), projectId: z.string(), name: z.string().min(1).max(120), description: z.string().max(500), icon: z.string().min(1).max(80), enabled: z.boolean(), createdAt: z.number(), updatedAt: z.number(),
+  triggers: z.array(AutomationTriggerSchema).max(30), steps: z.array(AutomationStepSchema).min(1).max(100),
+})
+export type AutomationDefinition = z.infer<typeof AutomationDefinitionSchema>
+
+const AutomationDefinitionInputSchema = AutomationDefinitionSchema.omit({ id: true, projectId: true, createdAt: true, updatedAt: true }).extend({ updatedAt: z.number().optional() })
+export const CreateAutomationDefinitionRequestSchema = AutomationDefinitionInputSchema
+export type CreateAutomationDefinitionRequest = z.infer<typeof CreateAutomationDefinitionRequestSchema>
+export const UpdateAutomationDefinitionRequestSchema = AutomationDefinitionInputSchema
+export type UpdateAutomationDefinitionRequest = z.infer<typeof UpdateAutomationDefinitionRequestSchema>
+
+export const AutomationDefinitionRunStatusSchema = z.enum(['running', 'waiting_for_input', 'completed', 'failed', 'cancelled', 'skipped'])
+export type AutomationDefinitionRunStatus = z.infer<typeof AutomationDefinitionRunStatusSchema>
+export const AutomationStepRunStatusSchema = z.enum(['pending', 'running', 'completed', 'failed', 'waiting_for_input', 'cancelled', 'skipped'])
+export type AutomationStepRunStatus = z.infer<typeof AutomationStepRunStatusSchema>
+export const AutomationDefinitionRunSchema = z.object({ id: z.string(), automationId: z.string(), projectId: z.string(), triggerId: z.string().nullable(), triggerType: z.enum(['manual', 'schedule', 'cron', 'webhook']), status: AutomationDefinitionRunStatusSchema, startedAt: z.number(), finishedAt: z.number().nullable(), sessionId: z.string().nullable(), responseText: z.string().nullable(), errorText: z.string().nullable() })
+export type AutomationDefinitionRun = z.infer<typeof AutomationDefinitionRunSchema>
