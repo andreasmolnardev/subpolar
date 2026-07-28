@@ -120,9 +120,9 @@ export async function ensureSubpolarCollections(pb: PocketBase): Promise<void> {
 
   await ensureCollection(pb, 'agents', [
     text('name'),
+    text('displayName', false),
     text('description'),
     select('mode', ['primary', 'subagent']),
-    text('prompt'),
     text('systemPrompt'),
     json('permission'),
     json('skills'),

@@ -34,9 +34,9 @@ function withToolAccess(agent: Awaited<ReturnType<typeof getAgentByIdOrSlug>>, p
 
 const AgentRequestSchema = z.object({
   name: z.string().min(1).regex(/^[a-z0-9-]+$/),
+  displayName: z.string().min(1).optional(),
   description: z.string().default(''),
   mode: z.enum(['primary', 'subagent']),
-  prompt: z.string().min(1),
   systemPrompt: z.string().default(''),
   permission: z.record(z.string(), z.unknown()).default({}),
   skills: z.array(z.string()).default([]),
@@ -77,7 +77,7 @@ export function createAgentRoutes(db: Database) {
   app.post('/', async (c) => {
     try {
       const { skillAccess, ...request } = AgentRequestSchema.parse(await c.req.json())
-      return c.json(await createUserAgent(db, { ...request, skill_access: skillAccess, source: 'user' } as never))
+      return c.json(await createUserAgent(db, { ...request, displayName: request.displayName ?? request.name, skill_access: skillAccess, source: 'user' } as never))
     } catch (error) {
       if (error instanceof z.ZodError) return c.json({ error: 'Invalid agent data', details: error.issues }, 400)
       logger.error('PocketBase failed to create agent record', pocketBaseErrorDetails(error))

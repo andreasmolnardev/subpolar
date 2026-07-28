@@ -1,4 +1,6 @@
 import { Hono } from 'hono'
+import fs from 'fs/promises'
+import path from 'path'
 import { z } from 'zod'
 import type { Database } from '../db/schema'
 import { SettingsService } from '../services/settings'
@@ -512,6 +514,28 @@ export function createSettingsRoutes(db: Database) {
 
   app.get('/agents-md', async (c) => c.json({ content: await fileExists(getAgentsMdPath()) ? await readFileContent(getAgentsMdPath()) : '' }))
   app.get('/agents-md/default', async (c) => c.json({ content: DEFAULT_AGENTS_MD }))
+  app.get('/project-instructions', async (c) => {
+    const directory = c.req.query('directory')
+    if (!directory) return c.json({ content: '' })
+
+    const files: string[] = []
+    const globalAgentsMdPath = path.resolve(getAgentsMdPath())
+    let current = path.resolve(directory)
+    while (true) {
+      for (const filename of ['AGENTS.md', 'AGENTS.MD', 'CLAUDE.md', 'CLAUDE.MD']) {
+        const filePath = path.join(current, filename)
+        if (path.resolve(filePath) === globalAgentsMdPath) continue
+        const content = await fs.readFile(filePath, 'utf8').catch(() => '')
+        if (content.trim()) files.unshift(`<project_instructions path="${filePath}">\n${content}\n</project_instructions>`)
+        break
+      }
+      const parent = path.dirname(current)
+      if (parent === current) break
+      current = parent
+    }
+
+    return c.json({ content: files.join('\n\n') })
+  })
   app.put('/agents-md', async (c) => {
     const { content } = z.object({ content: z.string() }).parse(await c.req.json())
     await writeFileContent(getAgentsMdPath(), content)

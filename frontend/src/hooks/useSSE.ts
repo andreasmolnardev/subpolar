@@ -134,8 +134,7 @@ export const useSSE = (apiUrl: string | null | undefined, directory?: string | s
         break
       }
 
-      case 'message.part.updated':
-      case 'messagev2.part.updated': {
+      case 'message.part.updated': {
         if (!('part' in event.properties)) break
         const { part } = event.properties
         batcherRef.current?.queuePartUpdate(part.sessionID, part, cacheDirectory)
@@ -149,8 +148,7 @@ export const useSSE = (apiUrl: string | null | undefined, directory?: string | s
         break
       }
 
-      case 'message.updated':
-      case 'messagev2.updated': {
+      case 'message.updated': {
         if (!('info' in event.properties)) break
         
         const { info } = event.properties
@@ -185,8 +183,7 @@ export const useSSE = (apiUrl: string | null | undefined, directory?: string | s
         break
       }
 
-      case 'message.removed':
-      case 'messagev2.removed': {
+      case 'message.removed': {
         if (!('sessionID' in event.properties && 'messageID' in event.properties)) break
         
         const { sessionID, messageID } = event.properties
@@ -201,8 +198,7 @@ export const useSSE = (apiUrl: string | null | undefined, directory?: string | s
         break
       }
 
-      case 'message.part.removed':
-      case 'messagev2.part.removed': {
+      case 'message.part.removed': {
         if (!('sessionID' in event.properties && 'messageID' in event.properties && 'partID' in event.properties)) break
         
         const { sessionID, messageID, partID } = event.properties

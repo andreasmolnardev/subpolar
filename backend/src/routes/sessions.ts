@@ -105,7 +105,7 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
     const agent = await getAgentByIdOrSlug(db, agentId)
     return c.json({
       agent: agentId,
-      systemPrompt: agent?.systemPrompt || agent?.prompt || '',
+      systemPrompt: agent?.systemPrompt || '',
       messages,
     })
   })
@@ -520,7 +520,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       cwd: directory,
       messages,
       model,
-      systemPrompt: agent?.systemPrompt || agent?.prompt,
+      systemPrompt: agent?.systemPrompt,
       skillAccess: agent?.skillAccess.length ? agent.skillAccess : agent?.skills.map(id => ({ id, discovery: 'description' as const })),
     })) {
       await writeRuntimeEvent(db, { runId, sessionId: run.sessionId, event })

@@ -32,8 +32,8 @@ const agentSkillAccessSchema = z.object({
 
 const agentFormSchema = z.object({
   name: z.string().min(1, 'Agent name is required').regex(/^[a-z0-9-]+$/, 'Must be lowercase letters, numbers, and hyphens only'),
+  displayName: z.string().optional(),
   description: z.string().optional(),
-  prompt: z.string().min(1, 'Prompt is required'),
   systemPrompt: z.string(),
   disable: z.boolean(),
   icon: z.string().optional(),
@@ -48,8 +48,8 @@ type ToolAccess = z.infer<typeof toolAccessSchema>
 
 interface Agent {
   id?: string
+  displayName?: string
   updated_at?: number
-  prompt?: string
   systemPrompt?: string
   description?: string
   mode?: 'subagent' | 'primary' | 'all'
@@ -90,7 +90,7 @@ interface AgentTemplate {
   icon: string
   iconComponent: typeof Search
   tags: string[]
-  values: Pick<AgentFormValues, 'name' | 'description' | 'prompt' | 'systemPrompt' | 'icon' | 'skills' | 'skillAccess' | 'allowedCommands' | 'toolAccess' | 'disable'>
+  values: Pick<AgentFormValues, 'name' | 'description' | 'systemPrompt' | 'icon' | 'skills' | 'skillAccess' | 'allowedCommands' | 'toolAccess' | 'disable'>
 }
 
 const AGENT_TEMPLATES: AgentTemplate[] = [
@@ -104,8 +104,7 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
     values: {
       name: 'research-agent',
       description: 'Researches a topic using web search and produces a concise, sourced brief.',
-      prompt: 'You are a research agent. Investigate the user\'s question using web search, compare reliable sources, and clearly separate facts from inferences. Include source links in your answer.',
-      systemPrompt: '',
+      systemPrompt: 'You are a research agent. Investigate the user\'s question using web search, compare reliable sources, and clearly separate facts from inferences. Include source links in your answer.',
       icon: '🔎',
       skills: ['research'],
       skillAccess: [{ id: 'research', discovery: 'description', source: 'manual' }],
@@ -129,8 +128,7 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
     values: {
       name: 'coding-agent',
       description: 'Implements focused code changes and explains the tradeoffs.',
-      prompt: 'You are a pragmatic coding agent. Inspect the existing code before changing it, make the smallest complete implementation, and verify your work with relevant tests or checks.',
-      systemPrompt: '',
+      systemPrompt: 'You are a pragmatic coding agent. Inspect the existing code before changing it, make the smallest complete implementation, and verify your work with relevant tests or checks.',
       icon: '💻',
       skills: [],
       skillAccess: [],
@@ -153,8 +151,7 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
     values: {
       name: 'writing-agent',
       description: 'Turns rough ideas into clear, polished writing for the intended audience.',
-      prompt: 'You are a thoughtful writing agent. Clarify the goal and audience, preserve the author\'s intent, and produce concise, polished writing. When useful, offer a stronger structure before drafting.',
-      systemPrompt: '',
+      systemPrompt: 'You are a thoughtful writing agent. Clarify the goal and audience, preserve the author\'s intent, and produce concise, polished writing. When useful, offer a stronger structure before drafting.',
       icon: '✍️',
       skills: [],
       skillAccess: [],
@@ -177,8 +174,7 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
     values: {
       name: 'project-planner',
       description: 'Creates practical project plans with milestones and next actions.',
-      prompt: 'You are a project planning agent. Turn broad goals into an ordered plan with milestones, dependencies, risks, and concrete next actions. Ask only for information that materially changes the plan.',
-      systemPrompt: '',
+      systemPrompt: 'You are a project planning agent. Turn broad goals into an ordered plan with milestones, dependencies, risks, and concrete next actions. Ask only for information that materially changes the plan.',
       icon: '✅',
       skills: [],
       skillAccess: [],
@@ -237,9 +233,10 @@ interface AgentDialogProps {
   onSubmit: (name: string, agent: Agent) => void | Promise<void>
   editingAgent?: { name: string; agent: Agent } | null
   availableSkills?: SkillFileInfo[]
+  directory?: string
 }
 
-export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availableSkills = [] }: AgentDialogProps) {
+export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availableSkills = [], directory }: AgentDialogProps) {
   const [selectedToolIndex, setSelectedToolIndex] = useState(0)
   const [selectedSkillIndex, setSelectedSkillIndex] = useState(0)
   const [creationTab, setCreationTab] = useState('from-scratch')
@@ -258,6 +255,13 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
     enabled: open && !!editingAgent?.name,
   })
 
+  const { data: projectInstructionsResponse } = useQuery({
+    queryKey: ['project-instructions', directory],
+    queryFn: () => settingsApi.getProjectInstructions(directory!),
+    enabled: open && !!directory,
+    staleTime: 5 * 60 * 1000,
+  })
+
   const subpolarTools = useMemo(() => subpolarToolsResponse?.tools ?? [], [subpolarToolsResponse?.tools])
   const mcpTools = useMemo(() => subpolarTools.filter(tool => tool.adapter === 'mcp' || tool.namespace === 'mcp'), [subpolarTools])
   const openApiTools = useMemo(() => subpolarTools.filter(tool => tool.adapter === 'openapi' || tool.namespace === 'openapi'), [subpolarTools])
@@ -274,8 +278,8 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
   const getDefaultValues = useCallback((agent?: { name: string; agent: Agent } | null): AgentFormValues => {
     return {
       name: agent?.name || '',
+      displayName: agent?.agent.displayName || agent?.name || '',
       description: agent?.agent.description || '',
-      prompt: agent?.agent.prompt || '',
       systemPrompt: agent?.agent.systemPrompt || '',
       disable: agent?.agent.disable ?? false,
       icon: agent?.agent.icon || '',
@@ -310,11 +314,15 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
 
   const toolAccess = form.watch('toolAccess') ?? EMPTY_TOOL_ACCESS
   const skillAccess = form.watch('skillAccess') ?? EMPTY_SKILL_ACCESS
-  const promptValue = form.watch('prompt')
   const systemPromptValue = form.watch('systemPrompt')
   const selectedTool = toolAccess[selectedToolIndex]
   const selectedSkill = skillAccess[selectedSkillIndex]
-  const promptPreview = useMemo(() => buildAgentPromptPreview({ prompt: promptValue, skillAccess, skills: promptSkills }), [promptValue, skillAccess, promptSkills])
+  const promptPreview = useMemo(() => buildAgentPromptPreview({
+    projectInstructions: projectInstructionsResponse?.content,
+    prompt: systemPromptValue,
+    skillAccess,
+    skills: promptSkills,
+  }), [projectInstructionsResponse?.content, systemPromptValue, skillAccess, promptSkills])
 
   const applyTemplate = (template: AgentTemplate) => {
     form.reset(template.values)
@@ -416,7 +424,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
         .map((toolId) => ({ type: 'subpolar' as const, id: toolId, permission: 'allow' as const })),
     ]
     const agent: Agent = {
-      prompt: values.prompt,
+      displayName: values.displayName?.trim() || values.name,
       systemPrompt: values.systemPrompt.trim() || promptPreview,
       description: values.description || undefined,
       disable: values.disable,
@@ -542,26 +550,43 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
 
                 <FormField
                   control={form.control}
-                  name="name"
+                  name={editingAgent ? 'displayName' : 'name'}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Agent Name</FormLabel>
+                      <FormLabel>{editingAgent ? 'Display Name' : 'Agent Name'}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder="my-agent"
-                          disabled={!!editingAgent}
-                          className={editingAgent ? 'bg-muted' : ''}
+                          placeholder={editingAgent ? 'My Agent' : 'my-agent'}
                         />
                       </FormControl>
-                      <FormDescription>
-                        Use lowercase letters, numbers, and hyphens only
-                      </FormDescription>
+                      {!editingAgent && (
+                        <FormDescription>
+                          Use lowercase letters, numbers, and hyphens only
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
+
+              {!editingAgent && (
+                <FormField
+                  control={form.control}
+                  name="displayName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Display Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="My Agent" />
+                      </FormControl>
+                      <FormDescription>Shown in the interface; the agent name remains the runtime slug.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <FormField
                 control={form.control}
@@ -573,25 +598,6 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
                       <Textarea
                         {...field}
                         placeholder="Brief description of what the agent does"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="prompt"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Prompt</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        placeholder="The system prompt that defines the agent's behavior and role"
-                        rows={6}
-                        className="font-mono md:text-sm"
                       />
                     </FormControl>
                     <FormMessage />
@@ -802,7 +808,7 @@ export function AgentDialog({ open, onOpenChange, onSubmit, editingAgent, availa
             </div>
             <div className="rounded-lg border bg-muted/30 p-3 lg:sticky lg:top-0 lg:max-h-[70vh] overflow-auto">
               <div className="mb-2 text-sm font-medium">Prompt Preview</div>
-              <pre className="whitespace-pre-wrap break-words text-xs font-mono text-muted-foreground">{systemPromptValue.trim() || promptPreview}</pre>
+              <pre className="whitespace-pre-wrap break-words text-xs font-mono text-muted-foreground">{promptPreview}</pre>
             </div>
             </div>
               </Form>

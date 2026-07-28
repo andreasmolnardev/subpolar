@@ -187,7 +187,7 @@ function SidebarAgentItem({
 }
 
 interface Agent {
-  prompt?: string;
+  displayName?: string;
   systemPrompt?: string;
   description?: string;
   mode?: "subagent" | "primary" | "all";
@@ -321,9 +321,9 @@ export function DesktopSidebar() {
     try {
       const savedAgent = await settingsApi.createAgent({
         name,
+        displayName: agent.displayName ?? name,
         description: agent.description ?? "",
         mode: agent.mode === "all" ? "primary" : agent.mode ?? "subagent",
-        prompt: agent.prompt ?? "",
         systemPrompt: agent.systemPrompt ?? "",
         permission: agent.permission ?? {},
         skills: agent.skills ?? [],
@@ -351,9 +351,9 @@ export function DesktopSidebar() {
     try {
       const savedAgent = await settingsApi.updateAgent(editingAgent.name, {
         name,
+        displayName: agent.displayName ?? name,
         description: agent.description ?? "",
         mode: agent.mode === "all" ? "primary" : agent.mode ?? "subagent",
-        prompt: agent.prompt ?? "",
         systemPrompt: agent.systemPrompt ?? "",
         permission: agent.permission ?? {},
         skills: agent.skills ?? [],
@@ -525,7 +525,7 @@ onValueChange={(value) => {
 {visibleProjectAgents.map((agent) => {
                const name = agent.name;
                const editableAgent: Agent = {
-                 prompt: agent.prompt,
+                 systemPrompt: undefined,
                  description: agent.description,
                  mode: agent.mode,
                  model: agent.model ? `${agent.model.providerID}/${agent.model.modelID}` : undefined,
@@ -644,6 +644,7 @@ onValueChange={(value) => {
         onSubmit={handleCreateAgent}
         editingAgent={null}
         availableSkills={subpolarSkills || []}
+        directory={selectedSidebarDirectory}
       />
       <AgentDialog
         open={editingAgent !== null}
@@ -653,6 +654,7 @@ onValueChange={(value) => {
         onSubmit={handleSaveAgent}
         editingAgent={editingAgent}
         availableSkills={subpolarSkills || []}
+        directory={selectedSidebarDirectory}
       />
       <ProjectDialog
         open={isCreateProjectDialogOpen}

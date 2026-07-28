@@ -337,6 +337,10 @@ export const settingsApi = {
     return fetchWrapper(`${API_BASE_URL}/api/settings/agents-md`)
   },
 
+  getProjectInstructions: async (directory: string): Promise<{ content: string }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/settings/project-instructions`, { params: { directory } })
+  },
+
   getDefaultAgentsMd: async (): Promise<{ content: string }> => {
     return fetchWrapper(`${API_BASE_URL}/api/settings/agents-md/default`)
   },

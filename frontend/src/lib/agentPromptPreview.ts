@@ -1,6 +1,7 @@
 import type { SkillFileInfo } from '@subpolar/shared'
 
 export function buildAgentPromptPreview(input: {
+  projectInstructions?: string
   prompt?: string
   skillAccess?: Array<{
     id: string
@@ -27,7 +28,7 @@ export function buildAgentPromptPreview(input: {
   })
 
   return [
-    '## Subpolar Instructions\nDefault Subpolar runtime instructions apply.',
+    ...(input.projectInstructions?.trim() ? [`## Project Instructions\n${input.projectInstructions.trim()}`] : []),
     ...(input.prompt?.trim() ? [`## Agent Instructions\n${input.prompt.trim()}`] : []),
     `## Skills\n${skillBlocks.length ? skillBlocks.join('\n\n') : 'No skills listed directly. Search-discovery skills may be available through skill search.'}`,
     '## User Prompt\n${user}',

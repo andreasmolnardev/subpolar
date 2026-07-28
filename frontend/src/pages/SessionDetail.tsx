@@ -539,7 +539,9 @@ export function SessionDetail() {
             <MessageThread 
               apiUrl={apiUrl} 
               sessionID={sessionId} 
-               directory={sessionDirectory}
+              projectName={repo?.name ?? 'General Chat'}
+              agent={sessionAgent.agent}
+              directory={sessionDirectory}
               messages={messages}
               onFileClick={handleFileClick}
               onChildSessionClick={handleChildSessionClick}

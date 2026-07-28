@@ -20,7 +20,6 @@ import { deleteSystemAgents, listAgents } from '../db/subpolar-agents'
 
 const GENERAL_CHAT_DIR = GENERAL_CHAT_PROJECT_PATH
 const GENERAL_CHAT_RELATIVE_PATH = 'general-chat'
-const ASSISTANT_AGENTS_MD_FILENAME = 'AGENTS.md'
 const ASSISTANT_PI_CONFIG_FILENAME = 'subpolar.json'
 const ASSISTANT_SUBPOLAR_DIR = '.subpolar'
 const ASSISTANT_INTERNAL_TOKEN_FILENAME = 'internal-token'
@@ -53,7 +52,6 @@ const SKILL_REPOS_DIR = 'repo-management'
 const SKILL_CODE_REVIEW_DIR = 'code-review'
 const SKILL_CODE_ANALYSIS_DIR = 'code-analysis'
 const SKILL_RESEARCH_WEB_DIR = 'research-web'
-const SKILL_SUBPOLAR_CONTEXT_DIR = 'subpolar-context'
 const SKILL_PI_CONTEXT_DIR = 'pi-context'
 const SKILL_CALENDAR_CLI_DIR = 'calendar-cli'
 const SKILL_MAIL_CLI_DIR = 'mail-cli'
@@ -69,7 +67,6 @@ const SKILL_DIRS = [
   SKILL_CODE_REVIEW_DIR,
   SKILL_CODE_ANALYSIS_DIR,
   SKILL_RESEARCH_WEB_DIR,
-  SKILL_SUBPOLAR_CONTEXT_DIR,
   SKILL_PI_CONTEXT_DIR,
   SKILL_CALENDAR_CLI_DIR,
   SKILL_MAIL_CLI_DIR,
@@ -96,7 +93,7 @@ export async function createGeneralChatSessionDirectory(
   deps: { db: Database; apiBaseUrl: string },
 ): Promise<string> {
   const directory = path.join(os.tmpdir(), 'subpolar-general-chat', sessionId)
-  await ensureGeneralChat(buildGeneralChatProject(), deps, { directory, overwriteAgentsMd: true, overwritePiConfig: true })
+  await ensureGeneralChat(buildGeneralChatProject(), deps, { directory, overwritePiConfig: true })
   return directory
 }
 
@@ -181,23 +178,6 @@ function buildFullPermission(): Record<string, string> {
 
 
 
-
-
-export function buildAssistantAgentsMd(): string {
-  return `# General Chat Workspace
-
-This directory is the shared General Chat workspace for subpolar.
-
-## Directory Contents
-
-- \`subpolar.json\` configures this workspace and its enabled agents.
-- \`.subpolar/agents/\` contains configured agent definitions.
-- \`.subpolar/skills/\` contains managed workspace skills for repos, automations, notifications, settings, code analysis, code review, research, and productivity CLI workflows.
-- \`.subpolar/internal-token\` is managed by Subpolar for internal API authentication.
-
-Agent-specific instructions belong in their respective \`.subpolar/agents/<name>.md\` files.
-`
-}
 
 
 function toLocalhostInternalBaseUrl(baseUrl: string): string {
@@ -809,41 +789,6 @@ Call pattern:
 `
 }
 
-export function buildSubpolarContextSkill(): string {
-  return `---
-name: subpolar-context
-description: Use when working on subpolar code, architecture, commands, repo layout, tests, and safety rules
----
-
-## Purpose
-
-Use this skill before changing or analyzing subpolar application code.
-
-## Project Shape
-
-- Subpolar is a pnpm workspace with a Bun/Hono backend, React/Vite frontend, and shared TypeScript package.
-- Backend code lives under \`backend/src\` and tests under \`backend/test\`.
-- Frontend code lives under \`frontend/src\`.
-- Shared schemas and types live under \`shared/src\`; prefer shared types from \`@subpolar/shared\`.
-
-## Commands
-
-- \`pnpm dev\` starts backend and frontend.
-- \`pnpm dev:backend\` starts the backend on port 5003.
-- \`pnpm dev:frontend\` starts the frontend on port 5173.
-- \`pnpm build\` builds backend and frontend.
-- \`pnpm test\` runs backend Vitest tests.
-- \`pnpm lint\` runs backend and frontend linting.
-
-## Working Rules
-
-- Use TypeScript strictly and follow existing route, service, utility, React Query, and Radix/Tailwind patterns.
-- Do not leave dead code, unused imports, commented-out code, or speculative abstractions.
-- Prefer the smallest correct change and verify with targeted tests or \`pnpm lint\` when feasible.
-- The backend API runs on port 5003; Pi agent execution uses the SDK directly.
-`
-}
-
 export function buildPiContextSkill(): string {
   return `---
 name: pi-context
@@ -1001,7 +946,6 @@ export function buildNotesCliSkill(): string {
 export function buildAssistantPiConfig(agentDefinitions: Pick<AgentDefinition, 'name' | 'mode'>[] = []): PiConfigInput {
   const agent = Object.fromEntries(agentDefinitions.map(definition => [definition.name, { mode: definition.mode }]))
   const config: PiConfigInput = {
-    instructions: ['AGENTS.md'],
     permission: buildFullPermission(),
     agent: {
       ...agent,
@@ -1039,7 +983,7 @@ async function writeAgentFiles(generalChatDir: string, agentsToWrite: AgentDefin
 
   for (const agentDefinition of agentsToWrite) {
     const agentPath = getAgentPath(generalChatDir, agentDefinition.name)
-    const content = buildAgentMd(agentDefinition.description, agentDefinition.mode, agentDefinition.permission as Record<string, string | Record<string, string>>, agentDefinition.prompt)
+    const content = buildAgentMd(agentDefinition.description, agentDefinition.mode, agentDefinition.permission as Record<string, string | Record<string, string>>, agentDefinition.systemPrompt)
     const exists = await fileExists(agentPath)
     const existingContent = exists ? await readFileContent(agentPath) : undefined
 
@@ -1060,34 +1004,23 @@ async function writeAgentFiles(generalChatDir: string, agentsToWrite: AgentDefin
 export async function ensureGeneralChat(
   project: Project,
   deps: { db: Database; apiBaseUrl: string },
-  options?: { overwriteAgentsMd?: boolean; overwritePiConfig?: boolean; directory?: string },
+  options?: { overwritePiConfig?: boolean; directory?: string },
 ): Promise<GeneralChatStatus> {
   const generalChatDir = options?.directory ?? path.join(os.tmpdir(), 'subpolar-general-chat', crypto.randomUUID())
   await deleteSystemAgents(deps.db)
 
   await ensureDirectoryExists(generalChatDir)
+  await fs.rm(path.join(generalChatDir, 'AGENTS.md'), { force: true })
+  await fs.rm(getSkillPath(generalChatDir, 'subpolar-context'), { force: true })
   const configuredAgents = await listAgents(deps.db)
   const enabledAgents = configuredAgents.filter((agent) => agent.enabled)
 
-  const agentsMdPath = path.join(generalChatDir, ASSISTANT_AGENTS_MD_FILENAME)
   const piConfigPath = path.join(generalChatDir, ASSISTANT_PI_CONFIG_FILENAME)
   const tokenPath = getInternalTokenPath(generalChatDir)
 
-  const existingAgentsMdContent = await fileExists(agentsMdPath) ? await readFileContent(agentsMdPath) : undefined
   const existingPiConfigContent = await fileExists(piConfigPath) ? await readFileContent(piConfigPath) : undefined
 
   const overwritePiConfig = options?.overwritePiConfig ?? false
-  const overwriteAgentsMd = options?.overwriteAgentsMd ?? false
-
-  const agentsMdContent = buildAssistantAgentsMd()
-
-  const agentsMdCreated =
-    !existingAgentsMdContent ||
-    overwriteAgentsMd
-
-  if (agentsMdCreated && !hasSameContent(existingAgentsMdContent, agentsMdContent)) {
-    await writeFileContent(agentsMdPath, agentsMdContent)
-  }
 
   let piConfigUpdated = false
   if (!existingPiConfigContent || overwritePiConfig) {
@@ -1114,7 +1047,6 @@ export async function ensureGeneralChat(
   const codeReviewSkillPath = getSkillPath(generalChatDir, SKILL_CODE_REVIEW_DIR)
   const codeAnalysisSkillPath = getSkillPath(generalChatDir, SKILL_CODE_ANALYSIS_DIR)
   const researchWebSkillPath = getSkillPath(generalChatDir, SKILL_RESEARCH_WEB_DIR)
-  const subpolarContextSkillPath = getSkillPath(generalChatDir, SKILL_SUBPOLAR_CONTEXT_DIR)
   const piContextSkillPath = getSkillPath(generalChatDir, SKILL_PI_CONTEXT_DIR)
   const calendarCliSkillPath = getSkillPath(generalChatDir, SKILL_CALENDAR_CLI_DIR)
   const mailCliSkillPath = getSkillPath(generalChatDir, SKILL_MAIL_CLI_DIR)
@@ -1129,7 +1061,6 @@ export async function ensureGeneralChat(
   const existingCodeReviewSkillContent = await fileExists(codeReviewSkillPath) ? await readFileContent(codeReviewSkillPath) : undefined
   const existingCodeAnalysisSkillContent = await fileExists(codeAnalysisSkillPath) ? await readFileContent(codeAnalysisSkillPath) : undefined
   const existingResearchWebSkillContent = await fileExists(researchWebSkillPath) ? await readFileContent(researchWebSkillPath) : undefined
-  const existingSubpolarContextSkillContent = await fileExists(subpolarContextSkillPath) ? await readFileContent(subpolarContextSkillPath) : undefined
   const existingPiContextSkillContent = await fileExists(piContextSkillPath) ? await readFileContent(piContextSkillPath) : undefined
   const existingCalendarCliSkillContent = await fileExists(calendarCliSkillPath) ? await readFileContent(calendarCliSkillPath) : undefined
   const existingMailCliSkillContent = await fileExists(mailCliSkillPath) ? await readFileContent(mailCliSkillPath) : undefined
@@ -1144,7 +1075,6 @@ export async function ensureGeneralChat(
   const codeReviewSkillCreated = await writeFileIfChanged(codeReviewSkillPath, buildCodeReviewSkill(), existingCodeReviewSkillContent)
   const codeAnalysisSkillCreated = await writeFileIfChanged(codeAnalysisSkillPath, buildCodeAnalysisSkill(), existingCodeAnalysisSkillContent)
   const researchWebSkillCreated = await writeFileIfChanged(researchWebSkillPath, buildResearchWebSkill(), existingResearchWebSkillContent)
-  const subpolarContextSkillCreated = await writeFileIfChanged(subpolarContextSkillPath, buildSubpolarContextSkill(), existingSubpolarContextSkillContent)
   const piContextSkillCreated = await writeFileIfChanged(piContextSkillPath, buildPiContextSkill(), existingPiContextSkillContent)
   const calendarCliSkillCreated = await writeFileIfChanged(calendarCliSkillPath, buildCalendarCliSkill(), existingCalendarCliSkillContent)
   const mailCliSkillCreated = await writeFileIfChanged(mailCliSkillPath, buildMailCliSkill(), existingMailCliSkillContent)
@@ -1159,11 +1089,6 @@ export async function ensureGeneralChat(
     directory: generalChatDir,
     relativePath: GENERAL_CHAT_RELATIVE_PATH,
     files: {
-      agentsMd: {
-        path: agentsMdPath,
-        exists: true,
-        created: agentsMdCreated,
-      },
       piConfigJson: {
         path: piConfigPath,
         exists: true,
@@ -1203,10 +1128,6 @@ export async function ensureGeneralChat(
       path: researchWebSkillPath,
       created: researchWebSkillCreated,
     },
-    subpolarContextSkill: {
-      path: subpolarContextSkillPath,
-      created: subpolarContextSkillCreated,
-    },
     piContextSkill: {
       path: piContextSkillPath,
       created: piContextSkillCreated,
@@ -1239,7 +1160,6 @@ export async function ensureGeneralChat(
 export async function getGeneralChatStatus(project: Project): Promise<GeneralChatStatus> {
   const generalChatDir = getGeneralChatDirectory()
 
-  const agentsMdPath = path.join(generalChatDir, ASSISTANT_AGENTS_MD_FILENAME)
   const piConfigPath = path.join(generalChatDir, ASSISTANT_PI_CONFIG_FILENAME)
   const tokenPath = getInternalTokenPath(generalChatDir)
   const automationsSkillPath = getSkillPath(generalChatDir, SKILL_AUTOMATIONS_DIR)
@@ -1249,14 +1169,12 @@ export async function getGeneralChatStatus(project: Project): Promise<GeneralCha
   const codeReviewSkillPath = getSkillPath(generalChatDir, SKILL_CODE_REVIEW_DIR)
   const codeAnalysisSkillPath = getSkillPath(generalChatDir, SKILL_CODE_ANALYSIS_DIR)
   const researchWebSkillPath = getSkillPath(generalChatDir, SKILL_RESEARCH_WEB_DIR)
-  const subpolarContextSkillPath = getSkillPath(generalChatDir, SKILL_SUBPOLAR_CONTEXT_DIR)
   const piContextSkillPath = getSkillPath(generalChatDir, SKILL_PI_CONTEXT_DIR)
   const calendarCliSkillPath = getSkillPath(generalChatDir, SKILL_CALENDAR_CLI_DIR)
   const mailCliSkillPath = getSkillPath(generalChatDir, SKILL_MAIL_CLI_DIR)
   const todoCliSkillPath = getSkillPath(generalChatDir, SKILL_TODO_CLI_DIR)
   const notesCliSkillPath = getSkillPath(generalChatDir, SKILL_NOTES_CLI_DIR)
 
-  const agentsMdExists = await fileExists(agentsMdPath)
   const piConfigExists = await fileExists(piConfigPath)
 
   const agents: AgentFileInfo[] = []
@@ -1275,11 +1193,6 @@ export async function getGeneralChatStatus(project: Project): Promise<GeneralCha
     directory: generalChatDir,
     relativePath: GENERAL_CHAT_RELATIVE_PATH,
     files: {
-      agentsMd: {
-        path: agentsMdPath,
-        exists: agentsMdExists,
-        created: false,
-      },
       piConfigJson: {
         path: piConfigPath,
         exists: piConfigExists,
@@ -1317,10 +1230,6 @@ export async function getGeneralChatStatus(project: Project): Promise<GeneralCha
     },
     researchWebSkill: {
       path: researchWebSkillPath,
-      created: false,
-    },
-    subpolarContextSkill: {
-      path: subpolarContextSkillPath,
       created: false,
     },
     piContextSkill: {

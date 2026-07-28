@@ -13,9 +13,9 @@ export const AgentToolAccessSchema = z.object({
 export const AgentDefinitionSchema = z.object({
   id: z.string(),
   name: z.string(),
+  displayName: z.string(),
   description: z.string(),
   mode: AgentModeSchema,
-  prompt: z.string(),
   systemPrompt: z.string().default(''),
   permission: z.record(z.string(), z.unknown()),
   toolAccess: z.array(AgentToolAccessSchema).optional(),

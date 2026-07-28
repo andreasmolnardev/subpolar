@@ -81,7 +81,6 @@ export const GeneralChatStatusSchema = z.object({
     message: z.string(),
   })).optional(),
   files: z.object({
-    agentsMd: GeneralChatFileSchema,
     piConfigJson: GeneralChatFileSchema,
   }),
   agents: z.array(AgentFileInfoSchema),
@@ -117,10 +116,6 @@ export const GeneralChatStatusSchema = z.object({
     path: z.string(),
     created: z.boolean(),
   }).optional(),
-  subpolarContextSkill: z.object({
-    path: z.string(),
-    created: z.boolean(),
-  }).optional(),
   piContextSkill: z.object({
     path: z.string(),
     created: z.boolean(),
@@ -149,6 +144,5 @@ export const GeneralChatStatusSchema = z.object({
 })
 
 export const GeneralChatInitRequestSchema = z.object({
-  overwriteAgentsMd: z.boolean().optional(),
   overwritePiConfig: z.boolean().optional(),
 })

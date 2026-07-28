@@ -45,9 +45,9 @@ describe('agent routes', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'researcher',
+        displayName: 'Researcher',
         description: 'Researches topics',
         mode: 'primary',
-        prompt: 'Research the requested topic.',
         systemPrompt: 'You are a focused research agent.',
         permission: { webfetch: 'allow' },
         skills: ['research'],
@@ -59,6 +59,7 @@ describe('agent routes', () => {
     await expect(createResponse.json()).resolves.toMatchObject({
       id: 'agent-1',
       name: 'researcher',
+      displayName: 'Researcher',
       source: 'user',
       enabled: true,
       systemPrompt: 'You are a focused research agent.',
@@ -68,7 +69,7 @@ describe('agent routes', () => {
     const listResponse = await app.request('/')
 
     await expect(listResponse.json()).resolves.toMatchObject([
-      { id: 'agent-1', name: 'researcher', prompt: 'Research the requested topic.' },
+      { id: 'agent-1', name: 'researcher', displayName: 'Researcher', systemPrompt: 'You are a focused research agent.' },
     ])
   })
 
@@ -81,7 +82,7 @@ describe('agent routes', () => {
       body: JSON.stringify({
         name: 'researcher',
         mode: 'primary',
-        prompt: 'Research the requested topic.',
+        systemPrompt: 'Research the requested topic.',
       }),
     })
 
@@ -90,7 +91,6 @@ describe('agent routes', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         description: 'Investigates technical topics',
-        prompt: 'Investigate the requested technical topic.',
         systemPrompt: 'You are a technical research agent.',
         enabled: false,
       }),
@@ -100,7 +100,6 @@ describe('agent routes', () => {
     await expect(updateResponse.json()).resolves.toMatchObject({
       id: 'agent-1',
       description: 'Investigates technical topics',
-      prompt: 'Investigate the requested technical topic.',
       systemPrompt: 'You are a technical research agent.',
       enabled: false,
     })
