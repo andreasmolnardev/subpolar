@@ -4,6 +4,7 @@ import { deleteSessionRecord, getSessionRecord, listSessionRecords, listSessionR
 import { createMessage, createRun, getRun, getSessionStatuses, listMessages, updateMessage, updateRunStatus, writeRuntimeEvent } from '../db/runs'
 import type { RuntimeId, RuntimeUsage } from '../runtime/types'
 import type { RuntimeRegistry } from '../runtime/registry'
+import { createRuntimeRunInput } from '../runtime/input'
 import { sseAggregator } from '../services/sse-aggregator'
 import { logger } from '../utils/logger'
 import { getAgentByIdOrSlug } from '../db/subpolar-agents'
@@ -215,7 +216,7 @@ async function generateSessionTitle(runtimeRegistry: RuntimeRegistry, sessionId:
   let content = ''
   const prompt = `for the following session log, output a brief plain-text title in 3 - 6 words. Do not use markdown formatting, code fences, bullets, headings, or quotes.\n\nUser: ${userMessage}`
 
-  for await (const event of runtimeRegistry.get('pi').run({
+  const runtimeInput = createRuntimeRunInput({
     runId: crypto.randomUUID(),
     sessionId,
     agentId: 'session-naming',
@@ -227,7 +228,9 @@ async function generateSessionTitle(runtimeRegistry: RuntimeRegistry, sessionId:
       createdAt: Date.now(),
     }],
     model,
-  })) {
+  })
+
+  for await (const event of runtimeRegistry.get('pi').run(runtimeInput)) {
     if (event.type === 'message.delta') content += event.content
     if (event.type === 'run.failed') throw new Error(event.error)
   }
@@ -512,17 +515,18 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
   publish({ type: 'session.status', properties: { sessionID: run.sessionId, status: { type: 'busy' } } })
 
   try {
-    for await (const event of runtimeRegistry.get(run.runtime).run({
+    const runtimeInput = createRuntimeRunInput({
       runId,
       sessionId: run.sessionId,
       agentId: run.agentId,
       projectId,
       cwd: directory,
       messages,
+      agent,
       model,
-      systemPrompt: agent?.systemPrompt,
-      skillAccess: agent?.skillAccess.length ? agent.skillAccess : agent?.skills.map(id => ({ id, discovery: 'description' as const })),
-    })) {
+    })
+
+    for await (const event of runtimeRegistry.get(run.runtime).run(runtimeInput)) {
       await writeRuntimeEvent(db, { runId, sessionId: run.sessionId, event })
       if (event.type === 'message.delta') {
         assistantContent += event.content

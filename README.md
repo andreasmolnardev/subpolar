@@ -38,13 +38,45 @@ Tool authorization remains in Subpolar. Pi asks Subpolar's authorization endpoin
 
 ## Architecture
 
-Subpolar is a pnpm workspace with three TypeScript packages:
+User
+  ↓
+Frontend chat UI
+  ↓ HTTP/SSE
+Subpolar API
+  ├─ authenticates request
+  ├─ resolves session/project/working directory
+  ├─ loads agent configuration
+  ├─ resolves model/provider
+  ├─ loads skills
+  ├─ creates run
+  └─ streams events and persists results
+  ↓
+RuntimeAdapter
+  ↓
+PiRuntimeAdapter
+  ├─ creates Pi AgentSession
+  ├─ injects system prompt and history
+  ├─ loads project and generated skills
+  ├─ installs Subpolar Pi extension
+  └─ maps Pi events to runtime events
+  ↓
+Pi Coding Agent SDK
+  ├─ reasons about task
+  ├─ selects skills/tools
+  ├─ calls model provider
+  └─ emits messages/tool events
+  ↓
+Tool authorization boundary
+  ├─ checks agent policy
+  ├─ allows or denies tool call
+  ├─ requests user approval
+  └─ executes Subpolar/MCP/native tools
+  ↓
+Filesystem, shell, Git, MCP, external APIs
 
-- `frontend/`: React and Vite single-page app for projects, sessions, settings, and streamed runtime activity.
-- `backend/`: Bun and Hono API server that manages authentication, PocketBase persistence, projects, sessions, tools, and Pi runtime integration.
-- `shared/`: Shared types, Zod schemas, configuration, and utilities.
-
-The backend uses `@earendil-works/pi-coding-agent` through its SDK rather than a subprocess RPC bridge. Pi's `ModelRegistry` provides available models; Subpolar exposes them through its provider API for the model selector. Each prompt runs in a new SDK agent session with Subpolar's extension enabled for tool authorization.
+Results/events
+  ↑
+Pi SDK → runtime adapter → DB + SSE aggregator → frontend → User
 
 ## Quick Start
 
