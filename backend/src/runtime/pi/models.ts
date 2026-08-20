@@ -1,6 +1,8 @@
-import { AuthStorage, ModelRegistry } from '@earendil-works/pi-coding-agent'
-import { getAuthPath, getPiModelsPath } from '@subpolar/shared/config/env'
+import { ModelRegistry } from '@earendil-works/pi-coding-agent'
+import { getPiModelsPath } from '@subpolar/shared/config/env'
 import { readJsonSafe } from '../../utils/atomic-json'
+import { AuthService } from '../../services/auth'
+import type { Database } from '../../db/schema'
 
 type PiModel = {
   provider: string
@@ -102,8 +104,8 @@ function toPiModel(value: unknown): PiModel | null {
   }
 }
 
-function createPiProviderRegistry(): ReturnType<typeof ModelRegistry.create> {
-  const authStorage = AuthStorage.create(getAuthPath())
+async function createPiProviderRegistry(db: Database): Promise<ReturnType<typeof ModelRegistry.create>> {
+  const authStorage = await new AuthService(db).createStorage()
   return ModelRegistry.create(authStorage, getPiModelsPath())
 }
 
@@ -123,8 +125,8 @@ async function readCustomProviderNames(): Promise<Map<string, string>> {
   return names
 }
 
-export async function getPiProviders(): Promise<PiProviderResponse> {
-  const modelRegistry = createPiProviderRegistry()
+export async function getPiProviders(db: Database): Promise<PiProviderResponse> {
+  const modelRegistry = await createPiProviderRegistry(db)
   const models = listPiModels(modelRegistry)
   const customProviderNames = await readCustomProviderNames()
   const providers = new Map<string, PiProviderResponse['all'][number]>()

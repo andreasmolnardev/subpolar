@@ -221,9 +221,11 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     return map;
   }, [models]);
 
-  const selectedAgentForRequest = selectedAgent === "__default__" || (!hideAgentSelect && !visibleAgents.some((agent) => agent.name === selectedAgent))
-    ? undefined
-    : selectedAgent;
+  const selectedAgentForRequest = hideAgentSelect
+    ? defaultAgent === "__default__" ? undefined : defaultAgent
+    : selectedAgent === "__default__" || !visibleAgents.some((agent) => agent.name === selectedAgent)
+      ? undefined
+      : selectedAgent;
   const selectedPermissionForRequest = selectedPermission === "default" && !selectedAgentForRequest
     ? "ask"
     : selectedPermission;
@@ -374,7 +376,9 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     }
 
     try {
-      const session = await createSession.mutateAsync({});
+      const session = await createSession.mutateAsync({
+        agent: selectedAgentForRequest,
+      });
 
       if (sendImmediately) {
         setActiveSessionId(session.id);

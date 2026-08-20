@@ -31,9 +31,9 @@ export function createRuntimeRoutes(db: Database) {
 
   app.patch('/config', async (c) => c.json(await c.req.json().catch(() => ({}))))
 
-  app.get('/provider', async (c) => c.json(await getPiProviders()))
+  app.get('/provider', async (c) => c.json(await getPiProviders(db)))
   app.get('/config/providers', async (c) => {
-    const providers = await getPiProviders()
+    const providers = await getPiProviders(db)
     return c.json({ providers: providers.all, default: providers.default })
   })
   app.get('/command', async (c) => c.json([]))

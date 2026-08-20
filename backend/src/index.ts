@@ -10,6 +10,7 @@ import { createTTSRoutes, cleanupExpiredCache } from './routes/tts';
 import { createSTTRoutes } from './routes/stt'
 import { createFileRoutes } from './routes/files'
 import { createAutomationRoutes } from './routes/automations'
+import { createAutomationWebhookRoutes, createProjectAutomationRoutes } from './routes/automation-definitions'
 import { createProductivityRoutes } from './routes/productivity'
 
 async function getAppVersion(): Promise<string> {
@@ -37,6 +38,7 @@ import { createRuntimeRoutes } from './routes/runtime'
 import { createPiRoutes } from './pi/routes'
 import { createInternalRoutes } from './routes/internal'
 import { createSubpolarCliRoutes } from './routes/subpolar-cli'
+import { createMcpOauthProxyRoutes } from './routes/mcp-oauth-proxy'
 import { sseAggregator } from './services/sse-aggregator'
 import { ensureDirectoryExists, writeFileContent, fileExists } from './services/file-operations'
 import { SettingsService } from './services/settings'
@@ -44,7 +46,7 @@ import { NotificationService } from './services/notification'
 import { AutomationRunner, AutomationService } from './services/automations'
 import { migrateGlobalSkills } from './services/skills'
 import { ensureGeneralChatProject } from './db/projects'
-import { installAssistantWorkspace } from './services/general-chat'
+import { cleanupGeneralChatSessionDirectories } from './services/general-chat'
 
 import { logger } from './utils/logger'
 import { seedTools } from './db/subpolar-tools'
@@ -148,12 +150,7 @@ try {
   piInternalClient = new PiNativeClient()
 
   await migrateGlobalSkills()
-
-  await installAssistantWorkspace({
-    db: db!,
-    apiBaseUrl: `http://localhost:${PORT}/api/internal`,
-  })
-  logger.info('General Chat workspace installed')
+  await cleanupGeneralChatSessionDirectories()
 
   automationService = new AutomationService(db!, piInternalClient!)
   automationRunnerInstance = new AutomationRunner(automationService)
@@ -195,7 +192,9 @@ app.route('/api/health', createHealthRoutes())
 app.route('/api/internal', createInternalRoutes(db!, automationService!, notificationService!, settingsService!, piInternalClient!))
 app.route('/api/pi', createPiRoutes(db!))
 app.route('/api/projects', createProjectRoutes(db!))
+app.route('/api/automation-webhooks', createAutomationWebhookRoutes(db!))
 app.route('/api/subpolar-cli', createSubpolarCliRoutes(db!))
+app.route('/api/mcp-oauth-proxy', createMcpOauthProxyRoutes(piInternalClient!, requireAuth!))
 
 const protectedApi = new Hono()
 protectedApi.use('/*', requireAuth!)
@@ -203,15 +202,16 @@ protectedApi.use('/*', requireAuth!)
 protectedApi.route('/settings', createSettingsRoutes(db!))
 protectedApi.route('/files', createFileRoutes())
 protectedApi.route('/providers', createProvidersRoutes(db!))
-protectedApi.route('/oauth', createOAuthRoutes())
+protectedApi.route('/oauth', createOAuthRoutes(db!))
 protectedApi.route('/tts', createTTSRoutes(db!))
 protectedApi.route('/stt', createSTTRoutes(db!))
 protectedApi.route('/sse', createSSERoutes())
 protectedApi.route('/notifications', createNotificationRoutes(notificationService!))
 protectedApi.route('/prompt-templates', createPromptTemplateRoutes(db!))
 protectedApi.route('/automations', createAutomationRoutes(automationService!))
+protectedApi.route('/projects/:id/automations', createProjectAutomationRoutes(db!))
 protectedApi.route('/productivity', createProductivityRoutes(db!))
-protectedApi.route('/sessions', createSessionRoutes(db!, runtimeRegistry))
+protectedApi.route('/sessions', createSessionRoutes(db!, runtimeRegistry, { apiBaseUrl: `http://localhost:${PORT}/api/internal` }))
 protectedApi.route('/runs', createRunRoutes(db!, runtimeRegistry))
 protectedApi.route('/agent', createAgentRoutes(db!))
 protectedApi.route('/agents', createAgentRoutes(db!))

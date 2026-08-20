@@ -53,6 +53,7 @@ import {
   ToolAdapterTypeSchema,
   ToolRiskSchema,
   AgentToolPolicySchema,
+  AgentToolAccessSchema,
   ToolListRequestSchema,
   ToolDescribeRequestSchema,
   ToolCallRequestSchema,
@@ -73,11 +74,6 @@ export type PiConfigInput = z.infer<typeof PiConfigSchema>
 export type CreatePiConfigRequest = z.infer<typeof CreatePiConfigRequestSchema>
 export type UpdatePiConfigRequest = z.infer<typeof UpdatePiConfigRequestSchema>
 export type PiConfigResponse = z.infer<typeof PiConfigResponseSchema>
-export type OpenCodeConfig = PiConfig
-export type OpenCodeConfigInput = PiConfigInput
-export type CreateOpenCodeConfigRequest = CreatePiConfigRequest
-export type UpdateOpenCodeConfigRequest = UpdatePiConfigRequest
-export type OpenCodeConfigResponse = PiConfigResponse
 
 export type Project = z.infer<typeof ProjectSchema>
 export type CreateProjectRequest = z.infer<typeof CreateProjectRequestSchema>
@@ -109,6 +105,7 @@ export type AssistantNotificationResponse = z.infer<typeof AssistantNotification
 export type AssistantSettingsPatch = z.infer<typeof AssistantSettingsPatchSchema>
 
 export type AgentDefinition = z.infer<typeof AgentDefinitionSchema>
+export type AgentToolAccess = z.infer<typeof AgentToolAccessSchema>
 export type AgentMode = z.infer<typeof AgentModeSchema>
 export type AgentSource = z.infer<typeof AgentSourceSchema>
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>

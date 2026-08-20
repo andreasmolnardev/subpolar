@@ -29,6 +29,15 @@ export interface Note {
   updated_at: number
 }
 
+export interface CalendarEvent {
+  id: string
+  title: string
+  start: string
+  end: string
+  location?: string
+  description?: string
+}
+
 export interface MailAccount {
   id: string
   name: string
@@ -40,6 +49,26 @@ export interface MailAccount {
 const jsonHeaders = { 'Content-Type': 'application/json' }
 
 export const productivityApi = {
+  getCalendarEvents: async (): Promise<{ events: CalendarEvent[] }> => {
+    return fetchWrapper(`${API_BASE_URL}/api/productivity/calendar/events`)
+  },
+
+  createCalendarEvent: async (event: Omit<CalendarEvent, 'id'>): Promise<CalendarEvent> => {
+    return fetchWrapper(`${API_BASE_URL}/api/productivity/calendar/events`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(event),
+    })
+  },
+
+  updateCalendarEvent: async (id: string, event: Partial<Omit<CalendarEvent, 'id'>>): Promise<CalendarEvent> => {
+    return fetchWrapper(`${API_BASE_URL}/api/productivity/calendar/events/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify(event),
+    })
+  },
+
   getTodos: async (): Promise<{ lists: TodoList[]; items: TodoItem[] }> => {
     return fetchWrapper(`${API_BASE_URL}/api/productivity/todos`)
   },

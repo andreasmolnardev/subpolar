@@ -130,6 +130,7 @@ const createAssistantMessage = (
       completed: Date.now() + 100,
     },
     modelID: modelID || 'test-model',
+    agent: 'test-agent',
   },
   parts,
 })
@@ -183,6 +184,7 @@ describe('MessageThread', () => {
       <MessageThread
         apiUrl="http://localhost:5551"
         sessionID="test-session"
+        projectName="Test Project"
         messages={messages as any}
         onChildSessionClick={onChildSessionClick}
       />
@@ -358,11 +360,13 @@ describe('MessageThread', () => {
       <MessageThread
         apiUrl="http://localhost:5551"
         sessionID="test-session"
+        projectName="Test Project"
         messages={messages as any}
       />
     )
 
     expect(screen.getByText('This is a response')).toBeInTheDocument()
+    expect(screen.getByText('Test Project • test-agent')).toBeInTheDocument()
     expect(screen.getByText('test-model')).toBeInTheDocument()
   })
 

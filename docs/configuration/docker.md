@@ -124,6 +124,32 @@ The container entrypoint (`scripts/docker-entrypoint.sh`) automatically:
 1. **Verifies Bun** is installed (installed at build time, fallback install if missing)
 2. **Validates AUTH_SECRET** is set (required for startup)
 
+## Docker MCP Servers
+
+Docker-backed MCP servers require `SUBPOLAR_MCP_SECRET_KEY` whenever configured environment variables or HTTP headers are stored. Generate a stable value and add it to `.env`:
+
+```bash
+openssl rand -base64 32
+```
+
+Docker MCP access is deliberately opt-in. Mounting Docker socket grants root-equivalent control of Docker host. Enable only for trusted users and MCP images:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.docker.yml up -d
+```
+
+For development:
+
+```bash
+docker compose -f docker-compose.dev.yml -f docker-compose.dev.docker.yml up
+```
+
+Docker MCP integrations run through host daemon using direct argv. For Gitea, configure image `docker.gitea.com/gitea-mcp-server` and environment variable `GITEA_ACCESS_TOKEN=<personal access token>`. Subpolar runs:
+
+```text
+docker run -i --rm -e GITEA_ACCESS_TOKEN docker.gitea.com/gitea-mcp-server
+```
+
 ## Port Configuration
 
 ### Main Application

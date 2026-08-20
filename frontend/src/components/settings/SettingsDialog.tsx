@@ -68,14 +68,14 @@ export function SettingsDialog() {
 
   const menuItems = [
     { id: 'account', icon: User, label: 'Account', description: 'Profile, passkeys, and sign out' },
-    { id: 'general', icon: Settings2, label: 'General Settings', description: 'App preferences and behavior' },
+    { id: 'general', icon: Settings2, label: 'General Settings', description: 'App preferences, behavior, and default models' },
     { id: 'chat', icon: MessageSquare, label: 'Chat', description: 'Message display and chat behavior' },
     { id: 'appearance', icon: Palette, label: 'Appearance', description: 'Theme and visual preferences' },
     { id: 'notifications', icon: Bell, label: 'Notifications', description: 'Push notification preferences' },
     { id: 'voice', icon: Volume2, label: 'Voice', description: 'Text-to-speech and speech-to-text settings' },
     { id: 'shortcuts', icon: Keyboard, label: 'Keyboard Shortcuts', description: 'Customize keyboard shortcuts' },
     { id: 'integrations', icon: Plug, label: 'Integrations', description: 'Configure MCP, calendars, and mail' },
-    { id: 'providers', icon: Key, label: 'Models', description: 'Manage AI providers and default models' },
+    { id: 'providers', icon: Key, label: 'Model Providers', description: 'Manage AI model providers' },
   ]
 
   const handleOpenMobileView = useCallback((view: SettingsView) => {
@@ -118,7 +118,7 @@ export function SettingsDialog() {
                   <button
                     key={item.id}
                     onClick={() => { setActiveTab(item.id as SettingsView); setMobileView(item.id as SettingsView); pushSectionHistory(item.id as SettingsView); }}
-                    className={`w-full text-left px-3 py-2 rounded-md mb-2 flex items-center gap-2 ${activeTab === item.id ? 'bg-blue-600 text-white' : 'text-muted-foreground hover:bg-gray-200'} transition-colors`}
+                    className={`w-full text-left px-3 py-2 rounded-md mb-2 flex items-center gap-2 ${activeTab === item.id ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50'} transition-colors`}
                   >
                     <item.icon className="w-5 h-5" />
                     <span>{item.label}</span>
@@ -178,7 +178,7 @@ export function SettingsDialog() {
                     >
                      <div className="flex items-center gap-4">
                        <div className="p-3 bg-accent rounded-lg">
-                         <item.icon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                         <item.icon className="w-6 h-6 text-accent-foreground" />
                        </div>
                        <div className="flex-1 min-w-0">
                          <h3 className="font-semibold text-foreground mb-1">{item.label}</h3>

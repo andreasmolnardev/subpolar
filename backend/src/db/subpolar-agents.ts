@@ -5,9 +5,9 @@ function toAgent(record: Record<string, unknown>): AgentDefinition {
   return {
     id: String(record.id),
     name: String(record.name),
+    displayName: String(record.displayName ?? record.name),
     description: String(record.description ?? ''),
     mode: record.mode === 'primary' ? 'primary' : 'subagent',
-    prompt: String(record.prompt ?? ''),
     systemPrompt: String(record.systemPrompt ?? ''),
     permission: (record.permission && typeof record.permission === 'object' ? record.permission : {}) as Record<string, unknown>,
     skills: Array.isArray(record.skills) ? record.skills.map(String) : [],

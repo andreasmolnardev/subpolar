@@ -74,7 +74,7 @@ async function mirrorModelStateToFile(state: PiInternalModelStateRecord): Promis
 
 export function createProvidersRoutes(db: Database) {
   const app = new Hono()
-  const authService = new AuthService()
+  const authService = new AuthService(db)
   const customProviderService = new PiCustomProviderService()
 
   app.get('/model-state', async (c) => {

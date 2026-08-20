@@ -9,13 +9,13 @@ import { Badge } from '@/components/ui/badge'
 import { SkillDialog } from './SkillDialog'
 import { DeleteDialog } from '@/components/ui/delete-dialog'
 import { settingsApi } from '@/api/settings'
-import type { OpenCodeConfigInput, SkillFileInfo, CreateSkillRequest, UpdateSkillRequest, SkillScope } from '@subpolar/shared'
+import type { PiConfigInput, SkillFileInfo, CreateSkillRequest, UpdateSkillRequest, SkillScope } from '@subpolar/shared'
 import { toast } from 'sonner'
 
 interface SkillsEditorProps {
-  skills?: OpenCodeConfigInput['skills']
+  skills?: PiConfigInput['skills']
   managedSkills?: SkillFileInfo[]
-  onChange?: (skills: OpenCodeConfigInput['skills']) => void
+  onChange?: (skills: PiConfigInput['skills']) => void
 }
 
 interface SkillPathEditorProps {

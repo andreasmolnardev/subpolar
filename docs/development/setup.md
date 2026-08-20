@@ -58,7 +58,7 @@ opencode-manager/
 │   │   ├── stores/       # Zustand stores
 │   │   └── contexts/     # React contexts
 │   └── public/           # Static assets
-├── shared/               # @opencode-manager/shared types and utilities
+├── shared/               # @subpolar/shared types and utilities
 ├── workspace/            # Runtime workspace for agent operations
 ├── docs/                 # Documentation
 ├── scripts/              # Build and utility scripts

@@ -15,7 +15,7 @@ import { showToast } from '@/lib/toast'
 
 interface Agent {
   id?: string
-  prompt?: string
+  displayName?: string
   systemPrompt?: string
   description?: string
   mode?: 'subagent' | 'primary' | 'all'
@@ -100,9 +100,9 @@ export function Agents() {
     mutationFn: async ({ name, agent, id }: { name: string; agent: Agent; id?: string }) => {
       const request = {
         name,
+        displayName: agent.displayName || name,
         description: agent.description || '',
         mode: agent.mode === 'all' ? 'primary' as const : agent.mode || 'subagent' as const,
-        prompt: agent.prompt || '',
         systemPrompt: agent.systemPrompt || '',
         permission: agent.permission || {},
         skills: agent.skills || [],
@@ -120,7 +120,7 @@ export function Agents() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
-      queryClient.invalidateQueries({ queryKey: ['agent-tool-policies'] })
+      queryClient.invalidateQueries({ queryKey: ['agent'] })
     },
   })
 
@@ -189,7 +189,7 @@ export function Agents() {
             <TabsList className="w-full justify-start gap-1 overflow-x-auto flex-shrink-0">
               {agentNames.map((name) => {
                 const agent = agents?.[name]
-                const label = agent?.icon ? `${agent.icon} ${name}` : name
+                const label = agent?.icon ? `${agent.icon} ${agent.displayName || name}` : agent?.displayName || name
                 return (
                   <TabsTrigger key={name} value={name} className="min-w-0">
                     <span className="truncate max-w-[120px]">{label}</span>
@@ -210,7 +210,7 @@ export function Agents() {
                           {agent.icon || <Bot className="h-5 w-5 text-primary" />}
                         </div>
                         <div>
-                          <h2 className="text-xl font-semibold">{name}</h2>
+                          <h2 className="text-xl font-semibold">{agent.displayName || name}</h2>
                           {agent.description && (
                             <p className="text-sm text-muted-foreground">{agent.description}</p>
                           )}
@@ -336,9 +336,9 @@ export function Agents() {
                     )}
 
                     <div>
-                      <h3 className="text-sm font-medium text-muted-foreground mb-1">Prompt</h3>
+                      <h3 className="text-sm font-medium text-muted-foreground mb-1">System Prompt</h3>
                       <pre className="text-sm font-mono bg-muted rounded-md p-4 overflow-x-auto whitespace-pre-wrap">
-                        {agent.prompt}
+                        {agent.systemPrompt}
                       </pre>
                     </div>
                   </div>
@@ -355,16 +355,16 @@ export function Agents() {
         onSubmit={handleCreate}
         editingAgent={null}
         availableSkills={subpolarSkills || []}
+        directory={generalChatDirectory}
       />
 
       <AgentDialog
         open={!!editingAgent}
         onOpenChange={() => setEditingAgent(null)}
-        onSubmit={(name, agent) => {
-          handleUpdate(name, { ...agent, id: editingAgent!.agent.id })
-        }}
+        onSubmit={(name, agent) => handleUpdate(name, { ...agent, id: editingAgent!.agent.id })}
         editingAgent={editingAgent}
         availableSkills={subpolarSkills || []}
+        directory={generalChatDirectory}
       />
     </div>
   )

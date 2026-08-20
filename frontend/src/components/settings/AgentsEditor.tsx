@@ -7,7 +7,7 @@ import { AgentDialog } from './AgentDialog'
 import { settingsApi, type AgentToolPolicyEffect } from '@/api/settings'
 
 interface Agent {
-  prompt?: string
+  systemPrompt?: string
   description?: string
   mode?: 'subagent' | 'primary' | 'all'
   temperature?: number
@@ -142,9 +142,9 @@ export function AgentsEditor({ agents, onChange }: AgentsEditorProps) {
                     {agent.model && <p>Model: {agent.model}</p>}
                     {agent.disable && <p>Status: Disabled</p>}
                   </div>
-                  {agent.prompt && (
+                  {agent.systemPrompt && (
                     <div className="mt-2 bg-muted rounded text-xs font-mono overflow-y-auto p-1 rounded-lg">
-                      {agent.prompt}
+                      {agent.systemPrompt}
                     </div>
                   )}
                 </div>

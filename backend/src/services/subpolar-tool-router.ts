@@ -4,7 +4,7 @@ import { getAgentByIdOrSlug } from '../db/subpolar-agents'
 import type { Database } from '../db/schema'
 import { getEnabledIntegrationForTool } from '../db/integrations'
 import type { IntegrationType } from '@subpolar/shared/types'
-import { getUpcomingCalDavEvents, type CalDavEventQuery } from './caldav'
+import { createCalDavEvent, getUpcomingCalDavEvents, type CalDavEventQuery, type CreateCalDavEventInput } from './caldav'
 import { webScrape, webSearch } from './web-research'
 import { callMcpTool } from './mcp'
 import { callOpenApiTool } from './openapi'
@@ -15,14 +15,6 @@ type PolicyResult =
   | { decision: 'approval'; approvalId: string; message: string }
 
 export type ToolPermissionOverride = 'ask' | 'none' | 'allow_all'
-
-function generatedToolSkillName(toolId: string): string {
-  return `tool-${toolId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
-}
-
-function hasSelectedGeneratedToolSkill(agent: AgentDefinition, toolId: string): boolean {
-  return agent.skillAccess.some(skill => skill.id === generatedToolSkillName(toolId))
-}
 
 function matchingPolicies(policies: Awaited<ReturnType<typeof listPoliciesForAgent>>, toolId: string) {
   return policies.filter(policy => policy.tool_id === toolId || policy.tool_id === '*')
@@ -63,7 +55,7 @@ async function checkPolicy(db: Database, agent: AgentDefinition, tool: ToolDefin
     return { decision: 'approval', approvalId, message: `${tool.tool_id} requires approval` }
   }
 
-  if (matching.some(policy => policy.effect === 'allow') || hasSelectedGeneratedToolSkill(agent, tool.tool_id)) return { decision: 'allow' }
+  if (matching.some(policy => policy.effect === 'allow')) return { decision: 'allow' }
 
   return { decision: 'deny', code: 'PERMISSION_DENIED', message: `Agent is not allowed to use ${tool.tool_id}` }
 }
@@ -92,6 +84,7 @@ async function callIntegrationTool(db: Database, tool: ToolDefinition, input: un
 
   if (tool.target === 'caldav') {
     if (tool.operation === 'get_events') return getUpcomingCalDavEvents(db, inputObject as CalDavEventQuery)
+    if (tool.operation === 'create_event') return createCalDavEvent(db, inputObject as CreateCalDavEventInput)
     return { toolId: tool.tool_id, integrationId: integration.id, provider: 'caldav', operation: tool.operation, status: 'configured', input }
   }
 
@@ -112,7 +105,7 @@ export async function listToolsForAgent(db: Database, agentId: string) {
     .filter((tool) => {
       const matching = matchingPolicies(policies, tool.tool_id)
       if (matching.some(policy => policy.effect === 'deny')) return false
-      return matching.some(policy => policy.effect === 'allow' || policy.effect === 'approval') || hasSelectedGeneratedToolSkill(agent, tool.tool_id)
+      return matching.some(policy => policy.effect === 'allow' || policy.effect === 'approval')
     })
     .map((tool) => ({
       id: tool.tool_id,
@@ -130,7 +123,7 @@ export async function describeToolForAgent(db: Database, agentId: string, toolId
   const policies = await listPoliciesForAgent(db, agent.id)
   const matching = matchingPolicies(policies, tool.tool_id)
   if (matching.some(policy => policy.effect === 'deny')) return null
-  const allowed = matching.some(policy => policy.effect === 'allow' || policy.effect === 'approval') || hasSelectedGeneratedToolSkill(agent, tool.tool_id)
+  const allowed = matching.some(policy => policy.effect === 'allow' || policy.effect === 'approval')
   if (!allowed) return null
   return {
     id: tool.tool_id,

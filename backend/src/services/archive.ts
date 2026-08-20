@@ -204,44 +204,6 @@ async function filterIgnoredPaths(targetPath: string, allPaths: string[], option
   return filteredPaths
 }
 
-export async function createRepoArchive(repoPath: string, options?: ArchiveOptions): Promise<string> {
-  repoPath = resolvePath(repoPath)
-  const repoName = path.basename(repoPath)
-  const tempFile = path.join(os.tmpdir(), `${repoName}-${Date.now()}.zip`)
-
-  logger.info(`Creating archive for ${repoPath} at ${tempFile}`)
-
-  const allPaths = await collectFiles(repoPath, '', options)
-  const filteredPaths = await filterIgnoredPaths(repoPath, allPaths, options)
-
-  const output = createWriteStream(tempFile)
-  const archive = archiver('zip', { zlib: { level: 5 } })
-
-  return new Promise((resolve, reject) => {
-    output.on('close', () => {
-      logger.info(`Archive created: ${tempFile} (${archive.pointer()} bytes)`)
-      resolve(tempFile)
-    })
-
-    archive.on('error', (err) => {
-      logger.error('Archive error:', err)
-      reject(err)
-    })
-
-    archive.pipe(output)
-
-    for (const relativePath of filteredPaths) {
-      if (relativePath.endsWith('/')) continue
-
-      const fullPath = path.join(repoPath, relativePath)
-      const archivePath = path.join(repoName, relativePath)
-      archive.file(fullPath, { name: archivePath })
-    }
-
-    archive.finalize()
-  })
-}
-
 export async function createDirectoryArchive(directoryPath: string, archiveName?: string, options?: ArchiveOptions): Promise<string> {
   directoryPath = resolvePath(directoryPath)
   const dirName = archiveName || path.basename(directoryPath)

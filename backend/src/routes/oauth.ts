@@ -1,12 +1,13 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { getPiProviders } from '../runtime/pi/models'
+import type { Database } from '../db/schema'
 import {
   OAuthAuthorizeRequestSchema,
   OAuthCallbackRequestSchema,
 } from '../../../shared/src/schemas/auth'
 
-export function createOAuthRoutes() {
+export function createOAuthRoutes(db: Database) {
   const app = new Hono()
 
   app.post('/:id/oauth/authorize', async (c) => {
@@ -34,7 +35,7 @@ export function createOAuthRoutes() {
   })
 
   app.get('/auth-methods', async (c) => {
-    const providers = await getPiProviders()
+    const providers = await getPiProviders(db)
     return c.json({
       providers: Object.fromEntries(
         providers.all.map((provider) => [provider.id, [{ type: 'api', label: 'API Key' }]]),

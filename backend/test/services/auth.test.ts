@@ -1,358 +1,55 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { promises as fs } from 'fs'
+import { describe, expect, it } from 'vitest'
+import type PocketBase from 'pocketbase'
 import { AuthService } from '../../src/services/auth'
 
-vi.mock('fs', () => ({
-  promises: {
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
-    mkdir: vi.fn(),
-  },
-}))
+function createMockDatabase(): PocketBase {
+  const records = new Map<string, Record<string, unknown>>()
+  let nextId = 0
 
-const readFile = fs.readFile as any
-const writeFile = fs.writeFile as any
-const mkdirSpy = fs.mkdir as any
-
-vi.mock('@subpolar/shared/config/env', () => ({
-  getAuthPath: () => '/test/auth.json',
-  ENV: {
-    WORKSPACE: {
-      BASE_PATH: '/test/workspace',
-      REPOS_DIR: 'repos',
-      CONFIG_DIR: '.config/opencode',
-      AUTH_FILE: '.opencode/state/opencode/auth.json',
-    },
-  },
-  getWorkspacePath: () => '/test/workspace',
-  getReposPath: () => '/test/repos',
-  getConfigPath: () => '/test/config',
-  getOpenCodeConfigFilePath: () => '/test/config/opencode.json',
-  getAgentsMdPath: () => '/test/config/AGENTS.md',
-  getDatabasePath: () => '/test/database.db',
-}))
+  return {
+    collection: () => ({
+      getFullList: async () => Array.from(records.values()),
+      create: async (data: Record<string, unknown>) => {
+        const id = `login-${++nextId}`
+        const record = { ...data, id }
+        records.set(id, record)
+        return record
+      },
+      update: async (id: string, data: Record<string, unknown>) => {
+        const record = { ...records.get(id), ...data, id }
+        records.set(id, record)
+        return record
+      },
+      delete: async (id: string) => {
+        records.delete(id)
+      },
+    }),
+  } as unknown as PocketBase
+}
 
 describe('AuthService', () => {
-  let authService: AuthService
+  it('stores, updates, and deletes provider credentials in the database', async () => {
+    const service = new AuthService(createMockDatabase())
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-    authService = new AuthService()
+    await service.set('openai', 'first-key')
+    await service.set('openai', 'updated-key')
+
+    expect(await service.getAll()).toEqual({ openai: { type: 'api_key', key: 'updated-key' } })
+    expect(await service.list()).toEqual(['openai'])
+    expect(await service.has('openai')).toBe(true)
+
+    await service.delete('openai')
+
+    expect(await service.getAll()).toEqual({})
+    expect(await service.has('openai')).toBe(false)
   })
 
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
+  it('provides Pi with an in-memory copy of database credentials', async () => {
+    const service = new AuthService(createMockDatabase())
+    await service.set('anthropic', 'database-key')
 
-  describe('migration', () => {
-    it('migrates old apiKey format to new api format on read', async () => {
-      readFile.mockResolvedValue(JSON.stringify({
-        minimax: {
-          type: 'apiKey',
-          apiKey: 'test-key-123',
-        },
-        anthropic: {
-          type: 'oauth',
-          refresh: 'refresh-token',
-          access: 'access-token',
-          expires: 1234567890,
-        },
-      }, null, 2))
+    const storage = await service.createStorage()
 
-      const result = await authService.getAll()
-
-      expect(result).toEqual({
-        minimax: {
-          type: 'api',
-          key: 'test-key-123',
-        },
-        anthropic: {
-          type: 'oauth',
-          refresh: 'refresh-token',
-          access: 'access-token',
-          expires: 1234567890,
-        },
-      })
-
-      expect(writeFile).toHaveBeenCalledWith(
-        '/test/auth.json',
-        JSON.stringify({
-          minimax: {
-            type: 'api',
-            key: 'test-key-123',
-          },
-          anthropic: {
-            type: 'oauth',
-            refresh: 'refresh-token',
-            access: 'access-token',
-            expires: 1234567890,
-          },
-        }, null, 2),
-        { mode: 384 }
-      )
-    })
-
-    it('does not migrate when format is already correct', async () => {
-      readFile.mockResolvedValue(JSON.stringify({
-        minimax: {
-          type: 'api',
-          key: 'test-key-123',
-        },
-        anthropic: {
-          type: 'oauth',
-          refresh: 'refresh-token',
-          access: 'access-token',
-          expires: 1234567890,
-        },
-      }, null, 2))
-
-      const result = await authService.getAll()
-
-      expect(result).toEqual({
-        minimax: {
-          type: 'api',
-          key: 'test-key-123',
-        },
-        anthropic: {
-          type: 'oauth',
-          refresh: 'refresh-token',
-          access: 'access-token',
-          expires: 1234567890,
-        },
-      })
-
-      expect(writeFile).not.toHaveBeenCalled()
-    })
-
-    it('migrates multiple old format entries', async () => {
-      readFile.mockResolvedValue(JSON.stringify({
-        minimax: {
-          type: 'apiKey',
-          apiKey: 'minimax-key',
-        },
-        openai: {
-          type: 'apiKey',
-          apiKey: 'openai-key',
-        },
-        anthropic: {
-          type: 'oauth',
-          refresh: 'refresh-token',
-          access: 'access-token',
-          expires: 1234567890,
-        },
-      }, null, 2))
-
-      const result = await authService.getAll()
-
-      expect(result.minimax).toEqual({
-        type: 'api',
-        key: 'minimax-key',
-      })
-      expect(result.openai).toEqual({
-        type: 'api',
-        key: 'openai-key',
-      })
-      expect(result.anthropic).toEqual({
-        type: 'oauth',
-        refresh: 'refresh-token',
-        access: 'access-token',
-        expires: 1234567890,
-      })
-
-      expect(writeFile).toHaveBeenCalled()
-    })
-  })
-
-  describe('set', () => {
-    it('writes credentials in new api format', async () => {
-      readFile.mockResolvedValue(JSON.stringify({}, null, 2))
-      mkdirSpy.mockResolvedValue(undefined)
-
-      await authService.set('minimax', 'test-key-123')
-
-      const expectedData = JSON.stringify({
-        minimax: {
-          type: 'api',
-          key: 'test-key-123',
-        },
-      }, null, 2)
-
-      expect(writeFile).toHaveBeenCalledWith(
-        '/test/auth.json',
-        expectedData,
-        { mode: 384 }
-      )
-    })
-
-    it('appends new credentials to existing file', async () => {
-      readFile.mockResolvedValue(JSON.stringify({
-        anthropic: {
-          type: 'oauth',
-          refresh: 'refresh-token',
-          access: 'access-token',
-          expires: 1234567890,
-        },
-      }, null, 2))
-      mkdirSpy.mockResolvedValue(undefined)
-
-      await authService.set('minimax', 'test-key-123')
-
-      const expectedData = JSON.stringify({
-        anthropic: {
-          type: 'oauth',
-          refresh: 'refresh-token',
-          access: 'access-token',
-          expires: 1234567890,
-        },
-        minimax: {
-          type: 'api',
-          key: 'test-key-123',
-        },
-      }, null, 2)
-
-      expect(writeFile).toHaveBeenCalledWith(
-        '/test/auth.json',
-        expectedData,
-        { mode: 384 }
-      )
-    })
-
-    it('updates existing credentials in new format', async () => {
-      readFile.mockResolvedValue(JSON.stringify({
-        minimax: {
-          type: 'api',
-          key: 'old-key',
-        },
-      }, null, 2))
-      mkdirSpy.mockResolvedValue(undefined)
-
-      await authService.set('minimax', 'new-key-456')
-
-      const expectedData = JSON.stringify({
-        minimax: {
-          type: 'api',
-          key: 'new-key-456',
-        },
-      }, null, 2)
-
-      expect(writeFile).toHaveBeenCalledWith(
-        '/test/auth.json',
-        expectedData,
-        { mode: 384 }
-      )
-    })
-  })
-
-  describe('getAll', () => {
-    it('returns empty object when file does not exist', async () => {
-      readFile.mockRejectedValue({ code: 'ENOENT' })
-
-      const result = await authService.getAll()
-
-      expect(result).toEqual({})
-    })
-
-    it('returns parsed credentials', async () => {
-      readFile.mockResolvedValue(JSON.stringify({
-        minimax: {
-          type: 'api',
-          key: 'test-key',
-        },
-      }, null, 2))
-
-      const result = await authService.getAll()
-
-      expect(result).toEqual({
-        minimax: {
-          type: 'api',
-          key: 'test-key',
-        },
-      })
-    })
-  })
-
-  describe('delete', () => {
-    it('removes provider credentials', async () => {
-      readFile.mockResolvedValue(JSON.stringify({
-        minimax: {
-          type: 'api',
-          key: 'test-key',
-        },
-        anthropic: {
-          type: 'oauth',
-          refresh: 'refresh-token',
-          access: 'access-token',
-          expires: 1234567890,
-        },
-      }, null, 2))
-
-      await authService.delete('minimax')
-
-      const expectedData = JSON.stringify({
-        anthropic: {
-          type: 'oauth',
-          refresh: 'refresh-token',
-          access: 'access-token',
-          expires: 1234567890,
-        },
-      }, null, 2)
-
-      expect(writeFile).toHaveBeenCalledWith(
-        '/test/auth.json',
-        expectedData,
-        { mode: 384 }
-      )
-    })
-  })
-
-  describe('list', () => {
-    it('returns list of provider IDs', async () => {
-      readFile.mockResolvedValue(JSON.stringify({
-        minimax: {
-          type: 'api',
-          key: 'test-key',
-        },
-        anthropic: {
-          type: 'oauth',
-          refresh: 'refresh-token',
-          access: 'access-token',
-          expires: 1234567890,
-        },
-      }, null, 2))
-
-      const result = await authService.list()
-
-      expect(result).toEqual(['minimax', 'anthropic'])
-    })
-  })
-
-  describe('has', () => {
-    it('returns true when provider has credentials', async () => {
-      readFile.mockResolvedValue(JSON.stringify({
-        minimax: {
-          type: 'api',
-          key: 'test-key',
-        },
-      }, null, 2))
-
-      const result = await authService.has('minimax')
-
-      expect(result).toBe(true)
-    })
-
-    it('returns false when provider does not have credentials', async () => {
-      readFile.mockResolvedValue(JSON.stringify({
-        anthropic: {
-          type: 'oauth',
-          refresh: 'refresh-token',
-          access: 'access-token',
-          expires: 1234567890,
-        },
-      }, null, 2))
-
-      const result = await authService.has('minimax')
-
-      expect(result).toBe(false)
-    })
+    expect(storage.get('anthropic')).toEqual({ type: 'api_key', key: 'database-key' })
   })
 })

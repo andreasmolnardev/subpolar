@@ -13,6 +13,42 @@ export type CalDavEventQuery = {
   integrationId?: string
 }
 
+export type CreateCalDavEventInput = {
+  calendarId?: string
+  integrationId?: string
+  title: string
+  start: string
+  end?: string
+  location?: string
+  description?: string
+}
+
+export type UpdateCalDavEventInput = {
+  calendarId: string
+  uid: string
+  title: string
+  start: string
+  end: string
+  location?: string
+  description?: string
+}
+
+export type CreateCalDavTodoInput = {
+  calendarId?: string
+  text: string
+}
+
+export type UpdateCalDavTodoInput = {
+  calendarId: string
+  uid: string
+  completed: boolean
+}
+
+export type DeleteCalDavTodoInput = {
+  calendarId: string
+  uid: string
+}
+
 type CalDavDateRange = {
   start: Date
   end: Date
@@ -135,11 +171,15 @@ export async function getUpcomingCalDavEvents(db: Database, query: CalDavEventQu
         try {
           const calDavEvents = await client.getEvents(calendar.url, { start, end })
           return calDavEvents.map((event) => ({
+            id: `${integration.id}:${calendar.url}:${event.uid}`,
+            calendarId: `${integration.id}:${calendar.url}`,
+            uid: event.uid,
             title: event.summary || 'Untitled event',
             calendar: calendar.name,
             start: event.start.toISOString(),
             end: event.end.toISOString(),
             location: event.location || undefined,
+            description: event.description || undefined,
           }))
         } catch (error) {
           logger.error(`Failed to load CalDAV calendar ${calendar.name}:`, error)
@@ -157,6 +197,173 @@ export async function getUpcomingCalDavEvents(db: Database, query: CalDavEventQu
   const events = results.flatMap((result) => result.events).sort((a, b) => String(a.start).localeCompare(String(b.start)))
 
   return { calendars, events }
+}
+
+export async function createCalDavEvent(db: Database, input: CreateCalDavEventInput) {
+  const start = parseDate(input.start)
+  const end = input.end ? parseDate(input.end) : new Date((start?.getTime() ?? 0) + 60 * 60 * 1000)
+  if (!start || !end || end.getTime() <= start.getTime()) {
+    throw Object.assign(new Error('Calendar event end must be after its start'), { code: 'INVALID_CALENDAR_EVENT' })
+  }
+
+  const integrations = selectIntegrations(await listEnabledIntegrationsByType(db, 'caldav'), input)
+  if (integrations.length === 0) {
+    throw Object.assign(new Error('No enabled caldav integration is configured'), { code: 'INTEGRATION_NOT_CONFIGURED' })
+  }
+
+  for (const integration of integrations) {
+    const serverUrl = String(integration.config.serverUrl ?? '')
+    const username = String(integration.config.username ?? '')
+    const password = String(integration.config.password ?? '')
+    const calendarUrl = String(integration.config.calendarUrl ?? '')
+    if (!serverUrl || !username || !password) continue
+
+    const client = await createCalDavClient(serverUrl, username, password)
+    const calendars = calendarUrl
+      ? [{ name: integration.name, url: resolveCalendarUrl(serverUrl, calendarUrl) }]
+      : (await client.getCalendars()).map((calendar) => ({
+        name: calendar.displayName || getCalendarName(calendar.url),
+        url: resolveCalendarUrl(serverUrl, calendar.url),
+      }))
+    const calendar = input.calendarId
+      ? calendars.find(item => `${integration.id}:${item.url}` === input.calendarId || item.url === input.calendarId || item.name === input.calendarId)
+      : calendars[0]
+    if (!calendar) continue
+
+    await client.createEvent(calendar.url, {
+      summary: input.title,
+      start,
+      end,
+      location: input.location || undefined,
+      description: input.description || undefined,
+    })
+    return { calendarId: `${integration.id}:${calendar.url}`, calendar: calendar.name, title: input.title, start: start.toISOString(), end: end.toISOString() }
+  }
+
+  throw Object.assign(new Error('Calendar was not found or is unavailable'), { code: 'CALENDAR_NOT_FOUND' })
+}
+
+export async function updateCalDavEvent(db: Database, input: UpdateCalDavEventInput) {
+  const start = parseDate(input.start)
+  const end = parseDate(input.end)
+  if (!start || !end || end.getTime() <= start.getTime()) {
+    throw Object.assign(new Error('Calendar event end must be after its start'), { code: 'INVALID_CALENDAR_EVENT' })
+  }
+
+  const integrations = selectIntegrations(await listEnabledIntegrationsByType(db, 'caldav'), input)
+  for (const integration of integrations) {
+    const serverUrl = String(integration.config.serverUrl ?? '')
+    const username = String(integration.config.username ?? '')
+    const password = String(integration.config.password ?? '')
+    const calendarUrl = String(integration.config.calendarUrl ?? '')
+    if (!serverUrl || !username || !password) continue
+
+    const client = await createCalDavClient(serverUrl, username, password)
+    const calendars = calendarUrl
+      ? [{ name: integration.name, url: resolveCalendarUrl(serverUrl, calendarUrl) }]
+      : (await client.getCalendars()).map((calendar) => ({
+        name: calendar.displayName || getCalendarName(calendar.url),
+        url: resolveCalendarUrl(serverUrl, calendar.url),
+      }))
+    const calendar = calendars.find(item => `${integration.id}:${item.url}` === input.calendarId)
+    if (!calendar) continue
+
+    const event = (await client.getEvents(calendar.url, { all: true })).find(item => item.uid === input.uid)
+    if (!event) throw Object.assign(new Error('Calendar event was not found'), { code: 'CALENDAR_EVENT_NOT_FOUND' })
+
+    await client.updateEvent(calendar.url, {
+      ...event,
+      summary: input.title,
+      start,
+      end,
+      location: input.location || undefined,
+      description: input.description || undefined,
+    })
+    return { calendarId: input.calendarId, uid: input.uid, title: input.title, start: start.toISOString(), end: end.toISOString() }
+  }
+
+  throw Object.assign(new Error('Calendar was not found or is unavailable'), { code: 'CALENDAR_NOT_FOUND' })
+}
+
+export async function getCalDavTodos(db: Database) {
+  const integrations = await listEnabledIntegrationsByType(db, 'caldav')
+  if (integrations.length === 0) {
+    throw Object.assign(new Error('No enabled caldav integration is configured'), { code: 'INTEGRATION_NOT_CONFIGURED' })
+  }
+
+  const results = await Promise.all(integrations.map(async (integration) => {
+    const serverUrl = String(integration.config.serverUrl ?? '')
+    const username = String(integration.config.username ?? '')
+    const password = String(integration.config.password ?? '')
+    const calendarUrl = String(integration.config.calendarUrl ?? '')
+    if (!serverUrl || !username || !password) return { lists: [], items: [] }
+
+    try {
+      const client = await createCalDavClient(serverUrl, username, password)
+      const calendars = calendarUrl
+        ? [{ name: integration.name, url: resolveCalendarUrl(serverUrl, calendarUrl) }]
+        : (await client.getCalendars()).map((calendar) => ({
+          name: calendar.displayName || getCalendarName(calendar.url),
+          url: resolveCalendarUrl(serverUrl, calendar.url),
+        }))
+      const lists = calendars.map((calendar) => ({ id: `${integration.id}:${calendar.url}`, name: calendar.name }))
+      const items = (await Promise.all(calendars.map(async (calendar) => {
+        const todos = await client.getTodos(calendar.url, { all: true })
+        return todos.map((todo) => ({
+          id: `${integration.id}:${calendar.url}:${todo.uid}`,
+          calendarId: `${integration.id}:${calendar.url}`,
+          uid: todo.uid,
+          listId: `${integration.id}:${calendar.url}`,
+          text: todo.summary || 'Untitled task',
+          completed: todo.status === 'COMPLETED',
+        }))
+      }))).flat()
+      return { lists, items }
+    } catch (error) {
+      logger.error(`Failed to load CalDAV todos for ${integration.name}:`, error)
+      return { lists: [], items: [] }
+    }
+  }))
+
+  return { lists: results.flatMap((result) => result.lists), items: results.flatMap((result) => result.items) }
+}
+
+export async function createCalDavTodo(db: Database, input: CreateCalDavTodoInput) {
+  const integrations = await listEnabledIntegrationsByType(db, 'caldav')
+  const [integrationId, ...calendarUrlParts] = input.calendarId?.split(':') ?? []
+  const integration = input.calendarId ? integrations.find(item => item.id === integrationId) : integrations[0]
+  if (!integration) throw Object.assign(new Error('Calendar was not found or is unavailable'), { code: 'CALENDAR_NOT_FOUND' })
+  const configuredCalendarUrl = String(integration.config.calendarUrl ?? '')
+  const calendarUrl = calendarUrlParts.join(':') || (configuredCalendarUrl ? resolveCalendarUrl(String(integration.config.serverUrl), configuredCalendarUrl) : '')
+  const client = await createCalDavClient(String(integration.config.serverUrl), String(integration.config.username), String(integration.config.password))
+  const resolvedCalendarUrl = calendarUrl || (await client.getCalendars())[0]?.url
+  if (!resolvedCalendarUrl) throw Object.assign(new Error('Calendar was not found or is unavailable'), { code: 'CALENDAR_NOT_FOUND' })
+  const created = await client.createTodo(resolvedCalendarUrl, { summary: input.text, status: 'NEEDS-ACTION' })
+  const calendarId = input.calendarId ?? `${integration.id}:${resolvedCalendarUrl}`
+  return { id: `${calendarId}:${created.uid}`, calendarId, uid: created.uid, text: input.text, completed: false }
+}
+
+export async function updateCalDavTodo(db: Database, input: UpdateCalDavTodoInput) {
+  const [integrationId, ...calendarUrlParts] = input.calendarId.split(':')
+  const calendarUrl = calendarUrlParts.join(':')
+  const integration = (await listEnabledIntegrationsByType(db, 'caldav')).find(item => item.id === integrationId)
+  if (!integration || !calendarUrl) throw Object.assign(new Error('Calendar was not found or is unavailable'), { code: 'CALENDAR_NOT_FOUND' })
+  const client = await createCalDavClient(String(integration.config.serverUrl), String(integration.config.username), String(integration.config.password))
+  const todo = (await client.getTodos(calendarUrl, { all: true })).find(item => item.uid === input.uid)
+  if (!todo) throw Object.assign(new Error('Calendar task was not found'), { code: 'CALENDAR_TODO_NOT_FOUND' })
+  await client.updateTodo(calendarUrl, { ...todo, status: input.completed ? 'COMPLETED' : 'NEEDS-ACTION', completed: input.completed ? new Date() : undefined })
+  return { calendarId: input.calendarId, uid: input.uid, completed: input.completed }
+}
+
+export async function deleteCalDavTodo(db: Database, input: DeleteCalDavTodoInput) {
+  const [integrationId, ...calendarUrlParts] = input.calendarId.split(':')
+  const calendarUrl = calendarUrlParts.join(':')
+  const integration = (await listEnabledIntegrationsByType(db, 'caldav')).find(item => item.id === integrationId)
+  if (!integration || !calendarUrl) throw Object.assign(new Error('Calendar was not found or is unavailable'), { code: 'CALENDAR_NOT_FOUND' })
+  const client = await createCalDavClient(String(integration.config.serverUrl), String(integration.config.username), String(integration.config.password))
+  const todo = (await client.getTodos(calendarUrl, { all: true })).find(item => item.uid === input.uid)
+  if (!todo) throw Object.assign(new Error('Calendar task was not found'), { code: 'CALENDAR_TODO_NOT_FOUND' })
+  await client.deleteTodo(calendarUrl, todo.uid, todo.etag)
 }
 
 export async function discoverCalDavCalendars(serverUrl: string, username: string, password: string) {

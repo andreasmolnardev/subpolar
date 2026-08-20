@@ -266,6 +266,16 @@ export class SubpolarClient {
     }) as MessageListResponse
   }
 
+  async getMessageContext(sessionID: string, messageID: string) {
+    return fetchWrapper<{
+      agent: string
+      systemPrompt: string
+      messages: Array<{ id: string; role: string; content: string; createdAt: number }>
+    }>(`${this.nativeBaseURL}/sessions/${sessionID}/context`, {
+      params: this.getParams({ messageID }),
+    })
+  }
+
   async sendPrompt(sessionID: string, data: SendPromptRequest): Promise<SendPromptResponse> {
     await this.createNativeMessageAndRun(sessionID, data)
     return { parts: [] } as unknown as SendPromptResponse

@@ -2,11 +2,11 @@ import { Hono } from 'hono'
 import { ApprovalRespondRequestSchema, ToolCallRequestSchema, ToolDescribeRequestSchema, ToolListRequestSchema } from '@subpolar/shared/schemas'
 import type { Database } from '../db/schema'
 import { createInternalTokenMiddleware } from '../auth/internal-token-middleware'
-import { ToolGateway } from '../tools/gateway'
 import { discoverMcpTools } from '../services/mcp'
 import { discoverOpenApiTools } from '../services/openapi'
 import { listEnabledIntegrationsByType } from '../db/integrations'
 import { getEnabledTool, listEnabledTools } from '../db/subpolar-tools'
+import { callTool, describeToolForAgent, listToolsForAgent } from '../services/subpolar-tool-router'
 
 function resolveAgentId(agentId: string | undefined): string | null {
   return agentId ?? process.env.SUBPOLAR_AGENT_ID ?? null
@@ -14,7 +14,6 @@ function resolveAgentId(agentId: string | undefined): string | null {
 
 export function createSubpolarCliRoutes(db: Database): Hono {
   const app = new Hono()
-  const toolGateway = new ToolGateway(db)
   app.use('/*', createInternalTokenMiddleware(db))
 
   app.post('/tools/list', async (c) => {
@@ -22,7 +21,7 @@ export function createSubpolarCliRoutes(db: Database): Hono {
     if (!parsed.success) return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: parsed.error.message } }, 400)
     const agentId = resolveAgentId(parsed.data.agentId)
     if (!agentId) return c.json({ ok: false, error: { code: 'MISSING_AGENT_ID', message: 'Missing agent id' } }, 400)
-    const tools = await toolGateway.list(agentId)
+    const tools = await listToolsForAgent(db, agentId)
     return c.json({ ok: true, tools })
   })
 
@@ -31,7 +30,7 @@ export function createSubpolarCliRoutes(db: Database): Hono {
     if (!parsed.success) return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: parsed.error.message } }, 400)
     const agentId = resolveAgentId(parsed.data.agentId)
     if (!agentId) return c.json({ ok: false, error: { code: 'MISSING_AGENT_ID', message: 'Missing agent id' } }, 400)
-    const tool = await toolGateway.describe(agentId, parsed.data.toolId)
+    const tool = await describeToolForAgent(db, agentId, parsed.data.toolId)
     if (!tool) return c.json({ ok: false, toolId: parsed.data.toolId, error: { code: 'UNKNOWN_TOOL', message: 'Tool is unavailable for this agent' } }, 404)
     return c.json({ ok: true, tool })
   })
@@ -41,7 +40,7 @@ export function createSubpolarCliRoutes(db: Database): Hono {
     if (!parsed.success) return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: parsed.error.message } }, 400)
     const agentId = resolveAgentId(parsed.data.agentId)
     if (!agentId) return c.json({ ok: false, error: { code: 'MISSING_AGENT_ID', message: 'Missing agent id' } }, 400)
-    const result = await toolGateway.call({ agentId, toolId: parsed.data.toolId, toolInput: parsed.data.input, sessionId: parsed.data.sessionId })
+    const result = await callTool(db, agentId, parsed.data.toolId, parsed.data.input, parsed.data.sessionId)
     return c.json(result, result.ok ? 200 : 400)
   })
 
@@ -56,7 +55,7 @@ export function createSubpolarCliRoutes(db: Database): Hono {
     }
     const query = typeof body.query === 'string' ? body.query.toLowerCase() : ''
     const mcpToolIds = new Set((await listEnabledTools(db)).filter(tool => tool.namespace === 'mcp').map(tool => tool.tool_id))
-    const tools = (await toolGateway.list(agentId)).filter(tool => mcpToolIds.has(tool.id) && (!query || `${tool.id} ${tool.description}`.toLowerCase().includes(query)))
+    const tools = (await listToolsForAgent(db, agentId)).filter(tool => mcpToolIds.has(tool.id) && (!query || `${tool.id} ${tool.description}`.toLowerCase().includes(query)))
     return c.json({ ok: true, tools, failures })
   })
 
@@ -65,7 +64,7 @@ export function createSubpolarCliRoutes(db: Database): Hono {
     const agentId = resolveAgentId(body.agentId)
     if (!agentId || !body.serverId || !body.toolId) return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'agentId, serverId, and toolId are required' } }, 400)
     await discoverMcpTools(db, body.serverId, body.sessionId)
-    const tool = await toolGateway.describe(agentId, body.toolId)
+    const tool = await describeToolForAgent(db, agentId, body.toolId)
     return tool ? c.json({ ok: true, tool }) : c.json({ ok: false, error: { code: 'UNKNOWN_TOOL', message: 'MCP tool is unavailable for this agent' } }, 404)
   })
 
@@ -74,7 +73,7 @@ export function createSubpolarCliRoutes(db: Database): Hono {
     const agentId = resolveAgentId(body.agentId)
     const mcpTool = body.toolId ? await getEnabledTool(db, body.toolId) : null
     if (!agentId || !body.serverId || !body.toolId || !mcpTool || mcpTool.namespace !== 'mcp') return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'A matching agentId, serverId, and MCP toolId are required' } }, 400)
-    const result = await toolGateway.call({ agentId, toolId: body.toolId, toolInput: body.input ?? {}, sessionId: body.sessionId })
+    const result = await callTool(db, agentId, body.toolId, body.input ?? {}, body.sessionId)
     return c.json(result, result.ok ? 200 : 400)
   })
 
@@ -84,7 +83,7 @@ export function createSubpolarCliRoutes(db: Database): Hono {
     if (!agentId) return c.json({ ok: false, error: { code: 'MISSING_AGENT_ID', message: 'Missing agent id' } }, 400)
     const query = typeof body.query === 'string' ? body.query.toLowerCase() : ''
     const openApiToolIds = new Set((await listEnabledTools(db)).filter(tool => tool.namespace === 'openapi').map(tool => tool.tool_id))
-    const tools = (await toolGateway.list(agentId)).filter(tool => openApiToolIds.has(tool.id) && (!query || `${tool.id} ${tool.description}`.toLowerCase().includes(query)))
+    const tools = (await listToolsForAgent(db, agentId)).filter(tool => openApiToolIds.has(tool.id) && (!query || `${tool.id} ${tool.description}`.toLowerCase().includes(query)))
     return c.json({ ok: true, tools })
   })
 
@@ -93,7 +92,7 @@ export function createSubpolarCliRoutes(db: Database): Hono {
     const agentId = resolveAgentId(body.agentId)
     if (!agentId || !body.serverId || !body.toolId) return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'agentId, serverId, and toolId are required' } }, 400)
     await discoverOpenApiTools(db, body.serverId)
-    const tool = await toolGateway.describe(agentId, body.toolId)
+    const tool = await describeToolForAgent(db, agentId, body.toolId)
     return tool ? c.json({ ok: true, tool }) : c.json({ ok: false, error: { code: 'UNKNOWN_TOOL', message: 'OpenAPI tool is unavailable for this agent' } }, 404)
   })
 
@@ -102,7 +101,7 @@ export function createSubpolarCliRoutes(db: Database): Hono {
     const agentId = resolveAgentId(body.agentId)
     const openApiTool = body.toolId ? await getEnabledTool(db, body.toolId) : null
     if (!agentId || !body.serverId || !body.toolId || !openApiTool || openApiTool.namespace !== 'openapi') return c.json({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'A matching agentId, serverId, and OpenAPI toolId are required' } }, 400)
-    const result = await toolGateway.call({ agentId, toolId: body.toolId, toolInput: body.input ?? {}, sessionId: body.sessionId })
+    const result = await callTool(db, agentId, body.toolId, body.input ?? {}, body.sessionId)
     return c.json(result, result.ok ? 200 : 400)
   })
 

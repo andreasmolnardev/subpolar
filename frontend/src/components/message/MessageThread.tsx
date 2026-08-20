@@ -1,9 +1,10 @@
 import { memo, useMemo, useState, useCallback, useEffect } from 'react'
-import { Pencil, Send } from 'lucide-react'
+import { Info, Pencil, Send } from 'lucide-react'
 import { MessagePart } from './MessagePart'
 import { UserMessageActionButtons } from './UserMessageActionButtons'
 import { EditableUserMessage, ClickableUserMessage } from './EditableUserMessage'
 import { MessageError } from './MessageError'
+import { MessageContextDialog } from './MessageContextDialog'
 import type { Message, Part, MessageWithParts } from '@/api/types'
 import { useSessionStatusForSession } from '@/stores/sessionStatusStore'
 import { useSessionTodos } from '@/stores/sessionTodosStore'
@@ -23,6 +24,8 @@ function getMessageTextContent(parts: Part[]): string {
 interface MessageThreadProps {
   apiUrl: string
   sessionID: string
+  projectName?: string
+  agent?: string
   directory?: string
   messages?: MessageWithParts[]
   onFileClick?: (filePath: string, lineNumber?: number) => void
@@ -186,10 +189,13 @@ interface MessageRowProps {
   editingForAssistantId: string | null
   apiUrl: string
   sessionID: string
+  projectName: string
+  agent?: string
   directory?: string
   onFileClick?: (filePath: string, lineNumber?: number) => void
   onChildSessionClick?: (sessionId: string) => void
   handleStartEditUserMessage: (userMessageId: string, assistantMessageId: string) => void
+  onShowContext: (messageId: string) => void
   handleCancelEdit: () => void
   model?: string
   simpleChatMode: boolean
@@ -207,10 +213,13 @@ const MessageRow = memo(function MessageRow({
   editingForAssistantId,
   apiUrl,
   sessionID,
+  projectName = 'General Chat',
+  agent,
   directory,
   onFileClick,
   onChildSessionClick,
   handleStartEditUserMessage,
+  onShowContext,
   handleCancelEdit,
   model,
   simpleChatMode,
@@ -287,7 +296,7 @@ const MessageRow = memo(function MessageRow({
         <div className="flex items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">
-              {msg.role === 'user' ? 'You' : 'General Chat'}
+              {msg.role === 'user' ? 'You' : `${projectName} • ${agent ?? 'default'}`}
             </span>
             {msg.role === 'user' && msg.time && (
               <span className="text-xs text-muted-foreground">
@@ -301,6 +310,15 @@ const MessageRow = memo(function MessageRow({
                 title="Edit message"
               >
                 <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {msg.role === 'user' && (
+              <button
+                onClick={() => onShowContext(msg.id)}
+                className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                title="Show agent context"
+              >
+                <Info className="w-3.5 h-3.5" />
               </button>
             )}
             {isQueued && (
@@ -428,6 +446,8 @@ const MessageRow = memo(function MessageRow({
 export const MessageThread = memo(function MessageThread({ 
   apiUrl, 
   sessionID, 
+  projectName = 'General Chat',
+  agent,
   directory, 
   messages, 
   onFileClick, 
@@ -437,6 +457,7 @@ export const MessageThread = memo(function MessageThread({
 }: MessageThreadProps) {
   const [editingUserMessageId, setEditingUserMessageId] = useState<string | null>(null)
   const [editingForAssistantId, setEditingForAssistantId] = useState<string | null>(null)
+  const [contextMessageId, setContextMessageId] = useState<string | null>(null)
   const sessionStatus = useSessionStatusForSession(sessionID)
   const { preferences } = useSettings()
   const simpleChatMode = preferences?.simpleChatMode ?? false
@@ -543,10 +564,13 @@ export const MessageThread = memo(function MessageThread({
           editingForAssistantId={editingForAssistantId}
           apiUrl={apiUrl}
           sessionID={sessionID}
+          projectName={projectName}
+          agent={agent}
           directory={directory}
           onFileClick={onFileClick}
           onChildSessionClick={onChildSessionClick}
           handleStartEditUserMessage={handleStartEditUserMessage}
+          onShowContext={setContextMessageId}
           handleCancelEdit={handleCancelEdit}
           model={model}
           simpleChatMode={simpleChatMode}
@@ -554,6 +578,15 @@ export const MessageThread = memo(function MessageThread({
         />
       ))}
       {isWaitingForAssistantResponse && <SendingIndicator />}
+      <MessageContextDialog
+        apiUrl={apiUrl}
+        sessionId={sessionID}
+        directory={directory}
+        messageId={contextMessageId}
+        onOpenChange={(open) => {
+          if (!open) setContextMessageId(null)
+        }}
+      />
     </div>
   )
 })

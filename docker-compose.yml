@@ -33,6 +33,7 @@ services:
       - "5103:5103"
     environment:
       - AUTH_SECRET=${AUTH_SECRET}
+      - SUBPOLAR_MCP_SECRET_KEY=${SUBPOLAR_MCP_SECRET_KEY:-}
       - POCKETBASE_URL=http://pocketbase:8090
       - POCKETBASE_EMAIL=${POCKETBASE_EMAIL:-admin@example.com}
       - POCKETBASE_PASSWORD=${POCKETBASE_PASSWORD:-adminpassword}

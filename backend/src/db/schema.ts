@@ -4,6 +4,7 @@ import { logger } from '../utils/logger'
 import { ENV } from '@subpolar/shared/config/env'
 import { DEFAULT_USER_PREFERENCES } from '@subpolar/shared/schemas'
 import { ensureSubpolarCollections } from './subpolar-schema'
+import { AuthService } from '../services/auth'
 
 export type Database = PocketBase
 
@@ -15,6 +16,7 @@ export async function initializeDatabase(): Promise<Database> {
   try {
     const pb = await getPocketBaseClient()
     await ensureSubpolarCollections(pb)
+    await new AuthService(pb).migrateLegacyAuthFile()
 
     const existing = await pb.collection('user_preferences').getFirstListItem('user_id = "default"').catch(() => null)
     if (!existing) {

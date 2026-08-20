@@ -13,11 +13,16 @@ import { Folder, Loader2 } from 'lucide-react'
 
 const projectFormSchema = z.object({
   name: z.string().min(1, 'Project name is required'),
+  mode: z.enum(['existing', 'workspace']),
   directory: z.string().optional(),
   agentNames: z.array(z.string()).optional(),
+}).superRefine((values, context) => {
+  if (!values.directory?.trim()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['directory'], message: 'Directory is required' })
+  }
 })
 
-type ProjectFormValues = z.infer<typeof projectFormSchema>
+export type ProjectFormValues = z.infer<typeof projectFormSchema>
 
 interface ProjectDialogProps {
   open: boolean
@@ -35,12 +40,14 @@ export function ProjectDialog({ open, onOpenChange, onSubmit, availableAgents = 
     resolver: zodResolver(projectFormSchema),
     defaultValues: {
       name: '',
+      mode: 'workspace',
       directory: '',
       agentNames: [],
     },
   })
 
   const name = form.watch('name')
+  const mode = form.watch('mode')
 
   const { data: defaultDirectory } = useQuery({
     queryKey: ['project-default-directory', name, userId],
@@ -57,14 +64,14 @@ export function ProjectDialog({ open, onOpenChange, onSubmit, availableAgents = 
   useEffect(() => {
     if (!open) return
     const current = form.getValues('directory')
-    if (!current && defaultDirectory) {
+    if (mode === 'workspace' && !current && defaultDirectory) {
       form.setValue('directory', defaultDirectory, { shouldDirty: false })
     }
-  }, [defaultDirectory, form, open])
+  }, [defaultDirectory, form, mode, open])
 
   useEffect(() => {
     if (open) return
-    form.reset({ name: '', directory: '', agentNames: [] })
+    form.reset({ name: '', mode: 'workspace', directory: '', agentNames: [] })
     setBrowserOpen(false)
     setBrowserPath(undefined)
   }, [form, open])
@@ -80,10 +87,14 @@ export function ProjectDialog({ open, onOpenChange, onSubmit, availableAgents = 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent mobileFullscreen mobileSwipeToClose className="sm:max-w-[560px]">
+      <DialogContent
+        mobileFullscreen
+        mobileSwipeToClose
+        className="sm:top-1/2 sm:bottom-auto sm:translate-y-[-50%] sm:min-h-[600px] sm:max-w-[560px]"
+      >
         <DialogHeader>
           <DialogTitle>Create Project</DialogTitle>
-          <DialogDescription>Choose a workspace directory and optional project-specific agents.</DialogDescription>
+          <DialogDescription>Choose an existing folder or create a new Docker-friendly workspace.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-5">
@@ -107,13 +118,59 @@ export function ProjectDialog({ open, onOpenChange, onSubmit, availableAgents = 
 
             <FormField
               control={form.control}
+              name="mode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Project location</FormLabel>
+                  <FormControl>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {[
+                        { value: 'workspace' as const, title: 'New workspace', description: 'Create an isolated project folder.' },
+                        { value: 'existing' as const, title: 'Existing directory', description: 'Use a folder that already exists.' },
+                      ].map((option) => (
+                        <label
+                          key={option.value}
+                          className={`cursor-pointer rounded-md border p-3 transition-colors ${field.value === option.value ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent/50'}`}
+                        >
+                          <input
+                            type="radio"
+                            name={field.name}
+                            value={option.value}
+                            checked={field.value === option.value}
+                            onChange={() => {
+                              field.onChange(option.value)
+                              form.setValue('directory', option.value === 'workspace' ? defaultDirectory ?? '' : '')
+                              setBrowserOpen(false)
+                              setBrowserPath(undefined)
+                            }}
+                            className="sr-only"
+                            disabled={isSubmitting}
+                          />
+                          <span className="block text-sm font-medium">{option.title}</span>
+                          <span className="mt-1 block text-xs text-muted-foreground">{option.description}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="directory"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Directory</FormLabel>
+                  <FormLabel>{mode === 'workspace' ? 'Workspace directory' : 'Existing directory'}</FormLabel>
                   <FormControl>
                     <div className="relative">
-                      <Input {...field} placeholder="/path/to/project" disabled={isSubmitting} className="pr-10" />
+                      <Input
+                        {...field}
+                        placeholder={mode === 'workspace' ? '/workspace/users/user/workspaces/project' : '/path/to/existing/project'}
+                        disabled={isSubmitting}
+                        className="pr-10"
+                      />
                       <button
                         type="button"
                         onClick={() => {
@@ -127,6 +184,9 @@ export function ProjectDialog({ open, onOpenChange, onSubmit, availableAgents = 
                       </button>
                     </div>
                   </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    {mode === 'workspace' ? 'Created recursively when submitted.' : 'This directory must already exist.'}
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

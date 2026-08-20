@@ -1,12 +1,17 @@
 import { Hono } from 'hono'
 import type { Database } from '../db/schema'
 import { deleteSessionRecord, getSessionRecord, listSessionRecords, listSessionRecordsByDirectory, upsertSessionRecord } from '../db/sessions'
-import { createMessage, createRun, getRun, getSessionStatuses, listMessages, updateRunStatus, writeRuntimeEvent } from '../db/runs'
+import { createMessage, createRun, getRun, getSessionStatuses, listMessages, updateMessage, updateRunStatus, writeRuntimeEvent } from '../db/runs'
 import type { RuntimeId, RuntimeUsage } from '../runtime/types'
 import type { RuntimeRegistry } from '../runtime/registry'
+import { createRuntimeRunInput } from '../runtime/input'
 import { sseAggregator } from '../services/sse-aggregator'
 import { logger } from '../utils/logger'
 import { getAgentByIdOrSlug } from '../db/subpolar-agents'
+import { createGeneralChatSessionDirectory } from '../services/general-chat'
+import { GENERAL_CHAT_PROJECT_ID } from '@subpolar/shared/utils'
+import path from 'path'
+import fs from 'fs/promises'
 
 type StoredToolState = Record<string, unknown>
 
@@ -21,7 +26,7 @@ type StoredAssistantPart =
   | { type: 'reasoning'; id: string; text: string; time: { start: number } }
   | { type: 'tool'; id: string; callID: string; tool: string; state: StoredToolState }
 
-export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegistry) {
+export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegistry, options?: { apiBaseUrl?: string }) {
   const app = new Hono()
 
   app.get('/', async (c) => {
@@ -57,11 +62,17 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
   app.post('/', async (c) => {
     const body = await c.req.json().catch(() => ({})) as { directory?: unknown; title?: unknown; projectId?: unknown; runtime?: unknown; runtimeSessionId?: unknown }
     const sessionId = crypto.randomUUID()
+    const projectId = typeof body.projectId === 'number' || typeof body.projectId === 'string' ? String(body.projectId) : undefined
+    const requestedDirectory = typeof body.directory === 'string' ? body.directory : null
+    const isGeneralChat = projectId === String(GENERAL_CHAT_PROJECT_ID) || requestedDirectory?.endsWith(`${path.sep}general-chat`) || requestedDirectory?.endsWith('/general-chat')
+    const directory = isGeneralChat
+      ? await createGeneralChatSessionDirectory(sessionId, { db, apiBaseUrl: options?.apiBaseUrl ?? `http://localhost:${process.env.PORT ?? 5003}/api/internal` })
+      : requestedDirectory
     await upsertSessionRecord(db, {
       sessionId,
-      directory: typeof body.directory === 'string' ? body.directory : null,
+      directory,
       title: typeof body.title === 'string' ? body.title : null,
-      projectId: typeof body.projectId === 'number' || typeof body.projectId === 'string' ? String(body.projectId) : undefined,
+      projectId,
     })
     return c.json({ session: { id: sessionId, runtime: 'pi', runtimeSessionId: null } }, 201)
   })
@@ -73,12 +84,31 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
   })
 
   app.delete('/:id', async (c) => {
+    const session = await getSessionRecord(db, c.req.param('id'))
     await deleteSessionRecord(db, c.req.param('id'))
+    if (session?.projectId === GENERAL_CHAT_PROJECT_ID && session.directory?.includes(`${path.sep}subpolar-general-chat${path.sep}`)) {
+      await fs.rm(session.directory, { recursive: true, force: true }).catch(() => {})
+    }
     return c.body(null, 204)
   })
 
   app.get('/:id/messages', async (c) => {
     return c.json({ messages: await listMessages(db, c.req.param('id')) })
+  })
+
+  app.get('/:id/context', async (c) => {
+    const messages = await listMessages(db, c.req.param('id'))
+    const messageId = c.req.query('messageID')
+    const message = messages.find(item => item.id === messageId)
+    if (!message) return c.json({ error: 'Message not found' }, 404)
+
+    const agentId = typeof message.metadata?.agent === 'string' ? message.metadata.agent : 'default'
+    const agent = await getAgentByIdOrSlug(db, agentId)
+    return c.json({
+      agent: agentId,
+      systemPrompt: agent?.systemPrompt || '',
+      messages,
+    })
   })
 
   app.post('/:id/messages', async (c) => {
@@ -88,7 +118,8 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
     const metadata = body.metadata && typeof body.metadata === 'object' ? body.metadata as Record<string, unknown> : {}
     const createdAt = typeof body.createdAt === 'number' && Number.isFinite(body.createdAt) ? body.createdAt : undefined
     const message = await createMessage(db, { sessionId: c.req.param('id'), role, content, metadata, createdAt })
-    const directory = c.req.query('directory')
+    const session = await getSessionRecord(db, c.req.param('id'))
+    const directory = session?.directory ?? c.req.query('directory')
     if (directory) {
       sseAggregator.publish(directory, {
         type: 'message.updated',
@@ -131,7 +162,8 @@ export function createSessionRoutes(db: Database, runtimeRegistry?: RuntimeRegis
       ? body.permissionOverride
       : undefined
     const runtime: RuntimeId = 'pi'
-    const directory = c.req.query('directory')
+    const session = await getSessionRecord(db, c.req.param('id'))
+    const directory = session?.directory ?? c.req.query('directory')
     const metadata = {
       ...(permissionOverride ? { permissionOverride } : {}),
       ...(directory ? { directory } : {}),
@@ -184,7 +216,7 @@ async function generateSessionTitle(runtimeRegistry: RuntimeRegistry, sessionId:
   let content = ''
   const prompt = `for the following session log, output a brief plain-text title in 3 - 6 words. Do not use markdown formatting, code fences, bullets, headings, or quotes.\n\nUser: ${userMessage}`
 
-  for await (const event of runtimeRegistry.get('pi').run({
+  const runtimeInput = createRuntimeRunInput({
     runId: crypto.randomUUID(),
     sessionId,
     agentId: 'session-naming',
@@ -196,7 +228,9 @@ async function generateSessionTitle(runtimeRegistry: RuntimeRegistry, sessionId:
       createdAt: Date.now(),
     }],
     model,
-  })) {
+  })
+
+  for await (const event of runtimeRegistry.get('pi').run(runtimeInput)) {
     if (event.type === 'message.delta') content += event.content
     if (event.type === 'run.failed') throw new Error(event.error)
   }
@@ -284,7 +318,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
 
   await updateRunStatus(db, runId, 'running')
   const messages = await listMessages(db, run.sessionId)
-  const assistantMessageId = crypto.randomUUID()
+  let assistantMessageId = ''
   const assistantCreatedAt = requestedAt ?? Date.now()
   let assistantCompletedAt: number | null = null
   let assistantModelId = getModelId(model)
@@ -309,8 +343,36 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
     if (directory) sseAggregator.publish(directory, event)
   }
 
-  const publishAssistantMessageStarted = () => {
+  const assistantMetadata = (completedAt?: number) => ({
+    runId,
+    reasoning: reasoningContent,
+    assistantParts,
+    ...(completedAt ? { completedAt } : {}),
+    modelID: assistantModelId,
+    finishReason: assistantFinishReason,
+    usage: assistantUsage,
+    tools: [...toolParts.values()],
+    streaming: !completedAt,
+  })
+
+  const persistAssistantMessage = async (completedAt?: number) => {
+    if (!assistantMessageId) return
+    await updateMessage(db, assistantMessageId, {
+      content: assistantContent,
+      metadata: assistantMetadata(completedAt),
+    })
+  }
+
+  const publishAssistantMessageStarted = async () => {
     if (assistantMessageStarted) return
+    const message = await createMessage(db, {
+      sessionId: run.sessionId,
+      role: 'assistant',
+      content: assistantContent,
+      metadata: assistantMetadata(),
+      createdAt: assistantCreatedAt,
+    })
+    assistantMessageId = message.id
     assistantMessageStarted = true
     publish({
       type: 'message.updated',
@@ -335,7 +397,10 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
   }
 
   const openTextPart = () => {
-    currentTextPartId = `${assistantMessageId}-text-${assistantTextPartIndex++}`
+    currentTextPartId = assistantTextPartIndex === 0
+      ? `${assistantMessageId}-text`
+      : `${assistantMessageId}-text-${assistantTextPartIndex}`
+    assistantTextPartIndex += 1
     currentTextSegmentContent = ''
     assistantTextPartNeedsSplit = false
     const part = {
@@ -355,7 +420,10 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
   }
 
   const openReasoningPart = () => {
-    currentReasoningPartId = `${assistantMessageId}-reasoning-${reasoningPartIndex++}`
+    currentReasoningPartId = reasoningPartIndex === 0
+      ? `${assistantMessageId}-reasoning`
+      : `${assistantMessageId}-reasoning-${reasoningPartIndex}`
+    reasoningPartIndex += 1
     currentReasoningSegmentContent = ''
     reasoningPartNeedsSplit = false
     currentReasoningPartStart = Date.now()
@@ -377,23 +445,9 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
   }
 
   const finishAssistantMessage = async () => {
-    if (!assistantContent && !reasoningContent && toolParts.size === 0) return
-    await createMessage(db, {
-      sessionId: run.sessionId,
-      role: 'assistant',
-      content: assistantContent,
-      metadata: {
-        runId,
-        reasoning: reasoningContent,
-        assistantParts,
-        completedAt: assistantCompletedAt ?? Date.now(),
-        modelID: assistantModelId,
-        finishReason: assistantFinishReason,
-        usage: assistantUsage,
-        tools: [...toolParts.values()],
-      },
-    })
     if (!assistantMessageStarted) return
+    const completedAt = assistantCompletedAt ?? Date.now()
+    await persistAssistantMessage(completedAt)
     publish({
       type: 'message.updated',
       properties: {
@@ -401,16 +455,17 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
           id: assistantMessageId,
           sessionID: run.sessionId,
           role: 'assistant',
-          time: { created: assistantCreatedAt, completed: assistantCompletedAt ?? Date.now() },
+          time: { created: assistantCreatedAt, completed: completedAt },
           modelID: assistantModelId,
         },
       },
     })
-    publishStepFinishPart()
+    await publishStepFinishPart()
   }
 
-  const publishToolPart = (toolPart: StoredToolPart) => {
-    publishAssistantMessageStarted()
+  const publishToolPart = async (toolPart: StoredToolPart) => {
+    await publishAssistantMessageStarted()
+    await persistAssistantMessage()
     publish({
       type: 'message.part.updated',
       properties: {
@@ -432,7 +487,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
     reasoningPartNeedsSplit = true
   }
 
-  const publishStepFinishPart = () => {
+  const publishStepFinishPart = async () => {
     publish({
       type: 'message.part.updated',
       properties: {
@@ -460,21 +515,22 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
   publish({ type: 'session.status', properties: { sessionID: run.sessionId, status: { type: 'busy' } } })
 
   try {
-    for await (const event of runtimeRegistry.get(run.runtime).run({
+    const runtimeInput = createRuntimeRunInput({
       runId,
       sessionId: run.sessionId,
       agentId: run.agentId,
       projectId,
       cwd: directory,
       messages,
+      agent,
       model,
-      systemPrompt: agent?.systemPrompt || agent?.prompt,
-      skillAccess: agent?.skillAccess.length ? agent.skillAccess : agent?.skills.map(id => ({ id, discovery: 'description' as const })),
-    })) {
+    })
+
+    for await (const event of runtimeRegistry.get(run.runtime).run(runtimeInput)) {
       await writeRuntimeEvent(db, { runId, sessionId: run.sessionId, event })
       if (event.type === 'message.delta') {
         assistantContent += event.content
-        publishAssistantMessageStarted()
+        await publishAssistantMessageStarted()
         if (currentTextPartId === null || assistantTextPartNeedsSplit) {
           openTextPart()
         }
@@ -482,6 +538,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
         if (!textPartId) continue
         currentTextSegmentContent += event.content
         upsertAssistantPart({ type: 'text', id: textPartId, text: currentTextSegmentContent })
+        await persistAssistantMessage()
         publish({
           type: 'message.part.delta',
           properties: {
@@ -495,7 +552,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       }
       if (event.type === 'message.reasoning.delta') {
         reasoningContent += event.content
-        publishAssistantMessageStarted()
+        await publishAssistantMessageStarted()
         if (currentReasoningPartId === null || reasoningPartNeedsSplit) {
           openReasoningPart()
         }
@@ -503,6 +560,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
         if (!reasoningPartId) continue
         currentReasoningSegmentContent += event.content
         upsertAssistantPart({ type: 'reasoning', id: reasoningPartId, text: currentReasoningSegmentContent, time: { start: currentReasoningPartStart } })
+        await persistAssistantMessage()
         publish({
           type: 'message.part.delta',
           properties: {
@@ -522,6 +580,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
       }
       if (event.type === 'tool.requested') {
         markContentBoundary()
+        await publishAssistantMessageStarted()
         const state = {
           status: 'running',
           input: asRecord(event.input),
@@ -536,7 +595,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
           tool: toolPart.tool,
           state: toolPart.state,
         })
-        publishToolPart(toolPart)
+        await publishToolPart(toolPart)
       }
       if (event.type === 'tool.updated') {
         markContentBoundary()
@@ -556,7 +615,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
             tool: existing.tool,
             state: existing.state,
           })
-          publishToolPart(existing)
+          await publishToolPart(existing)
         }
       }
       if (event.type === 'tool.completed') {
@@ -578,7 +637,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
           tool: existing.tool,
           state: existing.state,
         })
-        publishToolPart(existing)
+        await publishToolPart(existing)
       }
       if (event.type === 'tool.failed') {
         markContentBoundary()
@@ -598,7 +657,7 @@ async function executeRun(db: Database, runtimeRegistry: RuntimeRegistry, runId:
           tool: existing.tool,
           state: existing.state,
         })
-        publishToolPart(existing)
+        await publishToolPart(existing)
       }
       if (event.type === 'run.failed') {
         await finishAssistantMessage()

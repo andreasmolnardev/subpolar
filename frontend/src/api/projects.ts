@@ -33,6 +33,7 @@ export async function getProject(id: number): Promise<Project> {
 
 export async function createProject(data: {
   name: string
+  mode?: 'existing' | 'workspace'
   directory?: string
   piConfigName?: string
   agentNames?: string[]

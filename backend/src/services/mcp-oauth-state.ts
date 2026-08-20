@@ -19,10 +19,8 @@ const flowStore = new Map<string, McpOAuthFlowState>()
 const resultStore = new Map<string, McpOAuthFlowResult & { timestamp: number }>()
 const STATE_TTL_MS = 10 * 60 * 1000
 const RESULT_TTL_MS = 5 * 60 * 1000
-const CLEANUP_INTERVAL_MS = 60 * 1000
 
-setInterval(() => {
-  const now = Date.now()
+function purgeExpired(now = Date.now()): void {
   for (const [key, value] of flowStore) {
     if (now - value.timestamp > STATE_TTL_MS) {
       flowStore.delete(key)
@@ -33,14 +31,16 @@ setInterval(() => {
       resultStore.delete(key)
     }
   }
-}, CLEANUP_INTERVAL_MS)
+}
 
 export function storeMcpOAuthFlow(state: string, data: Omit<McpOAuthFlowState, 'timestamp'>): void {
+  purgeExpired()
   flowStore.set(state, { ...data, timestamp: Date.now() })
   resultStore.set(state, { status: 'pending', timestamp: Date.now() })
 }
 
 export function consumeMcpOAuthFlow(state: string): McpOAuthFlowState | undefined {
+  purgeExpired()
   const data = flowStore.get(state)
   if (data) {
     flowStore.delete(state)
@@ -49,18 +49,22 @@ export function consumeMcpOAuthFlow(state: string): McpOAuthFlowState | undefine
 }
 
 export function deleteMcpOAuthFlow(state: string): void {
+  purgeExpired()
   flowStore.delete(state)
 }
 
 export function markMcpOAuthFlowCompleted(state: string, serverName: string): void {
+  purgeExpired()
   resultStore.set(state, { status: 'completed', serverName, timestamp: Date.now() })
 }
 
 export function markMcpOAuthFlowFailed(state: string, error: string): void {
+  purgeExpired()
   resultStore.set(state, { status: 'failed', error, timestamp: Date.now() })
 }
 
 export function getMcpOAuthFlowResult(state: string): McpOAuthFlowResult | undefined {
+  purgeExpired()
   const entry = resultStore.get(state)
   if (!entry) return undefined
   if (entry.status === 'completed') return { status: entry.status, serverName: entry.serverName }

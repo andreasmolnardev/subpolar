@@ -20,6 +20,7 @@ export class ProjectServiceError extends Error {
 
 const CreateProjectSchema = z.object({
   name: z.string().min(1).max(256),
+  mode: z.enum(['existing', 'workspace']).default('workspace'),
   directory: z.string().max(1024).optional(),
   openCodeConfigName: z.string().optional(),
   piConfigName: z.string().optional(),
@@ -62,7 +63,7 @@ function slugifyProjectName(name: string): string {
 }
 
 function getDefaultProjectDirectory(userId: string, projectName: string): string {
-  return path.join(getWorkspacePath(), 'users', userId, 'workspaces', slugifyProjectName(projectName))
+  return path.join(getWorkspacePath(), 'users', slugifyProjectName(userId), 'workspaces', slugifyProjectName(projectName))
 }
 
 function canShowDirectory(directory: string, userId: string): boolean {
@@ -195,7 +196,14 @@ export function createProjectRoutes(database: PocketBase) {
       const body = await c.req.json()
       const input = CreateProjectSchema.parse(body)
       const userId = input.userId || c.req.query('userId') || 'default'
-      const directory = input.directory || input.name
+      const directory = input.directory || (input.mode === 'workspace' ? getDefaultProjectDirectory(userId, input.name) : '')
+      if (!directory) throw new ProjectServiceError('Existing directory is required', 400)
+      if (input.mode === 'workspace') {
+        await fs.mkdir(directory, { recursive: true })
+      } else {
+        const stats = await fs.stat(directory).catch(() => null)
+        if (!stats?.isDirectory()) throw new ProjectServiceError('Existing directory does not exist', 400)
+      }
       const project = await createProject(database, {
         userId,
         name: input.name,

@@ -13,6 +13,7 @@ import { settingsApi } from '@/api/settings'
 import { showToast } from '@/lib/toast'
 
 type IntegrationType = IntegrationConfig['type']
+type IntegrationChoice = IntegrationType | 'mcp-docker' | 'mcp-remote' | 'mcp-local'
 
 const integrationTypes: Record<IntegrationType, { label: string; description: string }> = {
   mcp: { label: 'MCP', description: 'Model Context Protocol server access for agent tools' },
@@ -21,28 +22,34 @@ const integrationTypes: Record<IntegrationType, { label: string; description: st
   mail: { label: 'IMAP/SMTP', description: 'Email inbox and sending configuration for mail-aware agents' },
 }
 
-function createIntegration(type: IntegrationType): IntegrationConfig {
+function createIntegration(type: IntegrationChoice): IntegrationConfig {
+  const mcpMode = type === 'mcp-docker' ? 'docker' : type === 'mcp-local' ? 'local' : undefined
+  const integrationType: IntegrationType = type === 'mcp-docker' || type === 'mcp-remote' || type === 'mcp-local' ? 'mcp' : type
   const base = {
     id: crypto.randomUUID(),
-    name: integrationTypes[type].label,
+    name: integrationType === 'mcp' ? 'MCP' : integrationTypes[integrationType].label,
     enabled: true,
   }
 
-  if (type === 'mcp') {
-    return { ...base, type, transport: 'streamable-http', serverUrl: '', command: [], cwd: '', environment: {}, headers: {}, timeout: 15000 }
+  if (integrationType === 'mcp') {
+    return mcpMode === 'docker'
+      ? { ...base, type: 'mcp', transport: 'stdio', execution: 'docker', image: '', args: [], environment: {}, headers: {}, timeout: 15000 }
+      : mcpMode === 'local'
+        ? { ...base, type: 'mcp', transport: 'stdio', execution: 'local', command: [], cwd: '', environment: {}, headers: {}, timeout: 15000 }
+        : { ...base, type: 'mcp', transport: 'streamable-http', serverUrl: '', environment: {}, headers: {}, timeout: 15000 }
   }
 
   if (type === 'openapi') {
-    return { ...base, type, providerName: 'api', document: '{\n  "openapi": "3.0.0",\n  "info": { "title": "API", "version": "1.0.0" },\n  "servers": [{ "url": "https://api.example.com" }],\n  "paths": {}\n}', serverUrl: '', timeout: 15000, authType: 'spec', authKeyName: '', authPlacement: 'header', authValue: '', authUsername: '', authPassword: '', headers: {} }
+    return { ...base, type: 'openapi', providerName: 'api', document: '{\n  "openapi": "3.0.0",\n  "info": { "title": "API", "version": "1.0.0" },\n  "servers": [{ "url": "https://api.example.com" }],\n  "paths": {}\n}', serverUrl: '', timeout: 15000, authType: 'spec', authKeyName: '', authPlacement: 'header', authValue: '', authUsername: '', authPassword: '', headers: {} }
   }
 
   if (type === 'caldav') {
-    return { ...base, type, serverUrl: '', username: '', password: '', calendarUrl: '' }
+    return { ...base, type: 'caldav', serverUrl: '', username: '', password: '', calendarUrl: '' }
   }
 
   return {
     ...base,
-    type,
+    type: 'mail',
     imapHost: '',
     imapPort: 993,
     smtpHost: '',
@@ -51,6 +58,16 @@ function createIntegration(type: IntegrationType): IntegrationConfig {
     password: '',
     fromAddress: '',
   }
+}
+
+function integrationChoice(integration: IntegrationConfig): IntegrationChoice {
+  if (integration.type !== 'mcp') return integration.type
+  if (integration.transport === 'streamable-http') return 'mcp-remote'
+  return integration.execution === 'docker' ? 'mcp-docker' : 'mcp-local'
+}
+
+function mcpLabel(integration: Extract<IntegrationConfig, { type: 'mcp' }>): string {
+  return integration.transport === 'streamable-http' ? 'Remote HTTP' : integration.execution === 'docker' ? 'Docker stdio' : 'Local stdio'
 }
 
 function IntegrationIcon({ type }: { type: IntegrationType }) {
@@ -115,7 +132,7 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
 
   useEffect(() => {
     if (!open) return
-    setFormData(integration ?? createIntegration('mcp'))
+    setFormData(integration ? integration.type === 'mcp' ? { ...integration, environment: Object.fromEntries((integration.environmentKeys ?? []).map(key => [key, ''])), headers: Object.fromEntries((integration.headerNames ?? []).map(key => [key, ''])) } : integration : createIntegration('mcp-docker'))
     setCalDavCalendars([])
     setIsTestingCalDav(false)
     setDiscoveredTools([])
@@ -125,7 +142,7 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
     setFormData((current) => ({ ...current, [field]: value } as IntegrationConfig))
   }
 
-  const changeType = (type: IntegrationType) => {
+  const changeType = (type: IntegrationChoice) => {
     setFormData((current) => ({ ...createIntegration(type), id: current.id, name: current.name }))
   }
 
@@ -136,7 +153,11 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
     }
 
     if (formData.type === 'mcp') {
-      if (formData.transport === 'stdio' && !(formData.command?.length)) {
+      if (formData.execution === 'docker' && !formData.image?.trim()) {
+        showToast.error('A Docker image is required')
+        return
+      }
+      if (formData.transport === 'stdio' && formData.execution !== 'docker' && !(formData.command?.length)) {
         showToast.error('A command is required for a local MCP server')
         return
       }
@@ -231,12 +252,14 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
           <div className="space-y-4 flex-shrink-0">
             <div className="space-y-2">
               <Label htmlFor="integration-type">Type</Label>
-              <Select value={formData.type} onValueChange={(value) => changeType(value as IntegrationType)} disabled={Boolean(integration) || isSaving}>
+              <Select value={integrationChoice(formData)} onValueChange={(value) => changeType(value as IntegrationChoice)} disabled={Boolean(integration) || isSaving}>
                 <SelectTrigger id="integration-type">
                   <SelectValue />
                 </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="mcp">MCP</SelectItem>
+                     <SelectItem value="mcp-docker">MCP: stdio via Docker</SelectItem>
+                     <SelectItem value="mcp-remote">MCP: Remote Streamable HTTP</SelectItem>
+                     <SelectItem value="mcp-local">MCP: local stdio</SelectItem>
                     <SelectItem value="openapi">OpenAPI</SelectItem>
                   <SelectItem value="caldav">CalDAV</SelectItem>
                   <SelectItem value="mail">IMAP/SMTP</SelectItem>
@@ -256,17 +279,17 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
 
             {formData.type === 'mcp' && (
               <>
-                <div className="space-y-2">
-                  <Label htmlFor="mcp-transport">Transport</Label>
-                  <Select value={formData.transport} onValueChange={(value) => updateField('transport', value)} disabled={isSaving}>
-                    <SelectTrigger id="mcp-transport"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="streamable-http">Remote Streamable HTTP</SelectItem>
-                      <SelectItem value="stdio">Local command (stdio)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {formData.transport === 'stdio' ? <>
+                 {formData.execution === 'docker' ? <>
+                   <div className="space-y-2">
+                     <Label htmlFor="mcp-image">Docker image</Label>
+                     <Input id="mcp-image" className="font-mono" placeholder="docker.gitea.com/gitea-mcp-server" value={formData.image ?? ''} onChange={(event) => updateField('image', event.target.value)} disabled={isSaving} />
+                   </div>
+                   <div className="space-y-2">
+                     <Label htmlFor="mcp-args">Docker arguments</Label>
+                     <Textarea id="mcp-args" className="font-mono" placeholder="One exact argv item per line" value={(formData.args ?? []).join('\n')} onChange={(event) => updateField('args', event.target.value.split('\n').filter(Boolean))} disabled={isSaving} />
+                     <p className="text-xs text-muted-foreground">Each line is passed as one argument without shell interpretation.</p>
+                   </div>
+                 </> : formData.transport === 'stdio' ? <>
                   <div className="space-y-2">
                     <Label htmlFor="mcp-command">Command and arguments</Label>
                     <Input id="mcp-command" className="font-mono" placeholder="npx -y @modelcontextprotocol/server-filesystem /tmp" value={(formData.command ?? []).join(' ')} onChange={(event) => updateField('command', event.target.value.split(' ').filter(Boolean))} disabled={isSaving} />
@@ -280,7 +303,7 @@ function IntegrationDialog({ open, integration, isSaving, onOpenChange, onSave }
                   <Label htmlFor="mcp-server-url">Server URL</Label>
                   <Input id="mcp-server-url" className="font-mono" placeholder="https://mcp.example.com/mcp" value={formData.serverUrl ?? ''} onChange={(event) => updateField('serverUrl', event.target.value)} disabled={isSaving} />
                 </div>}
-                <McpKeyValueFields label="Environment variables" description="Available only to the local MCP process." values={formData.environment ?? {}} onChange={(environment) => updateField('environment', environment)} disabled={isSaving || formData.transport !== 'stdio'} />
+                 <McpKeyValueFields label="Environment variables" description={formData.execution === 'docker' ? 'Forwarded to the Docker MCP container. Values are write-only.' : 'Available only to the local MCP process. Values are write-only.'} values={formData.environment ?? {}} onChange={(environment) => updateField('environment', environment)} disabled={isSaving || formData.transport !== 'stdio'} />
                 <McpKeyValueFields label="HTTP headers" description="Sent with every remote MCP request. Values are write-only." values={formData.headers ?? {}} onChange={(headers) => updateField('headers', headers)} disabled={isSaving || formData.transport !== 'streamable-http'} />
                 <div className="space-y-2">
                   <Label htmlFor="mcp-timeout">Request timeout (ms)</Label>
@@ -567,7 +590,7 @@ export function IntegrationsSettings() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="font-medium text-foreground truncate">{integration.name}</h3>
-                    <span className="text-xs rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{integrationTypes[integration.type].label}</span>
+                    <span className="text-xs rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{integration.type === 'mcp' ? mcpLabel(integration) : integrationTypes[integration.type].label}</span>
                   </div>
                   <p className="text-sm text-muted-foreground truncate">{integrationTypes[integration.type].description}</p>
                 </div>

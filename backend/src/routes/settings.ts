@@ -1,4 +1,6 @@
 import { Hono } from 'hono'
+import fs from 'fs/promises'
+import path from 'path'
 import { z } from 'zod'
 import type { Database } from '../db/schema'
 import { SettingsService } from '../services/settings'
@@ -14,7 +16,7 @@ import {
 } from '@subpolar/shared'
 import { logger } from '../utils/logger'
 import { DEFAULT_AGENTS_MD } from '../constants'
-import { discoverCalDavCalendars, getUpcomingCalDavEvents } from '../services/caldav'
+import { createCalDavEvent, createCalDavTodo, deleteCalDavTodo, discoverCalDavCalendars, getCalDavTodos, getUpcomingCalDavEvents, updateCalDavEvent, updateCalDavTodo } from '../services/caldav'
 import { createSkill, deleteSkill, getSkill, listManagedSkills, updateSkill } from '../services/skills'
 import {
   createIntegration,
@@ -24,7 +26,7 @@ import {
   toSettingsIntegrationType,
   updateIntegration,
 } from '../db/integrations'
-import { listEnabledTools, listPoliciesForAgent, replacePoliciesForAgent } from '../db/subpolar-tools'
+import { listEnabledTools, replacePoliciesForAgent } from '../db/subpolar-tools'
 import { closeMcpSession, discoverConfiguredMcpTools, discoverMcpTools, saveMcpSecrets } from '../services/mcp'
 import { discoverOpenApiDocument, discoverOpenApiTools, normalizeProviderName, saveOpenApiSecrets } from '../services/openapi'
 
@@ -56,8 +58,26 @@ const DiscoverCalDavCalendarsSchema = z.object({
   password: z.string().min(1),
 })
 
+const CreateCalDavEventSchema = z.object({
+  calendarId: z.string().min(1).optional(),
+  title: z.string().trim().min(1).max(500),
+  start: z.string().datetime(),
+  end: z.string().datetime(),
+  location: z.string().trim().max(500).optional(),
+  description: z.string().trim().max(10_000).optional(),
+})
+
+const UpdateCalDavEventSchema = CreateCalDavEventSchema.extend({
+  calendarId: z.string().min(1),
+  uid: z.string().min(1),
+})
+
+const CreateCalDavTodoSchema = z.object({ calendarId: z.string().min(1).optional(), text: z.string().trim().min(1).max(500) })
+const UpdateCalDavTodoSchema = z.object({ calendarId: z.string().min(1), uid: z.string().min(1), completed: z.boolean() })
+const DeleteCalDavTodoSchema = UpdateCalDavTodoSchema.pick({ calendarId: true, uid: true })
+
 const IntegrationConfigRequestSchema = z.discriminatedUnion('type', [
-  z.object({ name: z.string().min(1), type: z.literal('mcp'), enabled: z.boolean(), transport: z.enum(['stdio', 'streamable-http']), command: z.array(z.string().min(1)).optional(), cwd: z.string().optional(), environment: z.record(z.string(), z.string()).optional(), serverUrl: z.union([z.string().url(), z.literal('')]).optional(), headers: z.record(z.string(), z.string()).optional(), timeout: z.number().int().min(1000).max(120000).optional(), environmentKeys: z.array(z.string()).optional(), headerNames: z.array(z.string()).optional() }),
+  z.object({ name: z.string().min(1), type: z.literal('mcp'), enabled: z.boolean(), transport: z.enum(['stdio', 'streamable-http']), execution: z.enum(['local', 'docker']).optional(), command: z.array(z.string().min(1)).optional(), image: z.string().min(1).optional(), args: z.array(z.string()).optional(), cwd: z.string().optional(), environment: z.record(z.string(), z.string()).optional(), serverUrl: z.union([z.string().url(), z.literal('')]).optional(), headers: z.record(z.string(), z.string()).optional(), timeout: z.number().int().min(1000).max(120000).optional(), environmentKeys: z.array(z.string()).optional(), headerNames: z.array(z.string()).optional() }),
   z.object({ name: z.string().min(1), type: z.literal('openapi'), enabled: z.boolean(), providerName: z.string().min(1), document: z.string().min(2), serverUrl: z.union([z.string().url(), z.literal('')]).optional(), timeout: z.number().int().min(1000).max(120000).optional(), authType: z.enum(['spec', 'none', 'apiKey', 'bearer', 'basic', 'headers']).optional(), authKeyName: z.string().optional(), authPlacement: z.enum(['header', 'query', 'cookie']).optional(), authValue: z.string().optional(), authUsername: z.string().optional(), authPassword: z.string().optional(), headers: z.record(z.string(), z.string()).optional(), headerNames: z.array(z.string()).optional() }),
   z.object({ name: z.string().min(1), type: z.literal('caldav'), enabled: z.boolean(), serverUrl: z.string(), username: z.string(), password: z.string(), calendarUrl: z.string() }),
   z.object({ name: z.string().min(1), type: z.literal('mail'), enabled: z.boolean(), imapHost: z.string(), imapPort: z.number().int().min(1).max(65535), smtpHost: z.string(), smtpPort: z.number().int().min(1).max(65535), username: z.string(), password: z.string(), fromAddress: z.string() }),
@@ -67,8 +87,9 @@ const McpServerRequestSchema = z.object({
   name: z.string().min(1).max(120),
   config: z.object({
     type: z.enum(['local', 'remote']).optional(),
-    transport: z.enum(['stdio', 'streamable-http']).optional(),
+    transport: z.enum(['stdio', 'streamable-http']).optional(), execution: z.enum(['local', 'docker']).optional(),
     command: z.array(z.string().min(1)).optional(),
+    image: z.string().min(1).optional(), args: z.array(z.string()).optional(),
     cwd: z.string().optional(),
     environment: z.record(z.string(), z.string()).optional(),
     url: z.string().url().optional(),
@@ -80,9 +101,12 @@ const McpServerRequestSchema = z.object({
 
 function toMcpConfig(config: z.infer<typeof McpServerRequestSchema>['config']) {
   const transport = config.transport ?? (config.type === 'local' ? 'stdio' : 'streamable-http')
-  if (transport === 'stdio' && !config.command?.length) throw new Error('command is required for local MCP servers')
+  const execution = config.execution ?? 'local'
+  if (transport === 'stdio' && execution === 'local' && !config.command?.length) throw new Error('command is required for local MCP servers')
+  if (transport === 'stdio' && execution === 'docker' && !config.image) throw new Error('image is required for Docker MCP servers')
+  if (transport === 'streamable-http' && execution === 'docker') throw new Error('Docker MCP servers must use stdio transport')
   if (transport === 'streamable-http' && !config.url) throw new Error('url is required for remote MCP servers')
-  return { transport, command: config.command, cwd: config.cwd, url: config.url, timeout: config.timeout }
+  return { transport, execution, command: config.command, image: config.image, args: config.args, cwd: config.cwd, url: config.url, timeout: config.timeout }
 }
 
 function integrationToSettingsConfig(integration: Awaited<ReturnType<typeof listIntegrations>>[number]) {
@@ -120,12 +144,17 @@ type IntegrationSaveData = Parameters<typeof createIntegration>[1] & { secrets?:
 
 function settingsConfigToIntegrationData(config: z.infer<typeof IntegrationConfigRequestSchema>): IntegrationSaveData {
   if (config.type === 'mcp') {
-    const mcp = config as { name: string; enabled: boolean; transport: 'stdio' | 'streamable-http'; command?: string[]; cwd?: string; environment?: Record<string, string>; serverUrl?: string; headers?: Record<string, string>; timeout?: number; environmentKeys?: string[]; headerNames?: string[] }
+    const mcp = config as { name: string; enabled: boolean; transport: 'stdio' | 'streamable-http'; execution?: 'local' | 'docker'; command?: string[]; image?: string; args?: string[]; cwd?: string; environment?: Record<string, string>; serverUrl?: string; headers?: Record<string, string>; timeout?: number; environmentKeys?: string[]; headerNames?: string[] }
+    if (mcp.execution === 'docker' && mcp.transport !== 'stdio') throw new Error('Docker MCP servers must use stdio transport')
+    if (mcp.execution === 'docker' && !mcp.image?.trim()) throw new Error('Docker image is required')
+    if (mcp.transport === 'stdio' && mcp.execution !== 'docker' && !mcp.command?.length) throw new Error('Command is required for local MCP servers')
+    if (mcp.transport === 'streamable-http' && !mcp.serverUrl) throw new Error('Server URL is required for remote MCP servers')
+    if (mcp.transport === 'streamable-http' && (mcp.image || mcp.args?.length)) throw new Error('Docker image and arguments require stdio transport')
     return {
       name: mcp.name,
       type: 'mcp' as const,
       enabled: mcp.enabled,
-      config: { transport: mcp.transport, command: mcp.command, cwd: mcp.cwd || undefined, url: mcp.serverUrl || undefined, timeout: mcp.timeout },
+      config: { transport: mcp.transport, execution: mcp.execution, command: mcp.command, image: mcp.image, args: mcp.args, cwd: mcp.cwd || undefined, url: mcp.serverUrl || undefined, timeout: mcp.timeout },
       metadata: { environmentKeys: mcp.environmentKeys ?? Object.keys(mcp.environment ?? {}), headerNames: mcp.headerNames ?? Object.keys(mcp.headers ?? {}) },
       secrets: { environment: mcp.environment, headers: mcp.headers },
     }
@@ -290,11 +319,6 @@ export function createSettingsRoutes(db: Database) {
     return c.json(config)
   })
 
-  app.get('/agents/:agentId/tool-policies', async (c) => {
-    const policies = await listPoliciesForAgent(db, c.req.param('agentId'))
-    return c.json({ policies })
-  })
-
   app.put('/agents/:agentId/tool-policies', async (c) => {
     try {
       const parsed = AgentToolPoliciesUpdateSchema.parse(await c.req.json())
@@ -352,7 +376,8 @@ export function createSettingsRoutes(db: Database) {
       const validated = IntegrationConfigRequestSchema.parse(await c.req.json())
       const data = settingsConfigToIntegrationData(validated)
       const integration = await updateIntegration(db, c.req.param('id'), data)
-      if (integration.type === 'mcp' && data.secrets && (Object.keys(data.secrets.environment ?? {}).length > 0 || Object.keys(data.secrets.headers ?? {}).length > 0)) await saveMcpSecrets(db, integration.id, data.secrets)
+      if (integration.type === 'mcp' && data.secrets) await saveMcpSecrets(db, integration.id, data.secrets, true)
+      if (integration.type === 'mcp') closeMcpSession('discovery')
       if (integration.type === 'mcp' && integration.enabled) await discoverConfiguredMcpTools(db)
       if (integration.type === 'openapi' && data.secrets) await saveOpenApiSecrets(db, integration.id, data.secrets)
       if (integration.type === 'openapi' && integration.enabled) await discoverOpenApiTools(db, integration.id)
@@ -379,9 +404,63 @@ export function createSettingsRoutes(db: Database) {
 
   app.get('/calendar/upcoming', async (c) => c.json(await getUpcomingCalDavEvents(db)))
 
+  app.post('/calendar/events', async (c) => {
+    try {
+      return c.json(await createCalDavEvent(db, CreateCalDavEventSchema.parse(await c.req.json())))
+    } catch (error) {
+      if (error instanceof z.ZodError) return c.json({ error: 'Invalid calendar event', details: error.issues }, 400)
+      logger.error('Failed to create CalDAV event:', error)
+      return c.json({ error: error instanceof Error ? error.message : 'Failed to create calendar event' }, 500)
+    }
+  })
+
+  app.put('/calendar/events', async (c) => {
+    try {
+      return c.json(await updateCalDavEvent(db, UpdateCalDavEventSchema.parse(await c.req.json())))
+    } catch (error) {
+      if (error instanceof z.ZodError) return c.json({ error: 'Invalid calendar event', details: error.issues }, 400)
+      logger.error('Failed to update CalDAV event:', error)
+      return c.json({ error: error instanceof Error ? error.message : 'Failed to update calendar event' }, 500)
+    }
+  })
+
+  app.get('/calendar/todos', async (c) => c.json(await getCalDavTodos(db)))
+
+  app.post('/calendar/todos', async (c) => {
+    try {
+      return c.json(await createCalDavTodo(db, CreateCalDavTodoSchema.parse(await c.req.json())))
+    } catch (error) {
+      if (error instanceof z.ZodError) return c.json({ error: 'Invalid calendar task', details: error.issues }, 400)
+      logger.error('Failed to create CalDAV task:', error)
+      return c.json({ error: error instanceof Error ? error.message : 'Failed to create calendar task' }, 500)
+    }
+  })
+
+  app.patch('/calendar/todos', async (c) => {
+    try {
+      return c.json(await updateCalDavTodo(db, UpdateCalDavTodoSchema.parse(await c.req.json())))
+    } catch (error) {
+      if (error instanceof z.ZodError) return c.json({ error: 'Invalid calendar task', details: error.issues }, 400)
+      logger.error('Failed to update CalDAV task:', error)
+      return c.json({ error: error instanceof Error ? error.message : 'Failed to update calendar task' }, 500)
+    }
+  })
+
+  app.delete('/calendar/todos', async (c) => {
+    try {
+      await deleteCalDavTodo(db, DeleteCalDavTodoSchema.parse(await c.req.json()))
+      return c.json({ success: true })
+    } catch (error) {
+      if (error instanceof z.ZodError) return c.json({ error: 'Invalid calendar task', details: error.issues }, 400)
+      logger.error('Failed to delete CalDAV task:', error)
+      return c.json({ error: error instanceof Error ? error.message : 'Failed to delete calendar task' }, 500)
+    }
+  })
+
   app.post('/calendar/discover', async (c) => {
     try {
-      return c.json(await discoverCalDavCalendars(db, DiscoverCalDavCalendarsSchema.parse(await c.req.json())))
+      const { serverUrl, username, password } = DiscoverCalDavCalendarsSchema.parse(await c.req.json())
+      return c.json(await discoverCalDavCalendars(serverUrl, username, password))
     } catch (error) {
       if (error instanceof z.ZodError) return c.json({ error: 'Invalid CalDAV data', details: error.issues }, 400)
       logger.error('Failed to discover CalDAV calendars:', error)
@@ -435,6 +514,28 @@ export function createSettingsRoutes(db: Database) {
 
   app.get('/agents-md', async (c) => c.json({ content: await fileExists(getAgentsMdPath()) ? await readFileContent(getAgentsMdPath()) : '' }))
   app.get('/agents-md/default', async (c) => c.json({ content: DEFAULT_AGENTS_MD }))
+  app.get('/project-instructions', async (c) => {
+    const directory = c.req.query('directory')
+    if (!directory) return c.json({ content: '' })
+
+    const files: string[] = []
+    const globalAgentsMdPath = path.resolve(getAgentsMdPath())
+    let current = path.resolve(directory)
+    while (true) {
+      for (const filename of ['AGENTS.md', 'AGENTS.MD', 'CLAUDE.md', 'CLAUDE.MD']) {
+        const filePath = path.join(current, filename)
+        if (path.resolve(filePath) === globalAgentsMdPath) continue
+        const content = await fs.readFile(filePath, 'utf8').catch(() => '')
+        if (content.trim()) files.unshift(`<project_instructions path="${filePath}">\n${content}\n</project_instructions>`)
+        break
+      }
+      const parent = path.dirname(current)
+      if (parent === current) break
+      current = parent
+    }
+
+    return c.json({ content: files.join('\n\n') })
+  })
   app.put('/agents-md', async (c) => {
     const { content } = z.object({ content: z.string() }).parse(await c.req.json())
     await writeFileContent(getAgentsMdPath(), content)

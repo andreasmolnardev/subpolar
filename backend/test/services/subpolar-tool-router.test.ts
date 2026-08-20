@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '../../src/db/schema'
 import { callTool, describeToolForAgent, listToolsForAgent } from '../../src/services/subpolar-tool-router'
-import { resolveCalDavDateRange } from '../../src/services/caldav'
+import { createCalDavEvent, resolveCalDavDateRange, updateCalDavEvent } from '../../src/services/caldav'
 
 const getEvents = vi.fn()
 const getCalendars = vi.fn()
+const createEvent = vi.fn()
+const updateEvent = vi.fn()
 const originalFetch = globalThis.fetch
 
 vi.mock('ts-caldav', () => ({
@@ -12,6 +14,8 @@ vi.mock('ts-caldav', () => ({
     create: vi.fn(async () => ({
       getCalendars,
       getEvents,
+      createEvent,
+      updateEvent,
     })),
   },
 }))
@@ -97,7 +101,7 @@ function createDb(): Database {
   } as unknown as Database
 }
 
-function createResearchDb(skillAccessOnly = false): Database {
+function createResearchDb(policyEffect: 'allow' | 'approval' | 'none' = 'allow'): Database {
   const now = Date.now()
   const records: Record<string, Array<Record<string, unknown>>> = {
     agents: [{
@@ -108,7 +112,7 @@ function createResearchDb(skillAccessOnly = false): Database {
       prompt: '',
       permission: {},
       skills: [],
-      skill_access: skillAccessOnly ? [{ id: 'tool-web-search', discovery: 'name', source: 'tool-default' }] : [],
+      skill_access: policyEffect === 'none' ? [{ id: 'tool-web-search', discovery: 'name', source: 'tool-default' }] : [],
       enabled: true,
       source: 'system',
       sort_order: 0,
@@ -151,9 +155,9 @@ function createResearchDb(skillAccessOnly = false): Database {
         updated_at: now,
       },
     ],
-    agent_tool_policies: skillAccessOnly ? [] : [
-      { id: 'policy-search', agent_id: 'research', tool_id: 'web.search', effect: 'allow' },
-      { id: 'policy-scrape', agent_id: 'research', tool_id: 'web.scrape', effect: 'allow' },
+    agent_tool_policies: policyEffect === 'none' ? [] : [
+      { id: 'policy-search', agent_id: 'research', tool_id: 'web.search', effect: policyEffect },
+      { id: 'policy-scrape', agent_id: 'research', tool_id: 'web.scrape', effect: policyEffect },
     ],
     integrations: [],
     tool_call_audit: [],
@@ -191,6 +195,8 @@ describe('subpolar tool router', () => {
     globalThis.fetch = originalFetch
     getCalendars.mockReset()
     getEvents.mockReset()
+    createEvent.mockReset()
+    updateEvent.mockReset()
     getEvents.mockResolvedValue([{
       summary: 'Planning',
       start: new Date('2026-07-06T09:00:00.000Z'),
@@ -209,13 +215,21 @@ describe('subpolar tool router', () => {
     expect([range.end.getFullYear(), range.end.getMonth(), range.end.getDate(), range.end.getHours()]).toEqual([2026, 6, 6, 0])
   })
 
-  it('exposes an explicitly selected generated tool skill without a separate policy', async () => {
-    const db = createResearchDb(true)
+  it('does not expose a generated tool skill without an explicit policy', async () => {
+    const db = createResearchDb('none')
+
+    await expect(listToolsForAgent(db, 'research')).resolves.toEqual([])
+    await expect(describeToolForAgent(db, 'research', 'web.search')).resolves.toBeNull()
+  })
+
+  it('exposes tools with explicit ask policies', async () => {
+    const db = createResearchDb('approval')
 
     await expect(listToolsForAgent(db, 'research')).resolves.toEqual([
-      expect.objectContaining({ id: 'web.search' }),
+      expect.objectContaining({ id: 'web.search', requiresApproval: true }),
+      expect.objectContaining({ id: 'web.scrape', requiresApproval: true }),
     ])
-    await expect(describeToolForAgent(db, 'research', 'web.search')).resolves.toMatchObject({ id: 'web.search' })
+    await expect(describeToolForAgent(db, 'research', 'web.search')).resolves.toMatchObject({ id: 'web.search', requiresApproval: true })
   })
 
   it('returns CalDAV events for calendar.get', async () => {
@@ -244,6 +258,53 @@ describe('subpolar tool router', () => {
       start: new Date('2026-07-06T00:00:00.000Z'),
       end: new Date('2026-07-13T00:00:00.000Z'),
     })
+  })
+
+  it('creates a CalDAV event in the configured calendar', async () => {
+    await expect(createCalDavEvent(createDb(), {
+      title: 'Planning',
+      start: '2026-07-06T09:00:00.000Z',
+      end: '2026-07-06T10:00:00.000Z',
+      location: 'Office',
+      description: 'Quarterly planning',
+    })).resolves.toMatchObject({
+      calendar: 'Personal',
+      title: 'Planning',
+      start: '2026-07-06T09:00:00.000Z',
+      end: '2026-07-06T10:00:00.000Z',
+    })
+    expect(createEvent).toHaveBeenCalledWith('https://calendar.example.com/calendars/andrew/personal/', {
+      summary: 'Planning',
+      start: new Date('2026-07-06T09:00:00.000Z'),
+      end: new Date('2026-07-06T10:00:00.000Z'),
+      location: 'Office',
+      description: 'Quarterly planning',
+    })
+  })
+
+  it('updates a CalDAV event in the configured calendar', async () => {
+    getEvents.mockResolvedValue([{
+      uid: 'event-1',
+      href: 'https://calendar.example.com/calendars/andrew/personal/event-1.ics',
+      etag: 'etag-1',
+      summary: 'Planning',
+      start: new Date('2026-07-06T09:00:00.000Z'),
+      end: new Date('2026-07-06T10:00:00.000Z'),
+    }])
+
+    await expect(updateCalDavEvent(createDb(), {
+      calendarId: 'integration-1:https://calendar.example.com/calendars/andrew/personal/',
+      uid: 'event-1',
+      title: 'Updated planning',
+      start: '2026-07-06T10:00:00.000Z',
+      end: '2026-07-06T11:00:00.000Z',
+    })).resolves.toMatchObject({ uid: 'event-1', title: 'Updated planning' })
+    expect(updateEvent).toHaveBeenCalledWith('https://calendar.example.com/calendars/andrew/personal/', expect.objectContaining({
+      uid: 'event-1',
+      summary: 'Updated planning',
+      start: new Date('2026-07-06T10:00:00.000Z'),
+      end: new Date('2026-07-06T11:00:00.000Z'),
+    }))
   })
 
   it('searches the web for web.search', async () => {

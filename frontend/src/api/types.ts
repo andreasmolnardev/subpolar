@@ -19,7 +19,7 @@ export type MessageWithParts = {
 export type MessageListResponse = MessageWithParts[]
 
 export interface SSEMessagePartUpdatedEvent {
-  type: 'message.part.updated' | 'messagev2.part.updated'
+  type: 'message.part.updated'
   properties: {
     part: Part
   }
@@ -37,14 +37,14 @@ export interface SSEMessagePartDeltaEvent {
 }
 
 export interface SSEMessageUpdatedEvent {
-  type: 'message.updated' | 'messagev2.updated'
+  type: 'message.updated'
   properties: {
     info: Message
   }
 }
 
 export interface SSEMessageRemovedEvent {
-  type: 'message.removed' | 'messagev2.removed'
+  type: 'message.removed'
   properties: {
     sessionID: string
     messageID: string
@@ -52,7 +52,7 @@ export interface SSEMessageRemovedEvent {
 }
 
 export interface SSEMessagePartRemovedEvent {
-  type: 'message.part.removed' | 'messagev2.part.removed'
+  type: 'message.part.removed'
   properties: {
     sessionID: string
     messageID: string

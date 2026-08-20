@@ -39,6 +39,7 @@ function createMockPocketBase(): PocketBase {
         }
         throw new Error('Not found')
       },
+      getFullList: async <T = unknown>(): Promise<T[]> => Array.from(getCollection(name).values()) as unknown as T[],
       create: async <T = unknown>(bodyParams?: Record<string, unknown>): Promise<T> => {
         const col = getCollection(name)
         const id = nextId()
@@ -53,6 +54,9 @@ function createMockPocketBase(): PocketBase {
         const updated = { ...existing, ...bodyParams }
         col.set(id, updated)
         return updated as unknown as T
+      },
+      delete: async (id: string): Promise<void> => {
+        getCollection(name).delete(id)
       },
     }),
   } as unknown as PocketBase
@@ -196,7 +200,7 @@ describe('providers routes', () => {
   })
 
   describe('credentials', () => {
-    it('writes API keys using Pi auth schema', async () => {
+    it('stores API keys in the provider logins collection', async () => {
       const res = await app.request('/providers/openai/credentials', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -205,20 +209,11 @@ describe('providers routes', () => {
 
       expect(res.status).toBe(200)
 
-      const { getAuthPath } = await import('@subpolar/shared/config/env')
-      const auth = JSON.parse(await readFile(getAuthPath(), 'utf8')) as Record<string, { type: string; key: string }>
-      expect(auth.openai).toEqual({ type: 'api_key', key: 'test-key' })
+      const listed = await app.request('/providers/credentials')
+      expect(await listed.json()).toEqual({ providers: ['openai'] })
     })
 
-    it('migrates legacy API key entries when saving credentials', async () => {
-      const { getAuthPath } = await import('@subpolar/shared/config/env')
-      const authPath = getAuthPath()
-      await mkdir(dirname(authPath), { recursive: true })
-      await writeFile(authPath, JSON.stringify({
-        anthropic: { type: 'apiKey', apiKey: 'legacy-key' },
-        openrouter: { type: 'api', key: 'old-key' },
-      }), 'utf8')
-
+    it('removes stored credentials', async () => {
       const res = await app.request('/providers/openai/credentials', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -226,10 +221,12 @@ describe('providers routes', () => {
       })
 
       expect(res.status).toBe(200)
-      const auth = JSON.parse(await readFile(authPath, 'utf8')) as Record<string, { type: string; key: string }>
-      expect(auth.anthropic).toEqual({ type: 'api_key', key: 'legacy-key' })
-      expect(auth.openrouter).toEqual({ type: 'api_key', key: 'old-key' })
-      expect(auth.openai).toEqual({ type: 'api_key', key: 'test-key' })
+
+      const deleted = await app.request('/providers/openai/credentials', { method: 'DELETE' })
+      expect(deleted.status).toBe(200)
+
+      const status = await app.request('/providers/openai/credentials/status')
+      expect(await status.json()).toEqual({ hasCredentials: false })
     })
   })
 

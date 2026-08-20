@@ -113,7 +113,10 @@ export const IntegrationConfigSchema = z.discriminatedUnion('type', [
   IntegrationBaseSchema.extend({
     type: z.literal('mcp'),
     transport: z.enum(['stdio', 'streamable-http']),
+    execution: z.enum(['local', 'docker']).optional(),
     command: z.array(z.string()).optional(),
+    image: z.string().optional(),
+    args: z.array(z.string()).optional(),
     cwd: z.string().optional(),
     environment: z.record(z.string(), z.string()).optional(),
     serverUrl: z.string().optional(),
@@ -439,12 +442,3 @@ export const PiConfigResponseSchema = z.object({
   configs: z.array(PiConfigMetadataSchema),
   defaultConfig: PiConfigMetadataSchema.nullable(),
 });
-
-export const OpenCodePluginOptionsSchema = PiPluginOptionsSchema;
-export const OpenCodePluginSpecSchema = PiPluginSpecSchema;
-export const OpenCodeConfigSchema = PiConfigSchema;
-export type OpenCodeConfigContent = PiConfigContent;
-export const OpenCodeConfigMetadataSchema = PiConfigMetadataSchema;
-export const CreateOpenCodeConfigRequestSchema = CreatePiConfigRequestSchema;
-export const UpdateOpenCodeConfigRequestSchema = UpdatePiConfigRequestSchema;
-export const OpenCodeConfigResponseSchema = PiConfigResponseSchema;

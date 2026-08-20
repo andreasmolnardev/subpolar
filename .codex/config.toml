@@ -1,0 +1,3 @@
+[mcp_servers.subpolar-stack]
+command = "bun"
+args = ["backend/src/mcp/subpolar-stack.ts"]

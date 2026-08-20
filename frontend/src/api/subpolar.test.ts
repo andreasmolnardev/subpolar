@@ -271,4 +271,34 @@ describe('SubpolarClient', () => {
     expect(result[0].parts[3]).toMatchObject({ type: 'text', text: 'Final answer' })
     expect(result[0].parts[4]).toMatchObject({ type: 'step-finish' })
   })
+
+  it('restores an incomplete persisted assistant reply without marking it complete', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          messages: [
+            {
+              id: 'msg_streaming',
+              role: 'assistant',
+              content: 'Partial reply',
+              createdAt: 1000,
+              metadata: {
+                streaming: true,
+                assistantParts: [{ type: 'text', id: 'msg_streaming-text-0', text: 'Partial reply' }],
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    )
+
+    const result = await new SubpolarClient('/api/opencode', '/repo').listMessages('ses_1')
+
+    expect(result[0]).toMatchObject({
+      info: { id: 'msg_streaming', time: { created: 1000 } },
+      parts: [{ id: 'msg_streaming-text-0', text: 'Partial reply' }],
+    })
+    expect(result[0].parts).toHaveLength(1)
+  })
 })

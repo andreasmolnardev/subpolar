@@ -8,7 +8,6 @@ import { Projects } from './pages/Projects'
 import { ProjectDetail } from './pages/ProjectDetail'
 import { SessionDetail } from './pages/SessionDetail'
 import { Automations } from './pages/Automations'
-import { GlobalAutomations } from './pages/GlobalAutomations'
 import { History } from './pages/History'
 import { Agents } from './pages/Agents'
 import { AgentChat } from './pages/AgentChat'
@@ -231,6 +230,11 @@ const router = createBrowserRouter([
         loader: protectedLoader,
       },
       {
+        path: '/projects/:id/automations/:automationId',
+        element: <Automations />,
+        loader: protectedLoader,
+      },
+      {
         path: '/repos/:id/sessions/:sessionId',
         element: <RepoRedirect />,
       },
@@ -245,11 +249,6 @@ const router = createBrowserRouter([
       {
         path: '/repos',
         element: <RepoRedirect />,
-      },
-      {
-        path: '/automations',
-        element: <GlobalAutomations />,
-        loader: protectedLoader,
       },
       {
         path: '/history',
